@@ -47,12 +47,12 @@ module.exports = {
         .setDescription(`${no} Sorry my channel is full, I can't move you`)
         return message.channel.send({embeds: [idkd]})
     }
-        }
-        message.member.voice.setChannel(botchannel);
-        const ioop = new EmbedBuilder()
-        .setColor(0xff0051)
-        .setDescription(`${ok} moved you to: \`${botchannel.name}\``)
-        return message.channel.send({embeds: [ioop]});
-      }
-     }
+
+    message.member.voice.setChannel(botchannel);
+    const ioop = new EmbedBuilder()
+    .setColor(0xff0051)
+    .setDescription(`${ok} moved you to: \`${botchannel.name}\``)
+    return message.channel.send({embeds: [ioop]});
+  }
+}
 
