@@ -20,15 +20,15 @@ module.exports = {
             new ButtonBuilder()
         .setLabel("Top.gg")
         .setStyle(5)
-        .setURL(`https://top.gg/bot/898941398538158080/vote`),
+        .setURL(`https://top.gg/bot/${client.user.id}/vote`),
         new ButtonBuilder()
         .setLabel("DBL")
         .setStyle(5)
-        .setURL(`https://discordbotlist.com/bots/alex-music/upvote`),
+        .setURL(`https://discordbotlist.com/bots/joker-music/upvote`),
           );
               const mainPage = new EmbedBuilder()
-              .setDescription(`Help me by voting! You'll get access to premium commands for 12 hours if you vote me on [Top.gg](https://top.gg/bot/898941398538158080/vote)`)
-              .setColor(0x00AE86)
+              .setDescription(`Help me by voting! You'll get access to premium commands for 12 hours if you vote me on [Top.gg](https://top.gg/bot/${client.user.id}/vote)`)
+              .setColor(0xff0051)
           return interaction.followUp({embeds: [mainPage], components: [row]})
    
   },

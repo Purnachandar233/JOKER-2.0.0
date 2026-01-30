@@ -65,7 +65,7 @@ module.exports = {
         .setFooter({ text: "Joker Music Team", iconURL: client.user.displayAvatarURL() })
         .setAuthor({ name: `Command Palette`, iconURL: client.user.displayAvatarURL({ forceStatic: false }) })
         .setDescription(`*Explore the symphony of commands. Type \`${prefix}help <command>\` for details.*`)
-        .setColor(0x00AE86);
+        .setColor(0xff0051);
 
       message.channel.send({ embeds: [embed], components: [row] });
     } else {
@@ -73,14 +73,14 @@ module.exports = {
       if (!command) {
         const embed = new EmbedBuilder()
           .setDescription(`*No command found matching your request.*`)
-          .setColor(0x00AE86);
+          .setColor(0xff0051);
         return message.channel.send({ embeds: [embed] });
       }
 
       const embed = new EmbedBuilder()
         .setTitle(`Command Details: ${command.name}`)
         .setDescription(`> **Aliases**: ${command.aliases ? `\`${command.aliases.join("` `")}\`` : "None"}\n> **Usage**: \`${prefix}${command.name} ${command.usage || ""}\`\n> **Description**: *${command.description || "No description provided."}*`)
-        .setColor(0x00AE86);
+        .setColor(0xff0051);
       return message.channel.send({ embeds: [embed] });
     }
   },

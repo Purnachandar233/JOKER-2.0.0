@@ -17,25 +17,25 @@ module.exports = {
         if (!pre) {
             const embed = new EmbedBuilder()
                 .setDescription('*Please provide the prefix you wish to set.*')
-                .setColor(0x00AE86);
+                .setColor(0xff0051);
             return message.reply({ embeds: [embed] });
         }
        
         if (pre.length > 5) {
             const embed = new EmbedBuilder()
                 .setDescription('*The prefix must be 5 characters or less.*')
-                .setColor(0x00AE86);
+                .setColor(0xff0051);
             return message.reply({ embeds: [embed] });
         }
 
-        const data = await db.findOne({ Guild: message.guildId });
+        const data = await db.findOne({ Guild: message.guild.id });
         if (data) {
             data.oldPrefix = prefix;
             data.Prefix = pre;
             await data.save();
         } else {
             await new db({
-                Guild: message.guildId,
+                Guild: message.guild.id,
                 Prefix: pre,
                 oldPrefix: prefix,
             }).save();
@@ -43,7 +43,7 @@ module.exports = {
 
         const success = new EmbedBuilder()
             .setDescription(`✧ The prefix for this server has been updated to **${pre}**`)
-            .setColor(0x00AE86)
+            .setColor(0xff0051)
             .setFooter({ text: "Joker Music" });
         return message.reply({ embeds: [success] });
     },

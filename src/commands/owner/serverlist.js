@@ -24,7 +24,7 @@ module.exports = {
     let page = 0;
 
     const embed2 = new EmbedBuilder()
-      .setColor(0x00AE86)
+      .setColor(0xff0051)
       .setDescription(pages[page])
 
       .setFooter({
@@ -76,7 +76,7 @@ module.exports = {
         page = page + 1 < pages.length ? ++page : 0;
 
         const embed3 = new EmbedBuilder()
-          .setColor(0x00AE86)
+          .setColor(0xff0051)
           .setDescription(pages[page])
 
           .setFooter({
@@ -94,7 +94,7 @@ module.exports = {
         page = page > 0 ? --page : pages.length - 1;
 
         const embed4 = new EmbedBuilder()
-          .setColor(0x00AE86)
+          .setColor(0xff0051)
           .setDescription(pages[page])
 
           .setFooter({

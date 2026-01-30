@@ -30,7 +30,7 @@ module.exports = {
     `;
 
     const statsEmbed = new EmbedBuilder()
-      .setColor(0x00AE86)
+      .setColor(0xff0051)
       .setAuthor({ 
         name: `Joker Music Stats`, 
         iconURL: interaction.member.user.displayAvatarURL({ forceStatic: false }) 

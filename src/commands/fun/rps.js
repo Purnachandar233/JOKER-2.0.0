@@ -27,7 +27,7 @@ module.exports = {
         }
 
         const embed = new EmbedBuilder()
-            .setColor(0x00AE86)
+            .setColor(0xff0051)
             .setTitle("Rock Paper Scissors")
             .addFields(
                 { name: "Your Choice", value: userChoice, inline: true },

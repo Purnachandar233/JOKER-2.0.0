@@ -15,17 +15,17 @@ module.exports = {
   
    
         let all = [];
-        client.manager.nodes.map(node =>  {
+        client.lavalink.nodeManager.nodes.forEach(node =>  {
             let info = [];
             info.push('\nNode-Info');
-            info.push(`Node       :: KarthikOnTop Connected`);
+            info.push(`Node       :: NODE -1`);
             info.push(`Node Mem   :: ${Math.round(node.stats.memory.used / 1024 / 1024)}MB - ${(Math.round(node.stats.cpu.lavalinkLoad * 100) / 100).toFixed(2)}%`);
             info.push('Player-Info');
             info.push(`Player     :: ${node.stats.playingPlayers}/${node.stats.players}`);
             info.push(`Uptime     :: ${require('pretty-ms')(node.stats.uptime, { verbose: true, secondsDecimalDigits: 0 })}`);
             all.push(info.join('\n'));
         });
-        const embed = new EmbedBuilder().setColor(0x00AE86).setDescription(`\`\`\`nim\n${all.join('\n\n--------------------------------\n')}\`\`\``);
+        const embed = new EmbedBuilder().setColor(0xff0051).setDescription(`\`\`\`nim\n${all.join('\n\n--------------------------------\n')}\`\`\``);
         message.reply({ embeds: [embed], allowedMentions: { repliedUser: false } });
     }
   }

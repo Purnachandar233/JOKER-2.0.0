@@ -15,8 +15,10 @@ module.exports = {
         await new schema({
             Id: args[0],
             Type: 'user',
+            ActivatedAt: Date.now(),
             Expire: args[1] ? day(args[1]).valueOf() : 0,
-            Permanent: !args[1]
+            Permanent: args[1] ? false : true,
+            PlanType: "Standard"
         }).save();
 
         message.reply(`${ok} Successfully added user **${args[0]}** to premium.`);

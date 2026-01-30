@@ -20,29 +20,28 @@ module.exports = {
        if (!channel) {
                        const noperms = new EmbedBuilder()
                       
-            .setColor(0x00AE86)
+            .setColor(0xff0051)
               .setDescription(`${no} You must be connected to a voice channel to use this command.`)
            return await message.channel.send({embeds: [noperms]});
        }
        if(message   .member.voice.selfDeaf) {	
          let thing = new EmbedBuilder()
-          .setColor(0x00AE86)
+          .setColor(0xff0051)
  
         .setDescription(`${no} <@${message.member.id}> You cannot run this command while deafened.`)
           return await message  .followUp({embeds: [thing]});
         }
-       const botchannel = message   .guild.me.voice.channel;
-       const player = client.manager.players.get(message    .guild.id);
-       if(!player || !botchannel || !player.queue.current) {
+           const player = client.lavalink.players.get(message.guild.id);
+       if(!player || !player.queue.current) {
                        const noperms = new EmbedBuilder()
  
-            .setColor(0x00AE86)
+            .setColor(0xff0051)
             .setDescription(`${no} There is nothing playing in this server.`)
            return await message.channel.send({embeds: [noperms]});
        }
-       if(player && channel.id !== player.voiceChannel) {
+       if(player && channel.id !== player.voiceChannelId) {
                                    const noperms = new EmbedBuilder()
-              .setColor(0x00AE86)
+              .setColor(0xff0051)
            .setDescription(`${no} You must be connected to the same voice channel as me.`)
            return await message.channel.send({embeds: [noperms]});
        }
@@ -50,9 +49,10 @@ module.exports = {
        player.queue.shuffle();
    
      let thing = new EmbedBuilder()
-       .setColor(0x00AE86)
+       .setColor(0xff0051)
        .setDescription(`${ok} The queue has been shuffled.`)
      return await message.channel.send({ embeds: [thing] });
       
         }
 }
+

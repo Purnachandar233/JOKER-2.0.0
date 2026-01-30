@@ -9,8 +9,8 @@ module.exports = async (client, guild) => {
    
         const owner = await guild.fetchOwner()
         const embed = new EmbedBuilder()           
-        .setTitle("📥 Joined Server")
-       .setColor(0x00AE86)
+        .setTitle(" Joined Server")
+       .setColor(0xff0051)
         .addFields(
             { name: "Server Name", value: guild.name, inline: true },
             { name: "ID", value: guild.id, inline: true },

@@ -19,7 +19,7 @@ module.exports = {
     const up = `${days}, ${hours}, ${minutes}, and ${seconds}`;
 
     const statsEmbed = new EmbedBuilder()
-      .setColor(0x00AE86)
+      .setColor(0xff0051)
       .setAuthor({ name: `This Cluster Details`, iconURL: message.member.user.displayAvatarURL({ dynamic: true }) })
       .addFields(
         { name: 'Servers', value: `\`\`\`Total: ${client.guilds.cache.size} servers\`\`\``, inline: true },

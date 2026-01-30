@@ -17,7 +17,7 @@ module.exports = {
 
     if (!message.member.permissions.has('MANAGE_CHANNELS')) {
         const noperms = new EmbedBuilder()
-       .setColor(0x00AE86)
+       .setColor(0xff0051)
        .setDescription(`${no} You need this required Permissions: \`MANAGE_CHANNELS\` to run this command.`)
   return await message.channel.send({embeds: [noperms]});
     }
@@ -25,7 +25,7 @@ module.exports = {
     if (!channel) {
                     const noperms = new EmbedBuilder()
                    
-         .setColor(0x00AE86)
+         .setColor(0xff0051)
            .setDescription(`${no} You must be connected to a voice channel to use this command.`)
         return await message.channel.send({embeds: [noperms]});
     }
@@ -34,15 +34,15 @@ module.exports = {
 
 
 
-  const player = client.manager.players.get(message.guild.id);
+  const player = client.lavalink.players.get(message.guild.id);
   if(!player){
-    const jplayer = message.client.manager.create({
-      guild: message.guild.id,
-      voiceChannel: channel.id,
-      textChannel: message.channel.id,
+    const jplayer = client.lavalink.createPlayer({
+      guildId: message.guild.id,
+      voiceChannelId: channel.id,
+      textChannelId: message.channel.id,
       selfDeafen: true,
   });
-  await jplayer.connect();
+  jplayer.connect();
   }
    let   data = await twentyfourseven.findOne({
           guildID: message.guild.id

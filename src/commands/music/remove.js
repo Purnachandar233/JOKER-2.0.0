@@ -20,39 +20,38 @@ module.exports = {
        if (!channel) {
                        const noperms = new EmbedBuilder()
                       
-            .setColor(0x00AE86)
+            .setColor(0xff0051)
               .setDescription(`${no} You must be connected to a voice channel to use this command.`)
            return await message.channel.send({embeds: [noperms]});
        }
        if(message.member.voice.selfDeaf) {	
          let thing = new EmbedBuilder()
-          .setColor(0x00AE86)
+          .setColor(0xff0051)
  
         .setDescription(`${no} <@${message.member.id}> You cannot run this command while deafened.`)
           return await message.channel.send({embeds: [thing]});
         }
-       const botchannel = message.guild.members.me?.voice?.channel;
-       const player = client.manager.players.get(message.guild.id);
-       if(!player || !botchannel || !player.queue.current) {
+           const player = client.lavalink.players.get(message.guild.id);
+       if(!player || !player.queue.current) {
                        const noperms = new EmbedBuilder()
  
-            .setColor(0x00AE86)
+            .setColor(0xff0051)
             .setDescription(`${no} There is nothing playing in this server.`)
            return await message.channel.send({embeds: [noperms]});
        }
-       if(player && channel.id !== player.voiceChannel) {
+       if(player && channel.id !== player.voiceChannelId) {
                                    const noperms = new EmbedBuilder()
-              .setColor(0x00AE86)
+              .setColor(0xff0051)
            .setDescription(`${no} You must be connected to the same voice channel as me.`)
            return await message.channel.send({embeds: [noperms]});
        }
  
-        const position = (Number(args) - 1);
+        const position = (Number(args[0]) - 1);
         if (position > player.queue.size) {
           const number = (position + 1);
           let thing = new EmbedBuilder()
  
-            .setColor(0x00AE86)
+            .setColor(0xff0051)
           .setDescription(`${no} No songs at number \`${number}\`. Total songs\`${player.queue.size}```);
            return await message.channel.send({ embeds: [thing] });
         }
@@ -63,10 +62,11 @@ module.exports = {
      const emojieject = client.emoji.remove;
    
      let thing = new EmbedBuilder()
-       .setColor(0x00AE86)
+       .setColor(0xff0051)
  
        .setDescription(`${ok}  **Removed that song from Queue**`)
      return await message.channel.send({ embeds: [thing] });
       
         }
 }
+

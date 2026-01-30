@@ -14,7 +14,7 @@ module.exports = {
         name: "volume",
         description: "the new volume.",
         required: true,
-        type: "NUMBER"
+        type: 4
 		}
 	],
     votelock: true,
@@ -34,14 +34,14 @@ module.exports = {
     
         if (!interaction.member.permissions.has('MANAGE_CHANNELS')) {
             const noperms = new EmbedBuilder()
-           .setColor(0x00AE86)
+           .setColor(0xff0051)
            .setDescription(`You need this required Permissions: \`MANAGE_CHANNELS\` to run this command.`)
            return await interaction.followUp({embeds: [noperms]});
         }
       const volume = interaction.options.getNumber("volume");
       if(volume > 150 ) {
         let thing = new EmbedBuilder()
-                     .setColor(0x00AE86)
+                     .setColor(0xff0051)
                    .setDescription(`${no} You cannot set the default volume over \`150\``);
                    return await interaction.followUp({embeds: [thing]});
    }

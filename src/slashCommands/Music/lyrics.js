@@ -15,7 +15,7 @@ module.exports = {
       name: "name",
       description: "Song Name",
       required: true,
-      type: "STRING"
+      type: 3
 		}
 	],
 
@@ -46,7 +46,7 @@ module.exports = {
         if(!res) {
             let no = new EmbedBuilder()
             .setDescription(`No results found.`)
-              .setColor(0x00AE86)
+              .setColor(0xff0051)
               return await interaction.followUp({ embeds : [no]})
         }
     
@@ -54,7 +54,7 @@ module.exports = {
             let lyrics = res.substring(i, Math.min(res.length, i + 2048))
             let page = new EmbedBuilder()
             .setDescription(lyrics)
-            .setColor(0x00AE86)
+            .setColor(0xff0051)
     
             pages.push(page)
             

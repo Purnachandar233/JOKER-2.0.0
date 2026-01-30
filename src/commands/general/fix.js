@@ -11,7 +11,7 @@ module.exports = {
     const no = client.emoji.no
     if (!message.member.permissions.has('MANAGE_CHANNELS')) {
       const noperms = new EmbedBuilder()
-        .setColor(0x00AE86)
+        .setColor(0xff0051)
         .setDescription('You need this required Permissions: `MANAGE_CHANNELS` to run this command.')
       await message.channel.send({ embeds: [noperms] })
     }
@@ -19,40 +19,39 @@ module.exports = {
     if (!channel) {
       const noperms = new EmbedBuilder()
 
-        .setColor(0x00AE86)
+        .setColor(0xff0051)
         .setDescription(`${no} You must be connected to a voice channel to use this command.`)
       return await message.reply({ embeds: [noperms], empheral: true })
     }
     if (message.member.voice.selfDeaf) {
       const thing = new EmbedBuilder()
-        .setColor(0x00AE86)
+        .setColor(0xff0051)
         .setDescription(`${no} <@${message.member.id}> You cannot run this command while deafened.`)
       return await message.channel.send({ embeds: [thing] })
     }
-    const botchannel = message.guild.members.me?.voice?.channel
-    const player = client.manager.players.get(message.guild.id)
-    if (!player || !botchannel || !player.queue.current) {
+        const player = client.lavalink.players.get(message.guild.id)
+    if(!player || !player.queue.current) {
       const noperms = new EmbedBuilder()
 
-        .setColor(0x00AE86)
+        .setColor(0xff0051)
         .setDescription(`${no} There is nothing playing in this server.`)
       return await message.channel.send({ embeds: [noperms] })
     }
-    if (player && channel.id !== player.voiceChannel) {
+    if (player && channel.id !== player.voiceChannelId) {
       const noperms = new EmbedBuilder()
-        .setColor(0x00AE86)
+        .setColor(0xff0051)
         .setDescription(`${no} You must be connected to the same voice channel as me.`)
       return await message.channel.send({ embeds: [noperms] })
     }
 
     if (args) {
       const guild = client.guilds.cache.get(message.guild.id)
-      const voiceChannel = guild.channels.cache.get(player.voiceChannel)
+      const voiceChannel = guild.channels.cache.get(player.voiceChannelId)
       const validregions = ['us-west', 'brazil', 'hongkong', 'india', 'japan', 'rotterdam', 'russia', 'singapore', 'south-korea', 'southafrica', 'sydney', 'us-central', 'us-east', 'us-south']
-      if (!validregions.includes(args)) {
+      if (!validregions.includes(args[0])) {
         const noperms = new EmbedBuilder()
-          .setColor(0x00AE86)
-          .setDescription('**This Is An Invalid Region Please Select A Valid Region**. \n\n Available regions - `brazil`, `hongkong`, `india`, `japan`, `rotterdam`, `russia`, `singapore`, `south-korea`, `southafrica`, `sydney`, `us-central`, `us-east`, `us-south`, `us-west`')
+          .setColor(0xff0051)
+          .setDescription('**This Is An Invalid Region Please Select A Valid Region**. \\n\\n Available regions - `brazil`, `hongkong`, `india`, `japan`, `rotterdam`, `russia`, `singapore`, `south-korea`, `southafrica`, `sydney`, `us-central`, `us-east`, `us-south`, `us-west`')
         return message.channel.send({ embeds: [noperms] }).then(responce => {
           setTimeout(() => {
             try {
@@ -74,7 +73,7 @@ module.exports = {
         voiceChannel.edit(channelOpts, 'Fix command')
 
         const noperms = new EmbedBuilder()
-          .setColor(0x00AE86)
+          .setColor(0xff0051)
           .setDescription(`Voice Region is now set to \`${args}\`.`)
         return await message.channel.send({ embeds: [noperms] })
       } catch (e) {
@@ -84,13 +83,13 @@ module.exports = {
     }
 
     const guild = client.guilds.cache.get(message.guild.id)
-    const voiceChannel = guild.channels.cache.get(player.voiceChannel)
+    const voiceChannel = guild.channels.cache.get(player.voiceChannelId)
     const Responses = ['us-west', 'brazil', 'hongkong', 'india', 'japan', 'rotterdam', 'russia', 'singapore', 'south-korea', 'southafrica', 'sydney', 'us-central', 'us-east', 'us-south']
     const rc = Math.floor(Math.random() * Responses.length)
     const validregions = ['us-west', 'brazil', 'hongkong', 'india', 'japan', 'rotterdam', 'russia', 'singapore', 'south-korea', 'southafrica', 'sydney', 'us-central', 'us-east', 'us-south']
-    if (!validregions.includes(args)) {
+    if (!validregions.includes(args[0])) {
       const noperms = new EmbedBuilder()
-        .setColor(0x00AE86)
+        .setColor(0xff0051)
         .setDescription('This Is An Invalid Region Please Select A Correct Region. \n Available regions - us-west, brazil, hongkong, india, japan, rotterdam\n russia, singapore, south-korea, southafrica, sydney, us-central, us-east, us-south ')
       return message.channel.send({ embeds: [noperms] })
     }
@@ -103,7 +102,7 @@ module.exports = {
       voiceChannel.edit(channelOpts, 'Fix command')
 
       const noperms = new EmbedBuilder()
-        .setColor(0x00AE86)
+        .setColor(0xff0051)
         .setDescription(`Voice Region is now set to \`${Responses[rc]}\`.`)
       return await message.channel.send({ embeds: [noperms] })
     } catch (e) {
@@ -111,3 +110,5 @@ module.exports = {
     }
   }
 }
+
+

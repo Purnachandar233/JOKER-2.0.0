@@ -6,8 +6,8 @@ const {
 const ms = require("ms")
 const empty_begining = "["
 const emptyend = "]"
-const emptyframe  = "<:stolen_emoji:992359157183283230>"
-const filled = "<:stolen_emoji:992359322325635082>"
+const emptyframe  = "<:MW_WhiteLine:1109733643510882334>"
+const filled = "<:redline:1109758438503886898>"
 
  module.exports.duration = duration;
  module.exports.createBar = createBar;
@@ -24,7 +24,7 @@ function duration(ms) {
 function createBar(player) {
   try{
     let size = 15;
-    if (!player.queue.current) return `**${empty_begining}${filled}${filed.repeat(size - 1)}${emptyend}**\n**00:00:00 / 00:00:00**`;
+    if (!player.queue.current) return `**${empty_begining}${filled}${emptyframe.repeat(size - 1)}${emptyend}**\n**00:00:00 / 00:00:00**`;
     let current = player.queue.current.duration !== 0 ? player.position : player.queue.current.duration;
     let total = player.queue.current.duration;
     let rightside = size - Math.round(size * (current / total));
@@ -34,7 +34,8 @@ function createBar(player) {
     else bar = String(empty_begining) + String(filled).repeat(leftside) + String(emptyframe).repeat(rightside) + String(size - rightside !== 1 ? emptyend : emptyend);
     return `**${bar}**\n**${!player.queue.current.isStream ? `**${new Date(player.position).toISOString().substr(11, 8)} / ${new Date(player.queue.current.duration).toISOString().slice(11, 19)}**` : '`◉ LIVE`'}**`;
   }catch (e){
-    console.log(String(e.stack).bgRed)
+    console.log(String(e.stack).bgRed);
+    return `**${empty_begining}${filled}${emptyframe.repeat(15 - 1)}${emptyend}**\n**00:00:00 / 00:00:00**`;
   }
 }
 function format(millis) {

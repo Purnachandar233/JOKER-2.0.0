@@ -16,7 +16,7 @@ module.exports = {
            .setDescription(`\nServer Name : \`Joker Music Community\` \nOwner : \`- J O K E R 🍁#1860\`\n Premium : \`Permanent\` \nPartnered Date : \`18-06-2022\`\n
            
            `)
-                .setColor(000000);
+                .setColor(0xff0051);
 message.channel.send({embeds : [embed]})
     }
 

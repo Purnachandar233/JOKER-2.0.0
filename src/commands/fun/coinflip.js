@@ -8,7 +8,7 @@ module.exports = {
         const result = Math.random() < 0.5 ? "Heads" : "Tails";
         
         const embed = new EmbedBuilder()
-            .setColor(0x00AE86)
+            .setColor(0xff0051)
             .setTitle("Coin Flip")
             .setDescription(`The coin landed on **${result}**!`)
             .setFooter({ text: "Joker Music Fun Games" });

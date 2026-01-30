@@ -12,29 +12,28 @@ module.exports = {
     let no = client.emoji.no;
         const aa = new EmbedBuilder()
         .setDescription(`Please Provide A User Id...`)
-        .setColor(0x00AE86)
+        .setColor(0xff0051)
     const aaa = new EmbedBuilder()
         .setDescription(`Please Provide A Valid User ID`)
-        .setColor(0x00AE86)
+        .setColor(0xff0051)
         if (!args[0]) return message.reply({ embeds: [aa] })
         if (!client.users.cache.has(args[0])) return message.reply({ embeds: [aaa] });
 
     
-   User.findOne({
+    let data = await User.findOne({
         UserID: args[0]
-    }, async (err, data) => {
-        if (!data) return message.reply(`\`\`\`\nNo Data Found\n\`\`\``);
-        
-        data.delete();
-        const userop = args[0]
-        const username = client.users.cache.get(userop)
+    });
+    
+    if (!data) return message.reply(`\`\`\`\nNo Data Found\n\`\`\``);
+    
+    await data.deleteOne();
+    const userop = args[0]
+    const username = client.users.cache.get(userop)
 
-        const lol = new EmbedBuilder()
-            .setDescription(`${ok} Successfully Removed **${username}** From backlist`)
-            .setColor(0x00AE86)
-        message.reply({ embeds: [lol] })
-        
-    })
+    const lol = new EmbedBuilder()
+        .setDescription(`${ok} Successfully Removed **${username}** From blacklist`)
+        .setColor(0xff0051)
+    message.reply({ embeds: [lol] })
 
 
             }

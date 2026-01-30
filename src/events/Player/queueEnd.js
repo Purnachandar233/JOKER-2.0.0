@@ -3,7 +3,7 @@ const ms = require('ms');
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder } = require("discord.js");
 
 module.exports = async (client, player) => {
-    const channel = client.channels.cache.get(player.textChannel);
+    const channel = client.channels.cache.get(player.textChannelId);
     if (!channel) return;
 
     if (player.get(`playingsongmsg`)) {
@@ -11,7 +11,7 @@ module.exports = async (client, player) => {
     }
 
     let queue_end = new EmbedBuilder()
-        .setColor(0x00AE86)
+        .setColor(0xff0051)
         .setAuthor({ 
             name: `Queue More Songs/Enable Autoplay!`, 
             iconURL: client.user.displayAvatarURL() 

@@ -1,14 +1,30 @@
-module.exports = async (client, player, track, playload) => {
-    player.get(`playingsongmsg`).delete().catch(e => { }) 
-    const autoplay = player.get("autoplay")
+module.exports = async (client, player, track, payload) => {
+    try {
+        const msg = player.get(`playingsongmsg`);
+        if (msg) await msg.delete().catch(() => {});
+    } catch (e) {}
+    
+    const autoplay = player.get("autoplay");
     if (autoplay === true) {
-        const requester = player.get("requester");
-        const oldidentifier = player.get("identifier");
-        const identifier = player.queue.current.identifier;
-        const search = `https://www.youtube.com/watch?v=${identifier}&list=RD${identifier}`;
-        res = await player.search(search, requester);
-		player.queue.add(res.tracks[2]);
-
+        try {
+            const requester = player.get("requester");
+            if (!requester) return;
+            
+            const currentTrack = player.queue.current;
+            if (!currentTrack || !currentTrack.identifier) return;
+            
+            const identifier = currentTrack.identifier;
+            const search = `https://www.youtube.com/watch?v=${identifier}&list=RD${identifier}`;
+            const res = await player.search(search, requester);
+            
+            if (res && res.tracks && res.tracks.length > 0) {
+                const trackToAdd = res.tracks[0];
+                if (trackToAdd) {
+                    player.queue.add(trackToAdd);
+                }
+            }
+        } catch (error) {
+            console.error('[ERROR] trackEnd autoplay:', error.message);
+        }
     }
-	
-}
+};

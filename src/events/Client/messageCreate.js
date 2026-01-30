@@ -5,19 +5,24 @@ const { ActionRowBuilder, ButtonBuilder, EmbedBuilder } = require("discord.js");
 const db = require('../../schema/prefix.js');
 
 module.exports = async (client, message) => {
-  if (!message.guild || message.author.bot) return;
+  if (!message.guild || !message.guild.id || message.author.bot) return;
 
   const Owners = [client.config.ownerId];
 
   let prefix;
-  let data = await db.findOne({ Guild: message.guild.id });
-  prefix = data ? data.Prefix : client.prefix;
+  try {
+    let data = await db.findOne({ Guild: message.guild.id });
+    prefix = data?.Prefix || client.prefix;
+  } catch (err) {
+    client.logger?.log(`Prefix lookup error: ${err.message}`, 'warn');
+    prefix = client.prefix;
+  }
 
   const mention = new RegExp(`^<@!?${client.user.id}>( |)$`);
   if (message.content.match(mention)) {
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setLabel("Invite").setStyle(5).setURL(`https://discord.com/api/oauth2/authorize?client_id=${client.user.id}&permissions=8&scope=bot%20applications.commands`),
-      new ButtonBuilder().setLabel("Support").setStyle(5).setURL(`https://discord.gg/pCj2UBbwST`)
+      new ButtonBuilder().setLabel("Support").setStyle(5).setURL(`https://discord.gg/DdTX6gPTWF`)
     );
     const embed = new EmbedBuilder()
       .setColor(0x00AE86)
@@ -38,10 +43,18 @@ module.exports = async (client, message) => {
 
   if (!command) return;
 
-  let user = await User.findOne({ userId: message.author.id });
-  if (!user) user = await User.create({ userId: message.author.id });
-  user.count++;
-  await user.save();
+  let user = await User.findOne({ userId: message.author.id }).catch(() => null);
+  if (!user) {
+    try {
+      user = await User.create({ userId: message.author.id });
+    } catch (err) {
+      client.logger?.log(`User creation error: ${err.message}`, 'warn');
+    }
+  }
+  if (user) {
+    user.count = (user.count || 0) + 1;
+    await user.save().catch(() => {});
+  }
 
   if (command.owneronly && !Owners.includes(message.author.id)) {
     const embed = new EmbedBuilder()
@@ -50,9 +63,52 @@ module.exports = async (client, message) => {
     return message.channel.send({ embeds: [embed] });
   }
 
+  // DJ role validation
+  if (command.djonly) {
+    const djSchema = require('../../schema/djroleSchema.js');
+    try {
+      let djdata = await djSchema.findOne({ guildID: message.guild.id }).catch(() => null);
+      if (djdata && djdata.Roleid) {
+        if (!message.member.roles.cache.has(djdata.Roleid)) {
+          const embed = new EmbedBuilder()
+            .setColor(0xff0051)
+            .setDescription(`This command requires you to have the DJ role.`);
+          return message.channel.send({ embeds: [embed] });
+        }
+      } else {
+        // No DJ role configured, only allow owner
+        if (!Owners.includes(message.author.id)) {
+          const embed = new EmbedBuilder()
+            .setColor(0xff0051)
+            .setDescription(`No DJ role configured. Contact server owner.`);
+          return message.channel.send({ embeds: [embed] });
+        }
+      }
+    } catch (err) {
+      client.logger?.log(`DJ role check error: ${err.message}`, 'error');
+      const embed = new EmbedBuilder()
+        .setColor(0xff0051)
+        .setDescription(`Error checking DJ permissions. Please try again.`);
+      return message.channel.send({ embeds: [embed] });
+    }
+  }
+
   if (command.premium) {
     const pUser = await Premium.findOne({ Id: message.author.id, Type: 'user' });
     const pGuild = await Premium.findOne({ Id: message.guild.id, Type: 'guild' });
+    
+    // Check if user premium is valid
+    const isUserPremium = pUser && (pUser.Permanent || pUser.Expire > Date.now());
+    // Check if guild premium is valid
+    const isGuildPremium = pGuild && (pGuild.Permanent || pGuild.Expire > Date.now());
+    
+    // Clean up expired premium if found
+    if (pUser && !pUser.Permanent && pUser.Expire <= Date.now()) {
+        await pUser.deleteOne();
+    }
+    if (pGuild && !pGuild.Permanent && pGuild.Expire <= Date.now()) {
+        await pGuild.deleteOne();
+    }
     
     let isVoted = false;
     if (client.topgg && client.topgg.hasVoted) {
@@ -63,7 +119,7 @@ module.exports = async (client, message) => {
         }
     }
 
-    if (!pUser && !pGuild && !isVoted) {
+    if (!isUserPremium && !isGuildPremium && !isVoted) {
       const embed = new EmbedBuilder()
         .setColor(0x2f3136)
         .setAuthor({ name: "Premium Required", iconURL: client.user.displayAvatarURL() })
@@ -81,6 +137,14 @@ module.exports = async (client, message) => {
   try {
     command.execute(message, args, client, prefix);
   } catch (error) {
-    console.error(error);
+    client.logger?.log(`Command execution error: ${error?.message}`, 'error');
+    const embed = new EmbedBuilder()
+      .setColor(0xff0051)
+      .setDescription(`❌ Error executing command: ${error?.message || 'Unknown error'}`);
+    try {
+      await message.reply({ embeds: [embed] }).catch(() => {});
+    } catch (replyErr) {
+      client.logger?.log(`Failed to reply error: ${replyErr.message}`, 'error');
+    }
   }
 };

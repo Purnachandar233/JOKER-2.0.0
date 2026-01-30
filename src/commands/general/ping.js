@@ -9,7 +9,7 @@ module.exports = {
   execute: async (message, args, client, prefix) => {
     const embed = new EmbedBuilder()
       .setDescription('*Measuring the pulse...*')
-      .setColor(0x00AE86);
+      .setColor(0xff0051);
     
     const msg = await message.channel.send({ embeds: [embed] }).catch(() => {});
     if (!msg) return;
@@ -21,7 +21,7 @@ module.exports = {
     embed.setTitle('Connection Pulse')
       .setDescription(`\`\`\`fix\nWebsocket Latency : ${latency}\nAPI Latency : ${apiLatency}\n\`\`\``)
       .setAuthor({ name: `Ping Status`, iconURL: client.user.displayAvatarURL() })
-      .setColor(0x00AE86)
+      .setColor(0xff0051)
       .setFooter({ text: "Joker Music" });
     
     msg.edit({ embeds: [embed] }).catch(() => {});

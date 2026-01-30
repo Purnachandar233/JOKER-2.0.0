@@ -1,6 +1,7 @@
-const { Client } = require("discord.js");const chalk = require("chalk");
+const { Client } = require("discord.js");
+const chalk = require("chalk");
 const mongoose = require('mongoose');
-const { Manager } = require("erela.js");
+const { LavalinkManager, Node } = require("lavalink-client");
 const { readdirSync } = require("fs");
 
 
@@ -9,23 +10,9 @@ const { readdirSync } = require("fs");
  */
 module.exports = async (client) => {
 
-    client.manager = new Manager({
-        nodes: client.config.nodes.map(node => ({
-            host: node.host,
-            port: node.port,
-            password: node.password,
-            secure: node.secure || false,
-            retryDelay: node.retryDelay || 5000,
-        })),
-        send: (id, payload) => {
-            const guild = client.guilds.cache.get(id);
-            if (guild) guild.shard.send(payload);
-        },
-        autoPlay: true,
-        plugins: [],
+    client.on("raw", (d) => {
+        if (client.lavalink) client.lavalink.sendRawData(d);
     });
-    
-    client.on("raw", (d) => client.manager.updateVoiceState(d));
 
 
 
@@ -49,7 +36,7 @@ module.exports = async (client) => {
           mongoose.connection.on('connected', () => {
               console.log('Connected to MongoDB');
               });
-          mongoose.connection.on('err', (err) => {
+          mongoose.connection.on('error', (err) => {
                   console.log(`Mongoose connection error: \n ${err.stack}`);
               });
           mongoose.connection.on('disconnected', () => {
@@ -80,16 +67,6 @@ readdirSync("./src/events/Client/").forEach(file => {
 const welcomeEvent = require("../events/guildMemberAdd");
 welcomeEvent(client);
 
-/**
- * Erela Manager Events
- */
-readdirSync("./src/events/Player/").forEach(file => {
-    const event = require(`../events/Player/${file}`);
-    let eventName = file.split(".")[0];
-  //  client.logger.log(`Loading Events Lavalink ${eventName}`);
-    client.manager.on(eventName, event.bind(null, client));
-});
-
 
 const data = [];
 readdirSync("./src/slashCommands/").forEach((dir) => {
@@ -98,9 +75,9 @@ readdirSync("./src/slashCommands/").forEach((dir) => {
         for (const file of slashCommandFile) {
             const slashCommand = require(`../slashCommands/${dir}/${file}`);
 
-            if(!slashCommand.name) return console.error(`slashCommandNameError: ${slashCommand.split(".")[0]} application command name is required.`);
+            if(!slashCommand.name) return console.error(`slashCommandNameError: ${file.split(".")[0]} application command name is required.`);
 
-            if(!slashCommand.description) return console.error(`slashCommandDescriptionError: ${slashCommand.split(".")[0]} application command description is required.`);
+            if(!slashCommand.description) return console.error(`slashCommandDescriptionError: ${file.split(".")[0]} application command description is required.`);
 
             client.sls.set(slashCommand.name, slashCommand);
 
@@ -140,8 +117,61 @@ readdirSync("./src/slashCommands/").forEach((dir) => {
     });
    
 
-    client.on("ready", async () => {
-         // client.application.commands.set(data).catch((e) => console.log(e));
+    client.once("ready", async () => {
+         // Initialize Lavalink Manager
+         const nodes = client.config?.nodes || [];
+         
+         if (!nodes || nodes.length === 0) {
+             console.warn('[WARN] No Lavalink nodes configured in config.json. Music features will be unavailable.');
+             return;
+         }
+         
+         try {
+             client.lavalink = new LavalinkManager({
+                 nodes: nodes,
+                 sendToShard: (guildId, payload) => {
+                     const guild = client.guilds.cache.get(guildId);
+                     if (guild) guild.shard.send(payload);
+                 },
+                 autoSkip: true,
+                 clientName: "JokerMusic",
+                 clientId: client.user.id,
+             });
+
+             client.lavalink.init({ ...client.user });
+
+             // Lavalink Node Manager Logging
+             client.lavalink.nodeManager.on("connect", (node) => {
+                 console.log(`LAVALINK => [NODE] ${node.id} connected successfully.`);
+             });
+             client.lavalink.nodeManager.on("disconnect", (node) => {
+                 console.log(`LAVALINK => [NODE] ${node.id} disconnected.`);
+             });
+             client.lavalink.nodeManager.on("error", (node, error) => {
+                 console.error(`LAVALINK => [NODE] ${node.id} encountered an error:`, error.message);
+             });
+             client.lavalink.nodeManager.on("reconnect", (node) => {
+                 console.log(`LAVALINK => [NODE] ${node.id} reconnecting...`);
+             });
+             client.lavalink.nodeManager.on("create", (node) => {
+                 console.log(`LAVALINK => [NODE] ${node.id} created.`);
+             });
+
+             /**
+              * Lavalink Manager Events
+              */
+             readdirSync("./src/events/Player/").forEach(file => {
+                 const event = require(`../events/Player/${file}`);
+                 let eventName = file.split(".")[0];
+               //  client.logger.log(`Loading Events Lavalink ${eventName}`);
+                 client.lavalink.on(eventName, event.bind(null, client));
+             });
+
+             client.application.commands.set(data).catch((e) => console.log(e));
+         } catch (error) {
+             console.error('[ERROR] Failed to initialize Lavalink Manager:', error.message);
+             console.error(error);
+         }
     });
 
   

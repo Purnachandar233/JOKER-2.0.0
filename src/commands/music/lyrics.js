@@ -13,7 +13,7 @@ module.exports = {
     if (!song) {
       const ppp = new EmbedBuilder()
         .setDescription(`You need to give me a song name.`)
-        .setColor(0x00AE86);
+        .setColor(0xff0051);
       return message.channel.send({ embeds: [ppp] });
     }
 
@@ -21,7 +21,7 @@ module.exports = {
     if (!res) {
       let no = new EmbedBuilder()
         .setDescription(`No results found.`)
-        .setColor(0x00AE86);
+        .setColor(0xff0051);
       return await message.channel.send({ embeds: [no] });
     }
 
@@ -32,7 +32,7 @@ module.exports = {
         .setDescription(lyrics)
         .setFooter({ text: `Thanks For Choosing Joker Music` })
         .setThumbnail(client.user.displayAvatarURL())
-        .setColor(0x00AE86);
+        .setColor(0xff0051);
 
       await message.channel.send({ embeds: [mainpage] });
     }

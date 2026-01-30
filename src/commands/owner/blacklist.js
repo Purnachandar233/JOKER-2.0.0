@@ -13,34 +13,31 @@ module.exports = {
         let no = client.emoji.no;
             const aa = new EmbedBuilder()
             .setDescription(`Please Provide A User Id...`)
-            .setColor(0x00AE86)
+            .setColor(0xff0051)
         const aaa = new EmbedBuilder()
             .setDescription(`Please Provide A Valid User ID`)
-            .setColor(0x00AE86)
+            .setColor(0xff0051)
         if (!args[0]) return message.reply({ embeds: [aa] })
         if (!client.users.cache.has(args[0])) return message.reply({ embeds: [aaa] });
+
     
-        
-        User.findOne({ UserID: args[0] }, async (err, data) => {
+    let data = await User.findOne({ UserID: args[0] });
+
+    if (data) {
+        return message.reply(`This user is already blacklisted!`)
+    }
     
-            if (data) {
-                message.reply(`This user is already blacklisted!`)
-            }
-                new User({
-                    UserID: args[0],
-                }).save();
+    await new User({
+        UserID: args[0],
+    }).save();
+
     
-            
-            const userop = args[0]
-            const username = client.users.cache.get(userop)
-    
-            const lol = new EmbedBuilder()
-                .setDescription(`${ok} Blacklisted ${username} form using the bot!`)
-                .setColor(0x00AE86)
-            message.reply({ embeds: [lol] })
-                
-        })
-    
-    
+    const userop = args[0]
+    const username = client.users.cache.get(userop)
+
+    const lol = new EmbedBuilder()
+        .setDescription(`${ok} Blacklisted ${username} from using the bot!`)
+        .setColor(0xff0051)
+    message.reply({ embeds: [lol] })
     }
 }

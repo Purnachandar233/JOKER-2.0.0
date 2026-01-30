@@ -27,14 +27,14 @@ module.exports = {
         .setDescription(`${no} <@${message.member.id}> You cannot run this command while deafened.`)
       return await message.channel.send({ embeds: [thing] })
     }
-    const player = client.manager.players.get(message.guild.id)
+    const player = client.lavalink.players.get(message.guild.id)
     if (!player || !player.queue.current) {
       const noperms = new EmbedBuilder()
         .setColor(0x2f3136)
         .setDescription(`${no} There is nothing playing in this server.`)
       return await message.channel.send({ embeds: [noperms] })
     }
-    if (player && channel.id !== player.voiceChannel) {
+    if (player && channel.id !== player.voiceChannelId) {
       const noperms = new EmbedBuilder()
         .setColor(0x2f3136)
         .setDescription(`${no} You must be connected to the same voice channel as me.`)
@@ -56,3 +56,4 @@ module.exports = {
     }
   }
 }
+

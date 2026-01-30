@@ -8,7 +8,7 @@ module.exports = {
           name: "command",
           description: "The command you would like to reload",
           required: true,
-          type: "STRING"
+          type: 3
               }
         ],
         owneronly : true,
@@ -44,7 +44,7 @@ module.exports = {
                interaction.editReply({ content: `Reloaded \`${args}\`` });
            } catch (error) {
                console.error(error);
-               integration.editReply(`There was an error while reloading a command \`${command.name}\`:\n\`${error.message}\``);
+               interaction.editReply(`There was an error while reloading a command \`${command.name}\`:\n\`${error.message}\``);
            }
        }
 }

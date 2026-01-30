@@ -18,12 +18,15 @@ module.exports = {
         await new schema({
             Id: target.id,
             Type: 'user',
-            Permanent: true
+            ActivatedAt: Date.now(),
+            Expire: 0,
+            Permanent: true,
+            PlanType: "Standard"
         }).save();
 
         const embed = new EmbedBuilder()
             .setDescription(`${ok} Successfully added Permanent Premium to **${target.tag}**`)
-            .setColor(0x00AE86);
+            .setColor(0xff0051);
         message.reply({ embeds: [embed] });
     }
 }

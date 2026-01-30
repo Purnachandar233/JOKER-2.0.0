@@ -29,29 +29,28 @@ module.exports = {
       if (!channel) {
                       const noperms = new EmbedBuilder()
                      
-           .setColor(0x00AE86)
+           .setColor(0xff0051)
              .setDescription(`${no} You must be connected to a voice channel to use this command.`)
           return await interaction.followUp({embeds: [noperms]});
       }
       if(interaction.member.voice.selfDeaf) {	
         let thing = new EmbedBuilder()
-         .setColor(0x00AE86)
+         .setColor(0xff0051)
 
-       .setDescription(`${no} <@${message.member.id}> You cannot run this command while deafened.`)
+       .setDescription(`${no} <@${interaction.member.id}> You cannot run this command while deafened.`)
          return await interaction.followUp({embeds: [thing]});
        }
-      const botchannel = interaction.guild.me.voice.channel;
-      const player = client.manager.players.get(interaction.guild.id);
-      if(!player || !botchannel || !player.queue.current) {
+            const player = client.lavalink.players.get(interaction.guild.id);
+      if(!player || !player.queue.current) {
                       const noperms = new EmbedBuilder()
 
-           .setColor(0x00AE86)
+           .setColor(0xff0051)
            .setDescription(`${no} There is nothing playing in this server.`)
           return await interaction.followUp({embeds: [noperms]});
       }
-      if(player && channel.id !== player.voiceChannel) {
+      if(player && channel.id !== player.voiceChannelId) {
                                   const noperms = new EmbedBuilder()
-             .setColor(0x00AE86)
+             .setColor(0xff0051)
           .setDescription(`${no} You must be connected to the same voice channel as me.`)
           return await interaction.followUp({embeds: [noperms]});
       }
@@ -72,14 +71,18 @@ module.exports = {
         }
       }
       //clear the Queue
-      player.queue.clear();
+      while (player.queue.size > 0) { player.queue.remove(0); };
       //now add every not dupe song again
       for (const track of newtracks)
         player.queue.add(track);
       //Send Success Message
        return await interaction.followUp({ embeds : [new EmbedBuilder().setDescription(`${ok} Removed all the duplicates songs from the queue.`)
-      .setColor(0x00AE86)
+      .setColor(0xff0051)
 ]})
      
        }
      };
+
+
+
+

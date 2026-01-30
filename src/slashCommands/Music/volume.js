@@ -13,7 +13,7 @@ module.exports = {
         name: "volume",
         description: "the new volume.",
         required: true,
-        type: "NUMBER"
+        type: 10
                 }
         ],
   votelock: true,
@@ -37,44 +37,43 @@ module.exports = {
       if (!channel) {
                       const noperms = new EmbedBuilder()
                      
-           .setColor(0x00AE86)
+           .setColor(0xff0051)
              .setDescription(`${no} You must be connected to a voice channel to use this command.`)
           return await interaction.followUp({embeds: [noperms]});
       }
       if(interaction.member.voice.selfDeaf) {   
         let thing = new EmbedBuilder()
-         .setColor(0x00AE86)
+         .setColor(0xff0051)
 
        .setDescription(`${no} <@${interaction.user.id}> You cannot run this command while deafened.`)
          return await interaction.followUp({embeds: [thing]});
        }
-      const botchannel = interaction.guild.members.me.voice.channel;
-      const player = client.manager.players.get(interaction.guild.id);
-      if(!player || !botchannel || !player.queue.current) {
+            const player = client.lavalink.players.get(interaction.guild.id);
+      if(!player || !player.queue.current) {
                       const noperms = new EmbedBuilder()
 
-           .setColor(0x00AE86)
+           .setColor(0xff0051)
            .setDescription(`${no} There is nothing playing in this server.`)
           return await interaction.followUp({embeds: [noperms]});
       }
-      if(player && channel.id !== player.voiceChannel) {
+      if(player && channel.id !== player.voiceChannelId) {
                                   const noperms = new EmbedBuilder()
-             .setColor(0x00AE86)
+             .setColor(0xff0051)
           .setDescription(`${no} You must be connected to the same voice channel as me.`)
           return await interaction.followUp({embeds: [noperms]});
       }
                 
-      if (!volume < 0 || volume > 100) { 
+      if (volume < 0 || volume > 100) {
           let ething = new EmbedBuilder()
       
-         .setColor(0x00AE86)
+         .setColor(0xff0051)
           .setDescription(`${no} Please use a number between \`0\` - \`100\``)
           return await interaction.editReply({ embeds: [ething] });
       }
       player.setVolume(volume);
   
     let thing = new EmbedBuilder()
-      .setColor(0x00AE86)
+      .setColor(0xff0051)
       .setDescription(`${ok} The volume has been changed to **${volume}%**`)
     return await interaction.editReply({ embeds: [thing] });
      

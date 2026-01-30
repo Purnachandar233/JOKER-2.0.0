@@ -12,7 +12,7 @@ module.exports = {
     const up = `${d.days()}d, ${d.hours()}h, ${d.minutes()}m, ${d.seconds()}s`;
 
     const embed = new EmbedBuilder()
-      .setColor(0x00AE86)
+      .setColor(0xff0051)
       .setAuthor({ name: `Bot Information`, iconURL: message.author.displayAvatarURL() })
       .addFields(
         { name: 'Node Version', value: `\`${process.version}\``, inline: true },

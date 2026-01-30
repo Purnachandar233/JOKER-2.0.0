@@ -16,7 +16,7 @@ module.exports = {
     const up = `Uptime  :: ${days}, ${hours}, ${minutes}, and ${seconds}`;
 
     const upEmbed = new EmbedBuilder()
-      .setColor(0x00AE86)
+      .setColor(0xff0051)
       .setDescription(`\`\`\`asciidoc\n${up}\n\`\`\``)
       .setAuthor({ name: `|  Uptime`, iconURL: message.author.displayAvatarURL({ dynamic: true }) });
     

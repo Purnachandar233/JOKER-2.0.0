@@ -19,7 +19,7 @@ module.exports = {
      
 
     if(!args[1]){
-        return message.reply(`Please Mention a badge name \n Available badges - \`owner\` , \`dev\`, \`premium\`, \`supporter\`, \`staff\` \`manager\`, \`bughunter\` , \`booster\`,\`supporter\` `)
+        return message.reply(`Please Mention a badge name \n Available badges - \`owner\` , \`dev\`, \`premium\`, \`supporter\`, \`staff\` \`manager\`, \`bughunter\` , \`booster\`,\`partner\`,\`vip\` `)
     }
 if(args[1] === "dev"){
 data.badge.dev = false;
@@ -45,7 +45,7 @@ else if(args[1] === "supporter"){
 }
 
 else if(args[1] === "bughunter"){
-    data.badge.bughunter = false;
+    data.badge.bug = false;
     await data.save();
     return message.reply(`${ok} Removed BugHunter Badge from ${member.user.username}`)
 }

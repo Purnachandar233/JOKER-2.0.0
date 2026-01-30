@@ -39,7 +39,7 @@ module.exports = {
       const embed = new EmbedBuilder()
         .setTitle("Truth")
         .setDescription(truth)
-        .setColor(0x00AE86)
+        .setColor(0xff0051)
         .setFooter({ text: `Requested by ${message.author.tag}` });
       return message.channel.send({ embeds: [embed] });
     }
@@ -49,7 +49,7 @@ module.exports = {
       const embed = new EmbedBuilder()
         .setTitle("Dare")
         .setDescription(dare)
-        .setColor(0x00AE86)
+        .setColor(0xff0051)
         .setFooter({ text: `Requested by ${message.author.tag}` });
       return message.channel.send({ embeds: [embed] });
     }
@@ -57,7 +57,7 @@ module.exports = {
     const embed = new EmbedBuilder()
       .setTitle("Truth or Dare")
       .setDescription(`Please choose either **truth** or **dare**.\nExample: \`${prefix}tod truth\``)
-      .setColor(0x00AE86);
+      .setColor(0xff0051);
     message.channel.send({ embeds: [embed] });
   }
 };

@@ -1,4 +1,5 @@
-const { Client, GatewayIntentBits, Partials, WebhookClient, EmbedBuilder, ActionRowBuilder, ButtonBuilder, Collection } = require("discord.js");
+require('dotenv').config();
+const { Client, GatewayIntentBits, Partials, WebhookClient, EmbedBuilder, ActionRowBuilder, ButtonBuilder, Collection, ActivityType } = require("discord.js");
 const { readdirSync } = require("fs");
 
 const Topgg = require("@top-gg/sdk")
@@ -13,15 +14,23 @@ const client = new Client({
         GatewayIntentBits.GuildMembers
     ],
     allowedMentions: { parse: ['users', 'roles'], repliedUser: true },
-    presence: {
-      status:'online',
-      activities: [{
-        name: `Music | =help`, 
-        type: 2,
-      }]
-    },
+        presence: {
+            status:'online',
+            activities: [{
+                name: `Music | =help`, 
+                type: ActivityType.Listening,
+            }]
+        },
     partials: [Partials.Message, Partials.Channel, Partials.Reaction, Partials.GuildMember]
 });
+
+// Warn about privileged intents (enable in Developer Portal)
+try {
+    const intents = client.options.intents;
+    if (intents && (intents.has && (intents.has(GatewayIntentBits.MessageContent) || intents.has(GatewayIntentBits.GuildMembers)))) {
+        console.warn('[WARN] Bot requests privileged intents (Message Content / Guild Members). Enable them in the Developer Portal.');
+    }
+} catch (e) {}
 
 const { AutoPoster } = require('topgg-autoposter')
 
@@ -29,11 +38,10 @@ module.exports = client;
 client.commands = new Collection();
 client.aliases = new Collection();
 client.sls = new Collection();
-client.config = require(".././config.json");
+client.config = require("../config.json");
 client.owner = client.config.ownerID;
 client.prefix = process.env.PREFIX || client.config.prefix;
 client.embedColor = client.config.embedColor;
-client.aliases = new Collection();
 client.cooldowns = new Collection(); 
 client.logger = require("./utils/logger.js");
 client.emoji = require("./utils/emoji.json");

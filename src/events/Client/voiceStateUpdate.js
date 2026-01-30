@@ -1,11 +1,11 @@
-const { EmbedBuilder } = require("discord.js");
+const { EmbedBuilder, ChannelType } = require("discord.js");
 const delay = require("delay");
 
 module.exports = async (client, oldState, newState) => {
     const channel = newState.guild.channels.cache.get(
         newState.channel?.id ?? newState.channelId
     );
-    const player = client.manager?.players.get(newState.guild.id);
+    const player = client.lavalink?.players.get(newState.guild.id);
 
     if (!player) return;
 
@@ -16,7 +16,7 @@ module.exports = async (client, oldState, newState) => {
     }
 
     // Check for stage channel audience change
-    if (newState.id == client.user.id && channel?.type == 'GUILD_STAGE_VOICE') {
+    if (newState.id === client.user.id && channel?.type === ChannelType.GuildStageVoice) {
         if (!oldState.channelId) {
             try {
                 await newState.guild.me.voice.setSuppressed(false);
@@ -42,10 +42,11 @@ module.exports = async (client, oldState, newState) => {
     if (oldBotMember.voice.channelId === oldState.channelId) {
         if (
             oldBotMember.voice.channel &&
-            oldBotMember.voice.channel.members.filter((m) => !m.user.bot).size === 0
+            oldBotMember.voice.channel.members.filter((m) => !m.user.bot).size === 0 &&
+            !is247Enabled  // Only leave if 24/7 is NOT enabled
         ) {
             await delay(180000);
-            
+
             // Re-fetch state after delay
             const currentBotMember = oldState.guild.members.cache.get(client.user.id);
             if (
@@ -53,13 +54,13 @@ module.exports = async (client, oldState, newState) => {
                 currentBotMember.voice.channel.members.filter((m) => !m.user.bot).size === 0
             ) {
                 await player.destroy();
-                
+
                 const embed = new EmbedBuilder()
                     .setDescription(`I have left the voice channel due to inactivity. Enable 24/7 to disable this!`)
                     .setColor(0x2f3136);
-                
+
                 try {
-                    const textChannel = client.channels.cache.get(player.textChannel);
+                    const textChannel = client.channels.cache.get(player.textChannelId);
                     if (textChannel) textChannel.send({ embeds: [embed] });
                 } catch (err) {
                     // Ignore errors sending message

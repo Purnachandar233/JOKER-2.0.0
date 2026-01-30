@@ -24,7 +24,7 @@ module.exports = {
       
               const mainPage = new EmbedBuilder()
               .setDescription(`[Click here](https://discord.gg/pCj2UBbwST) to join our support server.`)
-              .setColor(0x00AE86)
+              .setColor(0xff0051)
           return interaction.followUp({embeds: [mainPage], components: [row]})
    
   },

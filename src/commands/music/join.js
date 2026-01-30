@@ -17,32 +17,36 @@ module.exports = {
     const { channel } = message.member.voice;
     if (!channel) {
                     const noperms = new EmbedBuilder()
-         .setColor(0x00AE86)
+         .setColor(0xff0051)
            .setDescription(`${no} You must be connected to a voice channel to use this command.`)
         return await message.channel.send({embeds: [noperms]});
     }
     if(message.member.voice.selfDeaf) {	
       let thing = new EmbedBuilder()
-       .setColor(0x00AE86)
+       .setColor(0xff0051)
      .setDescription(`${no} <@${message.member.id}> You cannot run this command while deafened.`)
        return await message.channel.send({embeds: [thing]});
      }
 
 
-     const player = client.manager.players.get(message.guild.id);
+     if (!client.lavalink) {
+         return await message.channel.send({embeds: [new EmbedBuilder().setColor(0xff0051).setDescription(`${no} Lavalink is not connected yet. Please try again in a moment.`)]});
+     }
+
+     let player = client.lavalink.players.get(message.guild.id);
      if(!player) {
-         
-         const player = message.client.manager.create({
-             guild: message.guild.id,
-             voiceChannel: channel.id,
-             textChannel: message.channel.id,
+
+         player = client.lavalink.createPlayer({
+             guildId: message.guild.id,
+             voiceChannelId: channel.id,
+             textChannelId: message.channel.id,
              selfDeafen: true,
          });
 
          player.connect();
 
          let thing = new EmbedBuilder()
-             .setColor(0x00AE86)
+             .setColor(0xff0051)
                          .setDescription(`${ok} Connected to \`${channel.name}\``)
                          return await message.channel.send({embeds: [thing]});
 
@@ -50,7 +54,7 @@ module.exports = {
 
          let thing = new EmbedBuilder()
  
-               .setColor(0x00AE86)
+               .setColor(0xff0051)
              .setDescription(`${no} You must be in the same channel as me.`);
              return await message.channel.send({embeds: [thing]});
      }
@@ -58,7 +62,7 @@ module.exports = {
      else if(player){
          const noperms = new EmbedBuilder()
    
-         .setColor(0x00AE86)
+         .setColor(0xff0051)
          .setDescription(`${no} I am already connected to a voice channel.`)
          return await message.channel.send({embeds: [noperms]});
      }

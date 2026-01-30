@@ -47,22 +47,22 @@ module.exports = {
       if (!channel) {
                       const noperms = new EmbedBuilder()
                 
-           .setColor(0x00AE86)
+           .setColor(0xff0051)
              .setDescription(`${no} You must be connected to a voice channel to use this command.`)
           return await interaction.followUp({embeds: [noperms]});
       }
       if(interaction.member.voice.selfDeaf) {   
         let thing = new EmbedBuilder()
-         .setColor(0x00AE86)
+         .setColor(0xff0051)
 
        .setDescription(`${no} <@${interaction.member.id}> You cannot run this command while deafened.`)
          return await interaction.followUp({embeds: [thing]});
        }
 
-    let player = client.manager.get(interaction.guildId);
-    if(player && channel.id !== player.voiceChannel) {
+    let player = client.lavalink.players.get(interaction.guildId);
+    if(player && channel.id !== player.voiceChannelId) {
       const noperms = new EmbedBuilder()
-          .setColor(0x00AE86)
+          .setColor(0xff0051)
 .setDescription(`${no} You must be connected to the same voice channel as me.`)
 return await interaction.followUp({embeds: [noperms]});
 }
@@ -71,10 +71,10 @@ try {
     var res;
 
     if (!player) {
-      player = await client.manager.create({
-        guild: interaction.guild.id,
-        voiceChannel: interaction.member.voice.channel.id,
-        textChannel: interaction.channel.id,
+      player = await client.lavalink.createPlayer({
+        guildId: interaction.guild.id,
+        voiceChannelId: interaction.member.voice.channel.id,
+        textChannelId: interaction.channel.id,
         selfDeafen: true,
       });
       if (player && player.node && !player.node.connected) await player.node.connect()
@@ -87,21 +87,21 @@ try {
     }
     if(search.toLowerCase().includes("youtube.com")){
       const noperms = new EmbedBuilder()
-      .setColor(0x00AE86)
+      .setColor(0xff0051)
       .setAuthor({ name: 'YouTube URL', iconURL: client.user.displayAvatarURL({ forceStatic: false }) })
       .setDescription(`We no longer support YouTube, please use other platforms like Spotify, SoundCloud or Bandcamp. Otherwise use a search query to use our default system.`)
       return await interaction.editReply({embeds: [noperms]});
     }
     if(search.toLowerCase().includes("youtu.be")){
       const noperms = new EmbedBuilder()
-      .setColor(0x00AE86)
+      .setColor(0xff0051)
       .setAuthor({ name: 'YouTube URL', iconURL: client.user.displayAvatarURL({ forceStatic: false }) })
       .setDescription(`We no longer support YouTube, please use other platforms like Spotify, SoundCloud or Bandcamp. Otherwise use a search query to use our default system.`)
       return await interaction.editReply({embeds: [noperms]});
     }
     try {
       
-      res = await client.manager.search({
+      res = await player.search({
         query: search,
         source: 'soundcloud'
       }, interaction.member.user);
@@ -115,7 +115,7 @@ try {
        return await interaction.editReply({
         embeds: [new EmbedBuilder()
           .setTitle('Error searching for track.')
-          .setColor(0x00AE86)
+          .setColor(0xff0051)
         ]
       }).catch(() => {})
     }
@@ -133,7 +133,7 @@ try {
       if (!res.tracks[0]) {
         return await interaction.editReply({embeds : [new EmbedBuilder() 
           .setDescription(`${ok} No results found.`)
-          .setColor(0x00AE86)]})
+          .setColor(0xff0051)]})
         }
 
     const emojiarray = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"]
@@ -243,3 +243,4 @@ try {
    
   }
 }
+

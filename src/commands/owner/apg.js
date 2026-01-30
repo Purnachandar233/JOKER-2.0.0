@@ -18,14 +18,16 @@ module.exports = {
         await new schema({
             Id: args[0],
             Type: 'guild',
+            ActivatedAt: Date.now(),
             Expire: args[1] ? day(args[1]).valueOf() : 0,
-            Permanent: !args[1]
+            Permanent: args[1] ? false : true,
+            PlanType: "Standard"
         }).save();
 
         const guildname = client.guilds.cache.get(args[0])?.name || args[0];
         const lol = new EmbedBuilder()
             .setDescription(`${ok} Successfully Added **${guildname}** In Premium List`)
-            .setColor(0x00AE86)
+            .setColor(0xff0051)
         message.reply({ embeds: [lol] })
     }
 }

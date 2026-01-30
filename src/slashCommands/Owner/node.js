@@ -23,7 +23,7 @@ module.exports = {
         
        
            let all = [];
-           client.manager.nodes.map(node =>  {
+           client.lavalink.nodeManager.nodes.forEach(node =>  {
                let info = [];
                info.push('\nNode-Info');
                info.push(`Node       :: SuDhi-Alex Connected`);

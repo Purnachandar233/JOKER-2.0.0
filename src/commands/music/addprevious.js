@@ -18,30 +18,30 @@ module.exports = {
     if (!channel) {
                     const noperms = new EmbedBuilder()
               
-         .setColor(0x00AE86)
+         .setColor(0xff0051)
            .setDescription(`${no} You must be connected to a voice channel to use this command.`)
         return await message.channel.send({embeds: [noperms]});
     }
     if(message.member.voice.selfDeaf) {	
       let thing = new EmbedBuilder()
-       .setColor(0x00AE86)
+       .setColor(0xff0051)
 
      .setDescription(`${no} <@${message.member.id}> You cannot run this command while deafened.`)
        return await message.channel.send({embeds: [thing]});
      }
 
-  let player = client.manager.get(message.guildId);
-  if(player && channel.id !== player.voiceChannel) {
+  let player = client.lavalink.players.get(message.guild.id);
+  if(player && channel.id !== player.voiceChannelId) {
     const noperms = new EmbedBuilder()
-        .setColor(0x00AE86)
+        .setColor(0xff0051)
 .setDescription(`${no} You must be connected to the same voice channel as me.`)
 return await message.channel.send({embeds: [noperms]});
 }
 
-  if (!player) player = client.manager.create({
-    guild: message.guildId,
-    textChannel: message.channelId,
-    voiceChannel: message.member.voice.channelId,
+  if (!player) player = client.lavalink.createPlayer({
+    guildId: message.guild.id,
+    textChannelId: message.channelId,
+    voiceChannelId: message.member.voice.channel.id,
     selfDeafen: true,
   });
 
@@ -49,7 +49,7 @@ return await message.channel.send({embeds: [noperms]});
   if (!player.queue.previous) {
       const noperms = new EmbedBuilder()
 
-      .setColor(0x00AE86)
+      .setColor(0xff0051)
 .setDescription(`No previous songs found`)
 return await message.channel.send({embeds: [noperms]});
 }
@@ -70,7 +70,7 @@ return await message.channel.send({embeds: [noperms]});
     if (player) player.queue.add(s.tracks[0]);
     if (player && player.state === "CONNECTED" && !player.playing && !player.paused && !player.queue.size) player.play();
     return await message.channel.send({
-      embeds: [new EmbedBuilder() .setColor(0x00AE86)
+      embeds: [new EmbedBuilder() .setColor(0xff0051)
         .setDescription(`Queued [${s.tracks[0].title}](https://www.youtube.com/watch?v=dQw4w9WgXcQ) `)]
     }).catch(() => {});
   } else if (s.loadType === "PLAYLIST_LOADED") {
@@ -79,7 +79,7 @@ return await message.channel.send({embeds: [noperms]});
     if (player && player.state === "CONNECTED" && !player.playing && !player.paused && player.queue.totalSize === s.tracks.length) player.play();
 
     return await message.channel.send({
-      embeds: [new EmbedBuilder().setColor(0x00AE86)
+      embeds: [new EmbedBuilder().setColor(0xff0051)
       .setDescription(`Queued **${s.tracks.length}** tracks from **${s.playlist.name}**`)]
     }).catch(() => {})
   } else if (s.loadType === "SEARCH_RESULT") {
@@ -87,7 +87,7 @@ return await message.channel.send({embeds: [noperms]});
     if (player) player.queue.add(s.tracks[0]);
     if (player && player.state === "CONNECTED" && !player.playing && !player.paused && !player.queue.size) player.play();
     return await message.channel.send({
-      embeds: [new EmbedBuilder().setColor(0x00AE86)
+      embeds: [new EmbedBuilder().setColor(0xff0051)
         .setDescription(`Queued [${s.tracks[0].title}](https://www.youtube.com/watch?v=dQw4w9WgXcQ) `)]
     }).catch(() => {});
   } else return await message.channel.send({

@@ -15,7 +15,7 @@ module.exports = {
 
     if (!message.member.permissions.has('MANAGE_CHANNELS')) {
         const noperms = new EmbedBuilder()
-       .setColor(0x00AE86)
+       .setColor(0xff0051)
        .setDescription(`${no} You need this required Permissions: \`MANAGE_CHANNELS\` to run this command.`)
        return await message.channel.send({embeds: [noperms]});
     }
@@ -31,7 +31,7 @@ module.exports = {
         console.log(err)
     }
     const embed = new EmbedBuilder()
-    .setColor(0x00AE86)
+    .setColor(0xff0051)
          .setDescription(`Reseted the dj role for this server.`)
          return await message.channel.send({ embeds : [embed]})
    }

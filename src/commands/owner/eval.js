@@ -8,7 +8,7 @@ module.exports = {
   owneronly: true, // Ensured strict owner-only access
   execute: async (message, args, client, prefix) => {
     // Evaluation logic...
-    const player = client.manager.players.get(message.guild.id);
+    const player = client.lavalink.players.get(message.guild.id);
     try {
       const drow = new ActionRowBuilder()
         .addComponents(

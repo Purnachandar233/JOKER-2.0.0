@@ -35,7 +35,7 @@ module.exports = {
     
         if (!interaction.member.permissions.has('MANAGE_CHANNELS')) {
             const noperms = new EmbedBuilder()
-           .setColor(0x00AE86)
+           .setColor(0xff0051)
            .setDescription(`You need this required Permissions: \`MANAGE_CHANNELS\` to run this command.`)
            return await interaction.followUp({embeds: [noperms]});
         }
@@ -62,7 +62,7 @@ module.exports = {
             console.log(err)
         }
         const embed = new EmbedBuilder()
-        .setColor(0x00AE86)
+        .setColor(0xff0051)
              .setDescription(`${ok} DJ role mode is now **enabled** and set to <@&${role.id}>.`)
              return await interaction.editReply({ embeds : [embed]})
        }

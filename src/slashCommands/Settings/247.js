@@ -26,7 +26,7 @@ module.exports = {
     
         if (!interaction.member.permissions.has('MANAGE_CHANNELS')) {
           const noperms = new EmbedBuilder()
-         .setColor(0x00AE86)
+         .setColor(0xff0051)
          .setDescription(`${no} You need this required Permissions: \`MANAGE_CHANNELS\` to run this command.`)
     return await interaction.followUp({embeds: [noperms]});
       }
@@ -34,7 +34,7 @@ module.exports = {
       if (!channel) {
                       const noperms = new EmbedBuilder()
                      
-           .setColor(0x00AE86)
+           .setColor(0xff0051)
              .setDescription(`${no} You must be connected to a voice channel to use this command.`)
           return await interaction.followUp({embeds: [noperms]});
       }
@@ -43,11 +43,11 @@ module.exports = {
 
 
 
-    const player = client.manager.players.get(interaction.guild.id);
+    const player = client.lavalink.players.get(interaction.guild.id);
     if(!player){
-      const jplayer = interaction.client.manager.create({
-        guild: interaction.guild.id,
-        voiceChannel: channel.id,
+      const jplayer = interaction.client.lavalink.createPlayer({
+        guildId: interaction.guild.id,
+        voiceChannelId: channel.id,
         textChannel: interaction.channel.id,
         selfDeafen: true,
     });

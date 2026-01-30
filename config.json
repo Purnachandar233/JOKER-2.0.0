@@ -1,20 +1,19 @@
 {
-  "token": "",
-  "mongourl": "",
+  "token": "DISCORD_BOT_TOKEN",
+  "mongourl": "MONGODB_URL",
   "ownerId": "721629553134403591",
   "embedColor": "#000000",
   "prefix": "=",
   "webhooks": {
-    "guildLogs": "https://discord.com/api/webhooks/1462108090760560640/mUbpBjp3C791tQT0VU7QjGDXuDDMPED8rwig-9TwzlxQ_9ngsHr7IAL6_3Bb2Fu_JHo5",
-    "ownerCmds": "https://discord.com/api/webhooks/1090522784385466368/13Ghr0MswiDraa0VOAKgDUEFYjQF3EiKA4cHdLnlZHK-zaR2D3ydoAmyapjUITRRcq8d",
-    "errorLogs": "https://discord.com/api/webhooks/1090522797643681833/kDxPVySXUSYNpSzArF1rz3e8KsuxZg7csc6eEOQ9ZaPcNDy7uswvYIjtdDJeV6NF2aPh"
+    "guildLogs": "",
+    "ownerCmds": "",
+    "errorLogs": ""
   },
   "nodes": [
     {
-      "host": "lavalinkv3.serenetia.com",
-      "port": 80,
-      "password": "https://dsc.gg/ajidevserver",
-      "retryDelay": 10000,
+      "host": "127.0.0.1",
+      "port": 8080,
+      "authorization": "youshallnotpass",
       "secure": false
     }
   ]

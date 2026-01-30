@@ -1,31 +1,45 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, Collection } = require("discord.js");
 module.exports = async (client, player, oldChannel, newChannel) => {
+    try {
+        const guild = client.guilds.cache.get(player.guildId);
+        if (!guild) return;
+        const channel = guild.channels.cache.get(player.textChannelId);
         
-        const guild = client.guilds.cache.get(player.guild)
-        if(!guild) return;
-        const channel = guild.channels.cache.get(player.textChannel);
-          if(oldChannel === newChannel) return;
-          if(newChannel === null || !newChannel) {
-          if(!player) return;
-          if(channel) {
-                  
+        if (oldChannel === newChannel) return;
+        
+        if (newChannel === null || !newChannel) {
+            if (!player) return;
+            if (channel) {
                 const msg = player.get(`playingsongmsg`);
                 if (msg && msg.delete) {
-                    msg.delete().catch(() => {});
+                    await msg.delete().catch(() => {});
                 }
                 player.destroy();
-                return;
-          }
-         
+            }
         } else {
-          player.voiceChannel = newChannel
-          setTimeout( () => {             player.pause(false)   }, 100)
-    
+            // Don't try to set read-only property, just resume playback
+            setTimeout(() => {
+                player.pause(false);
+            }, 100);
         }
-        let denginde = new EmbedBuilder()// fuck off , madaercod , gandu , lawda ,tere makichut, ne pelam ni denga , ne jati pukku lo na moda,and much more to @SARKAR & @AD 
 
-        .setColor(0x00AE86)
-        .setTitle(`Player has been moved`)
-        .setDescription(`I have been moved from <#${oldChannel}> to <#${newChannel}>`)
-        channel.send({embeds : [denginde]}).then(msg => { setTimeout(() => { if (msg.delete) msg.delete().catch(() => {}) }, 10000) });
-}
+        if (!channel) return;
+
+        const oldChannelName = oldChannel ? `<#${oldChannel.id}>` : 'Unknown';
+        const newChannelName = newChannel ? `<#${newChannel.id}>` : 'Unknown';
+        
+        const denginde = new EmbedBuilder()
+            .setColor(0xff0051)
+            .setTitle(`Player has been moved`)
+            .setDescription(`I have been moved from ${oldChannelName} to ${newChannelName}`);
+        
+        const msg = await channel.send({ embeds: [denginde] }).catch(() => {});
+        if (msg) {
+            setTimeout(() => {
+                if (msg.delete) msg.delete().catch(() => {});
+            }, 10000);
+        }
+    } catch (error) {
+        console.error('[ERROR] playerMove:', error.message);
+    }
+};

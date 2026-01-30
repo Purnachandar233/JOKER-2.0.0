@@ -10,7 +10,7 @@ module.exports = async (client, guild) => {
         const owner = await guild.fetchOwner()
         const embed = new EmbedBuilder()
             .setTitle("📤 Left Server")
-            .setColor(0x00AE86)
+            .setColor(0xff0051)
             .addFields(
                 { name: "Server Name", value: guild.name, inline: true },
                 { name: "ID", value: guild.id, inline: true },

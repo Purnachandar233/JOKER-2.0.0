@@ -14,14 +14,15 @@ module.exports = {
     const up = `${d.days()}d ${d.hours()}h ${d.minutes()}m`;
 
     const embed = new EmbedBuilder()
-      .setColor(0x00AE86)
+      .setColor(0xff0051)
       .setAuthor({ name: `System Diagnostics`, iconURL: client.user.displayAvatarURL() })
       .setTitle(`Joker Music Stats`)
       .addFields(
         { name: '✧ Guilds', value: `\`${servers}\``, inline: true },
         { name: '✧ Users', value: `\`${users}\``, inline: true },
         { name: '✧ Uptime', value: `\`${up}\``, inline: true },
-        { name: '✧ Memory', value: `\`${usedMemMb} MB\``, inline: true }
+        { name: '✧ Memory', value: `\`${usedMemMb} MB\``, inline: true },
+        { name: '✧ Ping', value: `\`${client.ws.ping}ms\``, inline: true }
       )
       .setFooter({ text: "Joker Music" });
 

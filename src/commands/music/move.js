@@ -15,7 +15,7 @@ module.exports = {
     let ok = client.emoji.ok;
     let no = client.emoji.no;
     
-     const player = client.manager.get(message.guildId);
+     const player = client.lavalink.players.get(message.guild.id);
           //if no FROM args return error
           if (!args[0]) {
             const emr = new EmbedBuilder()
@@ -31,25 +31,25 @@ module.exports = {
             return message.channel.send({embeds: [ror]})
           }
           //if its not a number or too big / too small return error
-          if (isNaN(args[0]) || args[0] <= 1 || args[0] > player.queue.length) {
+          if (isNaN(args[0]) || args[0] <= 1 || args[0] > player.queue.size) {
             const eoer = new EmbedBuilder()
           
-            .setDescription(` ${no} Your Input must be a Number greater then \`1\` and smaller then \`${player.queue.length}\``)
+            .setDescription(` ${no} Your Input must be a Number greater then \`1\` and smaller then \`${player.queue.size}\``)
             return message.channel.send({embeds: [eoer]})
           }
           //get the new Song
-          let song = player.queue[player.queue.length - 1];
+          let song = player.queue[player.queue.size - 1];
           //move the Song to the first position using my selfmade Function and save it on an array
-          let QueueArray = arrayMove(player.queue, player.queue.length - 1, 0);
+          let QueueArray = arrayMove(player.queue, player.queue.size - 1, 0);
           //clear teh Queue
-          player.queue.clear();
+          while (player.queue.size > 0) { player.queue.remove(0); };
           //now add every old song again
           for (const track of QueueArray)
             player.queue.add(track);
           //send informational message
           const ifkf = new EmbedBuilder()
-         .setColor(0x00AE86)
-          .setDescription(` ${ok} Moved the Song in the Queue from Position \`${args[0]}\` to Position: \`${args[1]}\`\n\n[${song.title}](https://www.youtube.com/watch?v=dQw4w9WgXcQ) - \`${format(song.duration)}\` `)
+         .setColor(0xff0051)
+          .setDescription(` ${ok} Moved the Song in the Queue from Position \`${args[0]}\` to Position: \`${args[1]}\`\n\n[${song.info?.title || song.title}](https://www.youtube.com/watch?v=dQw4w9WgXcQ) - \`${format(song.info?.duration || song.duration)}\` `)
           return message.channel.send({embeds: [ifkf]});
         }
     }

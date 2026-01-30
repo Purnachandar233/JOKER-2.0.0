@@ -17,7 +17,7 @@ module.exports = {
       name: "code",
       description: "the code you whould like to eval",
       required: true,
-      type: "STRING"
+      type: 3
 	  	}
 	],
 
@@ -38,7 +38,7 @@ module.exports = {
     
   
    
-       const player = client.manager.players.get(interaction.guild.id);
+       const player = client.lavalink.players.get(interaction.guild.id);
        try {
         const drow = new ActionRowBuilder()
         .addComponents(

@@ -21,7 +21,7 @@ module.exports = {
     
         let state;
         try{
-            state = client.manager.players.get(interaction.guild.id).state
+            state = client.lavalink.players.get(interaction.guild.id).state
         } catch(e){
             state = 'NOT_CONNECTED'
         }
@@ -31,8 +31,8 @@ module.exports = {
          .addField("Cluster Id", `\`\`\`js\n${interaction.guild.shard.id*1+1 }\`\`\``, true)
          .addField("Shard Id", `\`\`\`js\n${interaction.guild.shard.id*1+1 }\`\`\``, true)
          .addField("Guild Player state", `\`\`\`js\n${state}\`\`\``, true)
-         .addField("Players", `\`\`\`js\n${client.manager.nodes.values().next().value.stats.playingPlayers}/${client.manager.nodes.values().next().value.stats.players}\`\`\``, true)
-             .setColor(0x00AE86)
+         .addField("Players", `\`\`\`js\n${client.lavalink.nodeManager.nodes.values().next().value.stats.playingPlayers}/${client.lavalink.nodeManager.nodes.values().next().value.stats.players}\`\`\``, true)
+             .setColor(0xff0051)
         await interaction.followUp({embeds: [embed]})
     }
 }

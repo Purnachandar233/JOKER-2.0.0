@@ -48,7 +48,7 @@ module.exports = {
                .setDescription(`Click on the buttons to invite the bots! [Click here](https://discord.gg/pCj2UBbwST) to join the support server!
                
                `)
-                    .setColor(0x00AE86)
+                    .setColor(0xff0051)
         await interaction.followUp({embeds: [embed], components: [row]})
     }
 }

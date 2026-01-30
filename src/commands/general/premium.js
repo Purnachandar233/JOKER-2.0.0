@@ -10,20 +10,19 @@ module.exports = {
 
   execute: async (message, args, client, prefix) => {
 
-   
     let ok = client.emoji.ok;
     let no = client.emoji.no;
     const buttonbolte = new ActionRowBuilder()
     .addComponents(
       new ButtonBuilder()
   .setLabel("Premium")
-  .setURL("https://discord.gg/pCj2UBbwST").setStyle(5)
-  .setURL(`https://www.patreon.com/alexmusicbot/membership`),
+  .setURL("https://discord.gg/DdTX6gPTWF")
+  .setStyle(5)
     );
 
         const mainPage = new EmbedBuilder()
         .setDescription(`Help me by buying premium :)`) 
-        .setColor(0x00AE86)
+        .setColor(0xff0051)
 message.channel.send({embeds : [mainPage], components : [buttonbolte]})
     }
 }

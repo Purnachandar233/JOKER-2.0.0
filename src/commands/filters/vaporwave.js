@@ -17,38 +17,37 @@ module.exports = {
     if (!channel) {
       const noperms = new EmbedBuilder()
 
-        .setColor(0x00AE86)
+        .setColor(0xff0051)
         .setDescription(`${no} You must be connected to a voice channel to use this command.`)
       return await message.channel.send({ embeds: [noperms] })
     }
     if (message.member.voice.selfDeaf) {
       const thing = new EmbedBuilder()
-        .setColor(0x00AE86)
+        .setColor(0xff0051)
         .setDescription(`${no} <@${message.member.id}> You cannot run this command while deafened.`)
       return await message.channel.send({ embeds: [thing] })
     }
-    const botchannel = message.guild.members.me?.voice?.channel
-    const player = client.manager.players.get(message.guild.id)
-    if (!player || !botchannel || !player.queue.current) {
+        const player = client.lavalink.players.get(message.guild.id)
+    if(!player || !player.queue.current) {
       const noperms = new EmbedBuilder()
-        .setColor(0x00AE86)
+        .setColor(0xff0051)
         .setDescription(`${no} There is nothing playing in this server.`)
       return await message.channel.send({ embeds: [noperms] })
     }
-    if (player && channel.id !== player.voiceChannel) {
+    if (player && channel.id !== player.voiceChannelId) {
       const noperms = new EmbedBuilder()
-        .setColor(0x00AE86)
+        .setColor(0xff0051)
         .setDescription(`${no} You must be connected to the same voice channel as me.`)
       return await message.channel.send({ embeds: [noperms] })
     }
     //
-    if (!player.vaporwave === true) {
+    if (player.vaporwave !== true) {
       player.vaporwave = true
       const noperms = new EmbedBuilder()
-        .setColor(0x00AE86)
+        .setColor(0xff0051)
         .setDescription(`${ok} Vaporwave has been \`enabled\`.- <@${message.member.id}>`)
       const noperms1 = new EmbedBuilder()
-        .setColor(0x00AE86)
+        .setColor(0xff0051)
         .setDescription('Applying the `vaporwave` Filter. (*It might take up to 5 seconds until you hear the Filter*)')
       return await message.channel.send({ embeds: [noperms1] }),
       message.channel.send({ embeds: [noperms] }).then(responce => {
@@ -66,10 +65,10 @@ module.exports = {
     if (player.vaporwave === true) {
       player.vaporwave = false
       const noperms = new EmbedBuilder()
-        .setColor(0x00AE86)
+        .setColor(0xff0051)
         .setDescription(`${ok} Vaporwave has been \`disabled\`.- <@${message.member.id}>`)
       const noperms1 = new EmbedBuilder()
-        .setColor(0x00AE86)
+        .setColor(0xff0051)
         .setDescription('Removing the `vaporwave` Filter. (*It might take up to 5 seconds to remove the filter.*)')
 
       return await message.channel.send({ embeds: [noperms1] }),
@@ -87,3 +86,5 @@ module.exports = {
     }
   }
 }
+
+

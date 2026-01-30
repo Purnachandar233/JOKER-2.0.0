@@ -5,13 +5,7 @@ module.exports = {
   category: "owner",
   description: "restarts the bot",
   owneronly: true,
-  execute: async (message, args, bot,client, prefix) => {
-
-   
-    
-
-      
-
+  execute: async (message, args, client, prefix) => {
        message.channel.send({content: "Restarting!"})
        setTimeout(() => {
          process.exit();

@@ -20,19 +20,18 @@ module.exports = {
   if (!channel) {
                   const noperms = new EmbedBuilder()
 
-       .setColor(0x00AE86)
+       .setColor(0xff0051)
          .setDescription(`${no} You must be connected to a voice channel to use this command.`)
       return await message.channel.send({embeds: [noperms]});
   }
   if(message.member.voice.selfDeaf) {   
     let thing = new EmbedBuilder()
-     .setColor(0x00AE86)
+     .setColor(0xff0051)
   
    .setDescription(` ${no} You cannot run this command while deafened.`)
      return await message.channel.send({embeds: [thing]});
    }
-  const botchannel = message.guild.members.me?.voice?.channel;
-  const player = client.manager.players.get(message.guild.id);
+    const player = client.lavalink.players.get(message.guild.id);
  
       player.destroy();
       const msg = player.get(`playingsongmsg`);
@@ -41,7 +40,7 @@ module.exports = {
       }
 
       let thing = new EmbedBuilder()
-      .setColor(0x00AE86)
+      .setColor(0xff0051)
       .setDescription(`${ok} Destroyed the player and left ${botchannel}`)
       return message.channel.send({ embeds: [thing] });
       

@@ -26,28 +26,27 @@ module.exports = {
     if (!channel) {
                     const noperms = new EmbedBuilder()
                   
-         .setColor(0x00AE86)
+         .setColor(0xff0051)
            .setDescription(`${no} You must be connected to a voice channel to use this command.`)
         return await interaction.reply({embeds: [noperms]});
     }
     if(interaction.member.voice.selfDeaf) {	
       let thing = new EmbedBuilder()
-       .setColor(0x00AE86)
-     .setDescription(`${no} <@${message.member.id}> You cannot run this command while deafened.`)
+       .setColor(0xff0051)
+     .setDescription(`${no} <@${interaction.member.id}> You cannot run this command while deafened.`)
        return await interaction.reply({embeds: [thing]});
      }
-    const botchannel = interaction.guild.me.voice.channel;
-    const player = client.manager.players.get(interaction.guild.id);
-    if(!player || !botchannel || !player.queue.current || !player.queue.length) {
+        const player = client.lavalink.players.get(interaction.guild.id);
+    if(!player || !player.queue.current || !player.queue.size) {
                     const noperms = new EmbedBuilder()
       
-         .setColor(0x00AE86)
+         .setColor(0xff0051)
          .setDescription(`There is nothing playing in this server or there is no songs in the queue.`)
         return await interaction.reply({embeds: [noperms]});
     }
-    if(player && channel.id !== player.voiceChannel) {
+    if(player && channel.id !== player.voiceChannelId) {
                                 const noperms = new EmbedBuilder()
-         .setColor(0x00AE86)
+         .setColor(0xff0051)
         .setDescription(`${no} You must be connected to the same voice channel as me.`)
         return await interaction.reply({embeds: [noperms]});
     }
@@ -65,7 +64,7 @@ module.exports = {
             const chunked = chunk(queue, 10);
             const embeds = [];
             for (let i = 1; i <= chunked.length; ++i)
-                embeds.push(new EmbedBuilder().setColor(0x00AE86).setTitle(`${interaction.guild.name} Music Queue`).setDescription(`**Now playing**\n[${data.Spotifytracktitle}](${data.Spotifytracklink}) by [${data.Artistname}](${data.Artistlink})\n\n**Upcoming tracks**\n ${chunked[i - 1].join('\n')}`).setFooter({ text: `Page ${i + 1}/${i.length}` }));
+                embeds.push(new EmbedBuilder().setColor(0xff0051).setTitle(`${interaction.guild.name} Music Queue`).setDescription(`**Now playing**\n[${data.Spotifytracktitle}](${data.Spotifytracklink}) by [${data.Artistname}](${data.Artistlink})\n\n**Upcoming tracks**\n ${chunked[i - 1].join('\n')}`).setFooter({ text: `Page ${i + 1}/${i.length}` }));
             const button1 = new ButtonBuilder().setCustomId('first').setLabel('First').setStyle(2);
             const button2 = new ButtonBuilder().setCustomId('back').setLabel('Back').setStyle(2);
             const button3 = new ButtonBuilder().setCustomId('next').setLabel('Next').setStyle(2);
@@ -87,7 +86,7 @@ module.exports = {
       const chunked = chunk(queue, 10);
       const embeds = [];
       for (let i = 1; i <= chunked.length; ++i)
-          embeds.push(new EmbedBuilder().setColor(0x00AE86).setTitle(`${interaction.guild.name} Music Queue`).setDescription(`**Now playing**\n${player.queue.current.title} -   \`${!player.queue.current.isStream ? `${new Date(player.queue.current.duration).toISOString().slice(11, 19)}` : '◉ LIVE'}\`\n\n**Upcoming tracks**\n ${chunked[i - 1].join('\n')}`).setFooter({ text: `Page ${i + 1}/${i.length}` }));
+          embeds.push(new EmbedBuilder().setColor(0xff0051).setTitle(`${interaction.guild.name} Music Queue`).setDescription(`**Now playing**\n${player.queue.current.title} -   \`${!player.queue.current.isStream ? `${new Date(player.queue.current.duration).toISOString().slice(11, 19)}` : '◉ LIVE'}\`\n\n**Upcoming tracks**\n ${chunked[i - 1].join('\n')}`).setFooter({ text: `Page ${i + 1}/${i.length}` }));
       const button1 = new ButtonBuilder().setCustomId('first').setLabel('First').setStyle(2);
       const button2 = new ButtonBuilder().setCustomId('back').setLabel('Back').setStyle(2);
       const button3 = new ButtonBuilder().setCustomId('next').setLabel('Next').setStyle(2);
@@ -97,3 +96,6 @@ module.exports = {
     }
   }
   };
+
+
+

@@ -20,11 +20,29 @@ module.exports = async (client, interaction) => {
 
         if (SlashCommands.djonly) {
             const djSchema = require('../../schema/djroleSchema');
-            let djdata = await djSchema.findOne({ guildID: interaction.guild.id });
-            if (djdata && !interaction.member.roles.cache.has(djdata.Roleid)) {
+            try {
+                let djdata = await djSchema.findOne({ guildID: interaction.guild.id }).catch(() => null);
+                if (djdata && djdata.Roleid) {
+                    if (!interaction.member.roles.cache.has(djdata.Roleid)) {
+                        const embed = new EmbedBuilder()
+                            .setColor(0xff0051)
+                            .setDescription(`<@${interaction.member.id}> This command requires you to have the DJ role.`);
+                        return await interaction.editReply({ embeds: [embed] }).catch(() => {});
+                    }
+                } else {
+                    // No DJ role configured, only allow owner
+                    if (!ownerids.includes(interaction.user.id)) {
+                        const embed = new EmbedBuilder()
+                            .setColor(0xff0051)
+                            .setDescription(`<@${interaction.member.id}> No DJ role configured. Contact server owner.`);
+                        return await interaction.editReply({ embeds: [embed] }).catch(() => {});
+                    }
+                }
+            } catch (err) {
+                client.logger?.log(`DJ role check error: ${err.message}`, 'error');
                 const embed = new EmbedBuilder()
-                    .setColor(0x00AE86)
-                    .setDescription(`<@${interaction.member.id}> This command requires you to have the DJ role.`);
+                    .setColor(0xff0051)
+                    .setDescription(`Error checking DJ permissions. Please try again.`);
                 return await interaction.editReply({ embeds: [embed] }).catch(() => {});
             }
         }
@@ -33,7 +51,7 @@ module.exports = async (client, interaction) => {
             const nooo = await blacklist.findOne({ UserID: interaction.member.id });
             if (nooo && !ownerids.includes(interaction.member.id)) {
                 const embed = new EmbedBuilder()
-                    .setColor(0x00AE86)
+                    .setColor(0xff0051)
                     .setDescription(`<@${interaction.member.id}> You are blacklisted from using the bot!`);
                 return await interaction.editReply({ embeds: [embed] }).catch(() => {});
             }
@@ -46,13 +64,30 @@ module.exports = async (client, interaction) => {
             return await interaction.editReply({ embeds: [embed] }).catch(() => {});
         }
 
-        const isVoted = client.topgg ? await client.topgg.hasVoted(interaction.user.id).catch(() => false) : false;
+        const isVoted = client.topgg && typeof client.topgg.hasVoted === 'function' ? 
+            await client.topgg.hasVoted(interaction.user.id).catch((err) => {
+                client.logger?.log(`Top.gg vote check error: ${err.message}`, 'warn');
+                return false;
+            }) : false;
 
         if (SlashCommands.premium) {
             const pUser = await Premium.findOne({ Id: interaction.user.id, Type: 'user' });
             const pGuild = await Premium.findOne({ Id: interaction.guild.id, Type: 'guild' });
 
-            if (!pUser && !pGuild && !isVoted) {
+            // Check if user premium is valid
+            const isUserPremium = pUser && (pUser.Permanent || pUser.Expire > Date.now());
+            // Check if guild premium is valid
+            const isGuildPremium = pGuild && (pGuild.Permanent || pGuild.Expire > Date.now());
+            
+            // Clean up expired premium if found
+            if (pUser && !pUser.Permanent && pUser.Expire <= Date.now()) {
+                await pUser.deleteOne();
+            }
+            if (pGuild && !pGuild.Permanent && pGuild.Expire <= Date.now()) {
+                await pGuild.deleteOne();
+            }
+
+            if (!isUserPremium && !isGuildPremium && !isVoted) {
                 const embed = new EmbedBuilder()
                     .setColor(0x2f3136)
                     .setAuthor({ name: "Premium Required", iconURL: client.user.displayAvatarURL() })
@@ -70,8 +105,17 @@ module.exports = async (client, interaction) => {
         try {
             await SlashCommands.run(client, interaction);
         } catch (error) {
-            client.logger.log(error, "error");
-            await interaction.editReply({ content: 'There was an error while executing this command!' }).catch(() => {});
+            client.logger?.log(error, "error");
+            const errorMsg = error?.message || 'An unknown error occurred';
+            try {
+                if (interaction.deferred || interaction.replied) {
+                    await interaction.editReply({ content: `❌ Error: ${errorMsg}` }).catch(() => {});
+                } else {
+                    await interaction.reply({ content: `❌ Error: ${errorMsg}`, flags: [64] }).catch(() => {});
+                }
+            } catch (replyErr) {
+                client.logger?.log(`Failed to reply error: ${replyErr.message}`, 'error');
+            }
         }
     }
 

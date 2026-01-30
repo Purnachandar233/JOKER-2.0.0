@@ -33,7 +33,7 @@ module.exports = {
     
     const totalShards = client.cluster ? client.cluster.info.TOTAL_SHARDS : 1;
     for (let i = 0; i < totalShards; i++) {
-      const status = (client.cluster && client.cluster.mode === 'process') ? '<:online:968819259683770389>' : '<:dnd:968819300611817532>';
+      const status = (client.cluster && client.cluster.mode === 'process') ? '<a:online:915956426696966164>' : '<:offline:1466305315921334304>';
       fields.push({
         name: `${status} Shard ${i === (message.guild.shardId || 0) ? i + ' 📍' : i}`,
         value: `\`\`\`ml\nServers: ${servers[i] || 'null'}\nUsers  : ${users[i] || 'null'}\nPing   : ${ping[i] || 'null'}\`\`\``,
@@ -46,7 +46,7 @@ module.exports = {
     let pingMedia = ping.reduce((prev, val) => prev + (val || 0), 0);
     let media = pingMedia / totalShards;
 
-    const playerCount = client.manager.nodes.values().next().value?.stats?.players || 0;
+    const playerCount = client.lavalink.nodeManager.nodes.values().next().value?.stats?.players || 0;
     
     fields.push({
       name: '📊 Total',
@@ -54,7 +54,7 @@ module.exports = {
     });
 
     emee.addFields(fields);
-    emee.setColor(0x00AE86);
+    emee.setColor(0xff0051);
     
     message.channel.send({ embeds: [emee] });
   }

@@ -16,7 +16,7 @@ module.exports = {
       name: "query",
       description: "Song / URL",
       required: true,
-      type: "STRING"
+      type: 3
 		}
 	],
 
@@ -41,35 +41,35 @@ module.exports = {
       if (!channel) {
                       const noperms = new EmbedBuilder()
                 
-           .setColor(0x00AE86)
+           .setColor(0xff0051)
              .setDescription(`${no} You must be connected to a voice channel to use this command.`)
           return await interaction.followUp({embeds: [noperms]});
       }
       if(interaction.member.voice.selfDeaf) {	
         let thing = new EmbedBuilder()
-         .setColor(0x00AE86)
+         .setColor(0xff0051)
 
-       .setDescription(`${no} <@${message.member.id}> You cannot run this command while deafened.`)
+       .setDescription(`${no} <@${interaction.member.id}> You cannot run this command while deafened.`)
          return await interaction.followUp({embeds: [thing]});
        }
 
-    let player = client.manager.get(interaction.guildId);
-    if(player && channel.id !== player.voiceChannel) {
+    let player = client.lavalink.players.get(interaction.guildId);
+    if(player && channel.id !== player.voiceChannelId) {
       const noperms = new EmbedBuilder()
-          .setColor(0x00AE86)
+          .setColor(0xff0051)
 .setDescription(`${no} You must be connected to the same voice channel as me.`)
 return await interaction.followUp({embeds: [noperms]});
 }
  await interaction.editReply({embeds : [new EmbedBuilder()
-    .setColor(0x00AE86)
+    .setColor(0xff0051)
     .setDescription(`Searching: \`${search}\``)]})
 try {
     var res;
     if(!player)
-      player = client.manager.create({
-        guild: interaction.guild.id,
-        voiceChannel: interaction.member.voice.channel.id,
-        textChannel: interaction.channel.id,
+      player = client.lavalink.createPlayer({
+        guildId: interaction.guild.id,
+        voiceChannelId: interaction.member.voice.channel.id,
+        textChannelId: interaction.channel.id,
         selfDeafen: true,
       });
     let state = player.state;
@@ -81,7 +81,7 @@ try {
     }
     try {
      
-        res = await client.manager.search({
+        res = await player.search({
           query: search,
         }, interaction.member);
 
@@ -96,7 +96,7 @@ try {
     }
     if (!res.tracks[0])
     return await interaction.editReply({embeds : [new EmbedBuilder()
-        .setColor(0x00AE86)
+        .setColor(0xff0051)
       .setDescription(`${no} No results found.`)]})
 
     if (state !== "CONNECTED") {
@@ -119,11 +119,11 @@ try {
     }
     else {
       player.queue.add(res.tracks[0]);
-      player.queue[player.queue.length - 1];
+      player.queue[player.queue.size - 1];
 
-    var QueueArray = arrayMove(player.queue, player.queue.length - 1, 0);
+    var QueueArray = arrayMove(player.queue, player.queue.size - 1, 0);
 
-      player.queue.clear();
+      while (player.queue.size > 0) { player.queue.remove(0); };
 
       for (var track of QueueArray)
         player.queue.add(track);
@@ -136,10 +136,13 @@ try {
   } catch (e) {
     console.log(e)
     return await interaction.editReply({embeds : [new EmbedBuilder()
-      .setColor(0x00AE86)
+      .setColor(0xff0051)
 
     .setDescription(`${no} No results found.`)]})
   }
    
   }
 }
+
+
+
