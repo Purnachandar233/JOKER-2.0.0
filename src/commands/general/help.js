@@ -48,11 +48,11 @@ module.exports = {
         new ButtonBuilder()
           .setLabel("Support")
           .setStyle(5)
-          .setURL(`https://discord.gg/pCj2UBbwST`),
+          .setURL(`https://discord.gg/JQzBqgmwFm`),
         new ButtonBuilder()
           .setLabel("Invite")
           .setStyle(5)
-          .setURL(`https://discord.com/api/oauth2/authorize?client_id=${client.user.id}&permissions=8&scope=bot%20applications.commands`),
+          .setURL(`https://discord.com/oauth2/authorize?client_id=${client.user.id}&permissions=70510540062032&integration_type=0&scope=bot+applications.commands`),
         new ButtonBuilder()
           .setLabel("Vote")
           .setStyle(5)
@@ -65,7 +65,7 @@ module.exports = {
         .setFooter({ text: "Joker Music Team", iconURL: client.user.displayAvatarURL() })
         .setAuthor({ name: `Command Palette`, iconURL: client.user.displayAvatarURL({ forceStatic: false }) })
         .setDescription(`*Explore the symphony of commands. Type \`${prefix}help <command>\` for details.*`)
-        .setColor(0xff0051);
+        .setColor(message.client?.embedColor || '#ff0051');
 
       message.channel.send({ embeds: [embed], components: [row] });
     } else {
@@ -73,14 +73,14 @@ module.exports = {
       if (!command) {
         const embed = new EmbedBuilder()
           .setDescription(`*No command found matching your request.*`)
-          .setColor(0xff0051);
+          .setColor(message.client?.embedColor || '#ff0051');
         return message.channel.send({ embeds: [embed] });
       }
 
       const embed = new EmbedBuilder()
         .setTitle(`Command Details: ${command.name}`)
         .setDescription(`> **Aliases**: ${command.aliases ? `\`${command.aliases.join("` `")}\`` : "None"}\n> **Usage**: \`${prefix}${command.name} ${command.usage || ""}\`\n> **Description**: *${command.description || "No description provided."}*`)
-        .setColor(0xff0051);
+        .setColor(message.client?.embedColor || '#ff0051');
       return message.channel.send({ embeds: [embed] });
     }
   },

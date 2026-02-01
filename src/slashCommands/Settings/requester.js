@@ -28,7 +28,7 @@ module.exports = {
     
         if (!interaction.member.permissions.has('MANAGE_CHANNELS')) {
             const noperms = new EmbedBuilder()
-           .setColor(0xff0051)
+           .setColor(interaction.client?.embedColor || '#ff0051')
            .setDescription(`You need this required Permissions: \`MANAGE_CHANNELS\` to run this command.`)
            return await interaction.followUp({embeds: [noperms]});
         }

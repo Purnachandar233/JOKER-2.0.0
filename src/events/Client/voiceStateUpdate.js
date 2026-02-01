@@ -1,4 +1,5 @@
 const { EmbedBuilder, ChannelType } = require("discord.js");
+const safePlayer = require('../../utils/safePlayer');
 const delay = require("delay");
 
 module.exports = async (client, oldState, newState) => {
@@ -11,7 +12,7 @@ module.exports = async (client, oldState, newState) => {
 
     const botMember = newState.guild.members.cache.get(client.user.id);
     if (!botMember || !botMember.voice || !botMember.voice.channelId) {
-        player.destroy();
+        await safePlayer.safeDestroy(player);
         return;
     }
 
@@ -21,10 +22,10 @@ module.exports = async (client, oldState, newState) => {
             try {
                 await newState.guild.me.voice.setSuppressed(false);
             } catch (err) {
-                player.pause(true);
+                await safePlayer.safeCall(player, 'pause', true);
             }
         } else if (oldState.suppress !== newState.suppress) {
-            player.pause(newState.suppress);
+            await safePlayer.safeCall(player, 'pause', newState.suppress);
         }
     }
 
@@ -42,8 +43,7 @@ module.exports = async (client, oldState, newState) => {
     if (oldBotMember.voice.channelId === oldState.channelId) {
         if (
             oldBotMember.voice.channel &&
-            oldBotMember.voice.channel.members.filter((m) => !m.user.bot).size === 0 &&
-            !is247Enabled  // Only leave if 24/7 is NOT enabled
+            oldBotMember.voice.channel.members.filter((m) => !m.user.bot).size === 0
         ) {
             await delay(180000);
 
@@ -53,11 +53,11 @@ module.exports = async (client, oldState, newState) => {
                 currentBotMember?.voice?.channel &&
                 currentBotMember.voice.channel.members.filter((m) => !m.user.bot).size === 0
             ) {
-                await player.destroy();
+                await safePlayer.safeDestroy(player);
 
                 const embed = new EmbedBuilder()
                     .setDescription(`I have left the voice channel due to inactivity. Enable 24/7 to disable this!`)
-                    .setColor(0x2f3136);
+                    .setColor(client?.embedColor || '#ff0051');
 
                 try {
                     const textChannel = client.channels.cache.get(player.textChannelId);

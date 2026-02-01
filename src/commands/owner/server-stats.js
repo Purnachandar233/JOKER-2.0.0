@@ -15,7 +15,7 @@ module.exports = {
 
     const vps = new EmbedBuilder()
       .setAuthor({ name: 'Virtual Private Server Stats' })
-      .setColor(0xff0051)
+      .setColor(message.client?.embedColor || '#ff0051')
       .addFields(
         { name: 'Host', value: `${os.type()} ${os.arch()}`, inline: true },
         { name: 'CPU', value: `${os.cpus()[0].model}`, inline: true },

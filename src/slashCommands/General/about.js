@@ -2,7 +2,7 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder } = require("discord.js");
 
 module.exports = {
     name: "about",
-    description: "shows about alex music",
+    description: "shows about joker music",
     wl : true,
 
     /**
@@ -12,19 +12,15 @@ module.exports = {
      */
 
     run: async (client, interaction) => {
-        await interaction.deferReply({
-          ephemeral: false
-        });
-          
-    let ok = client.emoji.ok;
-    let no = client.emoji.no;
+        let ok = client.emoji.ok;
+        let no = client.emoji.no;
     
         const row = new ActionRowBuilder()
         .addComponents(
           new ButtonBuilder()
       .setLabel("Support Server")
       .setStyle(5)
-      .setURL(`https://discord.gg/pCj2UBbwST`),
+      .setURL(`https://discord.gg/JQzBqgmwFm`),
       new ButtonBuilder()
       .setLabel("Invite Me")
       .setStyle(5)
@@ -32,7 +28,7 @@ module.exports = {
       new ButtonBuilder()
       .setLabel("Vote")
       .setStyle(5)
-      .setURL(`https://top.gg/bot/898941398538158080/vote`),
+      .setURL(`https://top.gg/bot/${client.user.id}/vote`),
         );
                
         const embed = new EmbedBuilder()
@@ -56,7 +52,7 @@ Joker Music can be added to as many server as you want! [Click here to add it to
           
         
  
-.setColor(0xff0051)
+.setColor(interaction.client?.embedColor || '#ff0051')
         await interaction.followUp({embeds: [embed], components: [row]})
     }
 }

@@ -29,55 +29,51 @@ module.exports = {
       if (!channel) {
                       const noperms = new EmbedBuilder()
                      
-           .setColor(0xff0051)
+           .setColor(interaction.client?.embedColor || '#ff0051')
              .setDescription(`${no} You must be connected to a voice channel to use this command.`)
           return await interaction.followUp({embeds: [noperms]});
       }
       if(interaction.member.voice.selfDeaf) {	
         let thing = new EmbedBuilder()
-         .setColor(0xff0051)
+         .setColor(interaction.client?.embedColor || '#ff0051')
 
        .setDescription(`${no} <@${interaction.member.id}> You cannot run this command while deafened.`)
          return await interaction.followUp({embeds: [thing]});
        }
             const player = client.lavalink.players.get(interaction.guild.id);
-      if(!player || !player.queue.current) {
+            const { getQueueArray } = require('../../utils/queue.js');
+          const tracks = getQueueArray(player);
+      if(!player || !tracks || tracks.length === 0) {
                       const noperms = new EmbedBuilder()
 
-           .setColor(0xff0051)
+           .setColor(interaction.client?.embedColor || '#ff0051')
            .setDescription(`${no} There is nothing playing in this server.`)
           return await interaction.followUp({embeds: [noperms]});
       }
       if(player && channel.id !== player.voiceChannelId) {
                                   const noperms = new EmbedBuilder()
-             .setColor(0xff0051)
+             .setColor(interaction.client?.embedColor || '#ff0051')
           .setDescription(`${no} You must be connected to the same voice channel as me.`)
           return await interaction.followUp({embeds: [noperms]});
       }
 		
-
-      let tracks = player.queue;
-      const newtracks = [];
-      for (let i = 0; i < tracks.length; i++) {
-        let exists = false; 
-        for (j = 0; j < newtracks.length; j++) {
-          if (tracks[i].uri === newtracks[j].uri) {
-            exists = true;
-            break;
-          }
-        }//removedupes
-        if (!exists) {
-          newtracks.push(tracks[i]);
+      // build unique tracks preserving order
+      const unique = [];
+      const seen = new Set();
+      for (const t of tracks) {
+        const id = t?.info?.identifier || t?.identifier || t?.uri || t?.id || null;
+        if (!id) continue;
+        if (!seen.has(id)) {
+          seen.add(id);
+          unique.push(t);
         }
       }
-      //clear the Queue
-      while (player.queue.size > 0) { player.queue.remove(0); };
-      //now add every not dupe song again
-      for (const track of newtracks)
-        player.queue.add(track);
+      // clear the Queue and re-add unique tracks
+      await require('../../utils/safePlayer').queueClear(player);
+      require('../../utils/safePlayer').queueAdd(player, unique);
       //Send Success Message
        return await interaction.followUp({ embeds : [new EmbedBuilder().setDescription(`${ok} Removed all the duplicates songs from the queue.`)
-      .setColor(0xff0051)
+      .setColor(interaction.client?.embedColor || '#ff0051')
 ]})
      
        }

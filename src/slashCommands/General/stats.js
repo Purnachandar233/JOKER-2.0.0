@@ -14,8 +14,8 @@ module.exports = {
       await interaction.deferReply({ ephemeral: false }).catch(() => {});
     }
 
-    const servers = (await client.cluster.fetchClientValues('guilds.cache.size')).reduce((prev, val) => prev + val, 0);
-    const users = (await client.cluster.broadcastEval(c => c.guilds.cache.reduce((acc, guild) => acc + guild.memberCount, 0))).reduce((acc, memberCount) => acc + memberCount, 0);
+    const servers = client.cluster ? (await client.cluster.fetchClientValues('guilds.cache.size')).reduce((prev, val) => prev + val, 0) : client.guilds.cache.size;
+    const users = client.cluster ? (await client.cluster.broadcastEval(c => c.guilds.cache.reduce((acc, guild) => acc + guild.memberCount, 0))).reduce((acc, memberCount) => acc + memberCount, 0) : interaction.guild.memberCount;
 
     const memusage = process.memoryUsage();
     const { usedMemMb } = await mem.info().catch(() => ({ usedMemMb: 0 }));
@@ -30,7 +30,7 @@ module.exports = {
     `;
 
     const statsEmbed = new EmbedBuilder()
-      .setColor(0xff0051)
+      .setColor(interaction.client?.embedColor || '#ff0051')
       .setAuthor({ 
         name: `Joker Music Stats`, 
         iconURL: interaction.member.user.displayAvatarURL({ forceStatic: false }) 

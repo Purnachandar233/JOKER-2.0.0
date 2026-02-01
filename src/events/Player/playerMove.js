@@ -14,12 +14,14 @@ module.exports = async (client, player, oldChannel, newChannel) => {
                 if (msg && msg.delete) {
                     await msg.delete().catch(() => {});
                 }
-                player.destroy();
+                const safePlayer = require('../../utils/safePlayer');
+                await safePlayer.safeDestroy(player);
             }
         } else {
             // Don't try to set read-only property, just resume playback
             setTimeout(() => {
-                player.pause(false);
+                const safePlayer = require('../../utils/safePlayer');
+                safePlayer.safeCall(player, 'pause', false);
             }, 100);
         }
 
@@ -29,7 +31,7 @@ module.exports = async (client, player, oldChannel, newChannel) => {
         const newChannelName = newChannel ? `<#${newChannel.id}>` : 'Unknown';
         
         const denginde = new EmbedBuilder()
-            .setColor(0xff0051)
+            .setColor(client?.embedColor || '#ff0051')
             .setTitle(`Player has been moved`)
             .setDescription(`I have been moved from ${oldChannelName} to ${newChannelName}`);
         

@@ -71,7 +71,7 @@ module.exports = {
             const targetType = typeArg === 'server' || typeArg === 'guild' ? 'Server/Guild Premium' : 'User Premium';
 
             const embed = new EmbedBuilder()
-                .setColor(0xff0051)
+                .setColor(message.client?.embedColor || '#ff0051')
                 .setTitle("Premium Code Generated")
                 .setDescription(`**Code**: \`${code}\`\n**Type**: ${targetType}\n**Duration**: ${durationText}`)
                 .setFooter({ text: "Use /redeem or !redeem to redeem this code" });
@@ -84,9 +84,9 @@ module.exports = {
                 message.channel.send({ embeds: [embed] });
             }
 
-            console.log(`[CODE] Generated ${targetType} code ${code} for ${durationText}`);
+            try { client.logger?.log(`[CODE] Generated ${targetType} code ${code} for ${durationText}`, 'info'); } catch (e) { console.log(`[CODE] Generated ${targetType} code ${code} for ${durationText}`); }
         } catch (error) {
-            console.error("Error creating redeem code:", error);
+            try { client.logger?.log((error && (error.stack || error.toString())) || error, 'error'); } catch (e) { console.error("Error creating redeem code:", error); }
             message.reply(`${no} | Error creating code: ${error.message}`);
         }
     }

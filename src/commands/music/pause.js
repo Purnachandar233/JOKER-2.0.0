@@ -1,5 +1,6 @@
 const { EmbedBuilder, Message } = require("discord.js");
 const { progressbar } = require('../../utils/progressbar.js')
+const safePlayer = require('../../utils/safePlayer');
 module.exports = {
   name: 'pause',
   category: 'music',
@@ -18,28 +19,30 @@ module.exports = {
     if (!channel) {
                     const noperms = new EmbedBuilder()
                    
-         .setColor(0xff0051)
+         .setColor(message.client?.embedColor || '#ff0051')
            .setDescription(`${no} You must be connected to a voice channel to use this command.`)
         return await message.channel.send({embeds: [noperms]});
     }
     if(message.member.voice.selfDeaf) {	
       let thing = new EmbedBuilder()
-       .setColor(0xff0051)
+       .setColor(message.client?.embedColor || '#ff0051')
  
      .setDescription(`${no} <@${message.member.id}> You cannot run this command while deafened.`)
        return await message.channel.send({embeds: [thing]});
      }
         const player = client.lavalink.players.get(message.guild.id);
-    if(!player || !player.queue.current) {
+      const { getQueueArray } = require('../../utils/queue.js');
+      const tracks = getQueueArray(player);
+      if(!player || !tracks || tracks.length === 0) {
                     const noperms = new EmbedBuilder()
         
-         .setColor(0xff0051)
+         .setColor(message.client?.embedColor || '#ff0051')
          .setDescription(`${no} There is nothing playing in this server.`)
         return await message.channel.send({embeds: [noperms]});
     }
     if(player && channel.id !== player.voiceChannelId) {
                                 const noperms = new EmbedBuilder()
-            .setColor(0xff0051)
+            .setColor(message.client?.embedColor || '#ff0051')
         .setDescription(`${no} You must be connected to the same voice channel as me.`)
         return await message.channel.send({embeds: [noperms]});
     }
@@ -47,17 +50,17 @@ module.exports = {
         if (player.paused) {
             let thing = new EmbedBuilder()
     
-                  .setColor(0xff0051)
+                  .setColor(message.client?.embedColor || '#ff0051')
                 .setDescription(`${no} The player is already paused.`)
                 return message.channel.send({embeds: [thing]});
         }
 
-        player.pause(true);
+        await safePlayer.safeCall(player, 'pause', true);
     
-        const song = player.queue.current;
+        const song = tracks[0];
 
         let thing = new EmbedBuilder()
-            .setColor(0xff0051)
+            .setColor(message.client?.embedColor || '#ff0051')
             .setDescription(`${ok} **The player has been paused**`)
           return message.channel.send({embeds: [thing]});
 	

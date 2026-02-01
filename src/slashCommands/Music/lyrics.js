@@ -1,5 +1,4 @@
 const { CommandInteraction, Client, EmbedBuilder } = require("discord.js");
-const db = require("quick.db")
 const lyricsFinder = require("lyrics-finder");
 const _ = require("lodash");
 module.exports = {
@@ -46,7 +45,7 @@ module.exports = {
         if(!res) {
             let no = new EmbedBuilder()
             .setDescription(`No results found.`)
-              .setColor(0xff0051)
+              .setColor(interaction.client?.embedColor || '#ff0051')
               return await interaction.followUp({ embeds : [no]})
         }
     
@@ -54,7 +53,7 @@ module.exports = {
             let lyrics = res.substring(i, Math.min(res.length, i + 2048))
             let page = new EmbedBuilder()
             .setDescription(lyrics)
-            .setColor(0xff0051)
+            .setColor(interaction.client?.embedColor || '#ff0051')
     
             pages.push(page)
             

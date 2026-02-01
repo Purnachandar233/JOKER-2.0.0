@@ -2,7 +2,7 @@
   "token": "DISCORD_BOT_TOKEN",
   "mongourl": "MONGODB_URL",
   "ownerId": "721629553134403591",
-  "embedColor": "#000000",
+  "embedColor": "#ff0051",
   "prefix": "=",
   "webhooks": {
     "guildLogs": "",
@@ -11,8 +11,8 @@
   },
   "nodes": [
     {
-      "host": "127.0.0.1",
-      "port": 8080,
+      "host": "94.249.138.22",
+      "port": 5056,
       "authorization": "youshallnotpass",
       "secure": false
     }

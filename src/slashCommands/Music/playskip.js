@@ -2,7 +2,7 @@ const { CommandInteraction, Client, EmbedBuilder } = require("discord.js");
 var {
     arrayMove
   } = require("../../functions.js")
-const db = require("quick.db")
+const safePlayer = require('../../utils/safePlayer')
 module.exports = {
   name: "playskip",
   description: "Play skips a track.",
@@ -41,13 +41,13 @@ module.exports = {
       if (!channel) {
                       const noperms = new EmbedBuilder()
                 
-           .setColor(0xff0051)
+           .setColor(interaction.client?.embedColor || '#ff0051')
              .setDescription(`${no} You must be connected to a voice channel to use this command.`)
           return await interaction.followUp({embeds: [noperms]});
       }
       if(interaction.member.voice.selfDeaf) {	
         let thing = new EmbedBuilder()
-         .setColor(0xff0051)
+         .setColor(interaction.client?.embedColor || '#ff0051')
 
        .setDescription(`${no} <@${interaction.member.id}> You cannot run this command while deafened.`)
          return await interaction.followUp({embeds: [thing]});
@@ -56,12 +56,12 @@ module.exports = {
     let player = client.lavalink.players.get(interaction.guildId);
     if(player && channel.id !== player.voiceChannelId) {
       const noperms = new EmbedBuilder()
-          .setColor(0xff0051)
+          .setColor(interaction.client?.embedColor || '#ff0051')
 .setDescription(`${no} You must be connected to the same voice channel as me.`)
 return await interaction.followUp({embeds: [noperms]});
 }
  await interaction.editReply({embeds : [new EmbedBuilder()
-    .setColor(0xff0051)
+    .setColor(interaction.client?.embedColor || '#ff0051')
     .setDescription(`Searching: \`${search}\``)]})
 try {
     var res;
@@ -76,8 +76,8 @@ try {
     if (state !== "CONNECTED") { 
       player.set("message", interaction);
       player.set("playerauthor", interaction.member.id);
-      player.connect();
-      player.stop();
+      await safePlayer.safeCall(player, 'connect');
+      await safePlayer.safeStop(player);
     }
     try {
      
@@ -91,52 +91,48 @@ try {
         message: "${no} Playlists are not supported with this command."
       };
     } catch (e) {
-      console.log(e)
+      try { client.logger?.log(e.stack || e.toString(), 'error'); } catch (err) { console.log(e); }
 
     }
     if (!res.tracks[0])
     return await interaction.editReply({embeds : [new EmbedBuilder()
-        .setColor(0xff0051)
+        .setColor(interaction.client?.embedColor || '#ff0051')
       .setDescription(`${no} No results found.`)]})
 
     if (state !== "CONNECTED") {
-    
       player.set("message", interaction);
       player.set("playerauthor", interaction.member.id);
-      player.connect();
-     
-      player.queue.add(res.tracks[0]);
-      player.play();
-      player.pause(false);
- 
-    }
-    else if(!player.queue || !player.queue.current){
-      
-      player.queue.add(res.tracks[0]);
-      player.play();
-      player.pause(false);
-     
+      await safePlayer.safeCall(player, 'connect');
+      safePlayer.queueAdd(player, res.tracks[0]);
+      await safePlayer.safeCall(player, 'play');
+      await safePlayer.safeCall(player, 'pause', false);
     }
     else {
-      player.queue.add(res.tracks[0]);
-      player.queue[player.queue.size - 1];
+      const { getQueueArray } = require('../../utils/queue.js');
+      const tracks = getQueueArray(player);
+      if(!player || !tracks || tracks.length === 0){
+        safePlayer.queueAdd(player, res.tracks[0]);
+        await safePlayer.safeCall(player, 'play');
+        await safePlayer.safeCall(player, 'pause', false);
+      } else {
+        safePlayer.queueAdd(player, res.tracks[0]);
 
-    var QueueArray = arrayMove(player.queue, player.queue.size - 1, 0);
+        const arr = tracks;
+        const QueueArray = arrayMove(arr, arr.length - 1, 0);
 
-      while (player.queue.size > 0) { player.queue.remove(0); };
+        await safePlayer.queueClear(player);
+        safePlayer.queueAdd(player, QueueArray);
 
-      for (var track of QueueArray)
-        player.queue.add(track);
+        // use stop to reliably advance playback
+        await safePlayer.safeStop(player);
 
-      player.stop();
-
-
-      return;
+        return;
+      }
     }
   } catch (e) {
-    console.log(e)
+    try { client.logger?.log(e.stack || e.toString(), 'error'); } catch (err) { console.log(e); }
     return await interaction.editReply({embeds : [new EmbedBuilder()
-      .setColor(0xff0051)
+      .setColor(interaction.client?.embedColor || '#ff0051')
 
     .setDescription(`${no} No results found.`)]})
   }

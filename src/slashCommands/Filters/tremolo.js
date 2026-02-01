@@ -28,26 +28,28 @@ wl : true,
     if (!channel) {
                     const noperms = new EmbedBuilder()
 
-         .setColor(0xff0051)
+         .setColor(interaction.client?.embedColor || '#ff0051')
            .setDescription(`${no} You must be connected to a voice channel to use this command.`)
         return await interaction.followUp({embeds: [noperms]});
     }
     if(interaction.member.voice.selfDeaf) {	
       let thing = new EmbedBuilder()
-       .setColor(0xff0051)
+       .setColor(interaction.client?.embedColor || '#ff0051')
      .setDescription(`${no} <@${interaction.member.id}> You cannot run this command while deafened.`)
        return await interaction.followUp({embeds: [thing]});
      }
         const player = client.lavalink.players.get(interaction.guild.id);
-    if(!player || !player.queue.current) {
+    const { getQueueArray } = require('../../../utils/queue.js');
+    const tracks = getQueueArray(player);
+    if(!player || !tracks || tracks.length === 0) {
                     const noperms = new EmbedBuilder()
-         .setColor(0xff0051)
+         .setColor(interaction.client?.embedColor || '#ff0051')
          .setDescription(`${no} There is nothing playing in this server.`)
         return await interaction.followUp({embeds: [noperms]});
     }
     if(player && channel.id !== player.voiceChannelId) {
                                 const noperms = new EmbedBuilder()
-       .setColor(0xff0051)
+       .setColor(interaction.client?.embedColor || '#ff0051')
         .setDescription(`${no} You must be connected to the same voice channel as me.`)
         return await interaction.followUp({embeds: [noperms]});
     }
@@ -55,10 +57,10 @@ wl : true,
         if(!player.tremolo === true){
             player.tremolo = true;
                      const noperms = new EmbedBuilder()
-                .setColor(0xff0051)
+                .setColor(interaction.client?.embedColor || '#ff0051')
                      .setDescription(`${ok} Tremolo has been \`enabled\`. - <@!${interaction.member.id}>`)
                      const noperm1 = new EmbedBuilder()
-                     .setColor(0xff0051)
+                     .setColor(interaction.client?.embedColor || '#ff0051')
                            .setDescription(`${ok} Applying the \`Tremolo\` Filter. (*It might take up to 5 seconds until you hear the Filter*)`)
       return await interaction.followUp({embeds: [noperm1]}),
       interaction.channel.send({embeds: [noperms]}).then(responce => {
@@ -76,10 +78,10 @@ wl : true,
        if(player.tremolo === true){
             player.tremolo = false;
                     const noperms = new EmbedBuilder()
-               .setColor(0xff0051)
+               .setColor(interaction.client?.embedColor || '#ff0051')
                     .setDescription(`Tremolo has been \`disabled\`. - <@!${interaction.member.id}>`)
                     const noperms1 = new EmbedBuilder()
-                    .setColor(0xff0051)
+                    .setColor(interaction.client?.embedColor || '#ff0051')
                           .setDescription(`Removing the \`Tremolo\` Filter. (*It might take up to 5 seconds to remove the filter.*)`)
       return await interaction.followUp({embeds: [noperms1]}),
       interaction.channel.send({embeds: [noperms]}).then(responce => {

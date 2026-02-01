@@ -19,6 +19,7 @@ module.exports = async (client) => {
     // Reconnect to 24/7 voice channels after Lavalink is ready
     setTimeout(async () => {
         if (!client.lavalink) return;
+        const safePlayer = require('../../utils/safePlayer');
         const data = await autojoin.find();
         for (const vc of data) {
             const guild = client.guilds.cache.get(vc.guildID);
@@ -42,9 +43,7 @@ module.exports = async (client) => {
                 }
 
                 // Ensure connection
-                if (player.state !== "CONNECTED") {
-                    await player.connect();
-                }
+                await safePlayer.safeCall(player, 'connect');
 
                 // Restore autoplay state if it was enabled
                 const autoplaySchema = require('../../schema/autoplay.js');

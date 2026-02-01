@@ -32,35 +32,37 @@ module.exports = {
     if (!channel) {
                     const noperms = new EmbedBuilder()
 
-         .setColor(0xff0051)
+         .setColor(interaction.client?.embedColor || '#ff0051')
            .setDescription(`${no} You must be connected to a voice channel to use this command.`)
         return await interaction.followUp({embeds: [noperms]});
     }
     if(interaction.member.voice.selfDeaf) {	
       let thing = new EmbedBuilder()
-       .setColor(0xff0051)
+       .setColor(interaction.client?.embedColor || '#ff0051')
      .setDescription(`${no} <@${interaction.member.id}> You cannot run this command while deafened.`)
        return await interaction.followUp({embeds: [thing]});
      }
         const player = client.lavalink.players.get(interaction.guild.id);
-    if(!player || !player.queue.current) {
+      const { getQueueArray } = require('../../../utils/queue.js');
+      const tracks = getQueueArray(player);
+      if(!player || !tracks || tracks.length === 0) {
                     const noperms = new EmbedBuilder()
-         .setColor(0xff0051)
+         .setColor(interaction.client?.embedColor || '#ff0051')
          .setDescription(`${no} There is nothing playing in this server.`)
         return await interaction.followUp({embeds: [noperms]});
     }
     if(player && channel.id !== player.voiceChannelId) {
                                 const noperms = new EmbedBuilder()
-       .setColor(0xff0051)
+       .setColor(interaction.client?.embedColor || '#ff0051')
         .setDescription(`${no} You must be connected to the same voice channel as me.`)
         return await interaction.followUp({embeds: [noperms]});
     }
         //
      
-        const db = require('quick.db')
-        const filted = await db.get(`slowmo_${interaction.guild.id}`)
+        const settings = require('../../utils/settings');
+        const filted = await settings.getFilter(interaction.guild.id, 'slowmo');
 if(!filted) {
-  db.push(`slowmo_${interaction.guild.id}`, true)
+  await settings.setFilter(interaction.guild.id, 'slowmo', true);
   player.node.send({
     op: "filters",
     guildId: interaction.guild.id,
@@ -81,10 +83,10 @@ if(!filted) {
   });
   player.set("filter", "⏱ Slowmode");
          const noperms = new EmbedBuilder()
-    .setColor(0xff0051)
+    .setColor(interaction.client?.embedColor || '#ff0051')
          .setDescription(`${ok} Slowmode has been \`enabled\`. - <@!${interaction.member.id}>`)
          const noperms1 = new EmbedBuilder()
-         .setColor(0xff0051)
+         .setColor(interaction.client?.embedColor || '#ff0051')
                .setDescription(`${ok} Applying the \`slowmo\` Filter (*It might take up to 5 seconds until you hear the Filter*)`)
          return  await interaction.followUp({embeds: [noperms1]}),
          interaction.channel.send({embeds: [noperms]}).then(responce => {
@@ -99,7 +101,7 @@ if(!filted) {
           }, 30000)
       });;
         }else{
-          db.delete(`slowmo_${interaction.guild.id}`)
+          await settings.setFilter(interaction.guild.id, 'slowmo', false);
           player.clearEQ();
           player.node.send({
             op: "filters",
@@ -117,10 +119,10 @@ if(!filted) {
           player.set("eq", "💣 None");
           player.set("filter", "💣 None");
           const noperms = new EmbedBuilder()
-     .setColor(0xff0051)
+     .setColor(interaction.client?.embedColor || '#ff0051')
           .setDescription(`${ok} Slowmode has been \`disabled\`. - <@!${interaction.member.id}>`)
           const noperms1 = new EmbedBuilder()
-          .setColor(0xff0051)
+          .setColor(interaction.client?.embedColor || '#ff0051')
                 .setDescription(`${ok} Removing the \`slowmo\` Filter(*It might take up to 5 seconds to remove the filter.*)`)
           return  await interaction.followUp({embeds: [noperms1]}),
           interaction.channel.send({embeds: [noperms]}).then(responce => {

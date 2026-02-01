@@ -39,12 +39,13 @@ client.commands = new Collection();
 client.aliases = new Collection();
 client.sls = new Collection();
 client.config = require("../config.json");
-client.owner = client.config.ownerID;
+client.owner = client.config.ownerId;
 client.prefix = process.env.PREFIX || client.config.prefix;
 client.embedColor = client.config.embedColor;
 client.cooldowns = new Collection(); 
 client.logger = require("./utils/logger.js");
 client.emoji = require("./utils/emoji.json");
+
 
 require("./handler/Client")(client);
 require('events').EventEmitter.defaultMaxListeners = 1000;
@@ -59,26 +60,16 @@ if (!token || token === "DISCORD_BOT_TOKEN") {
 client.login(token);
 
 process.on('unhandledRejection', (error) => {
- console.error('Unhandled Rejection:', error);
- if (client.config.webhooks.errorLogs) {
-    const web = new WebhookClient({ url: client.config.webhooks.errorLogs });
-    const embed = new EmbedBuilder()
-        .setTitle("Unhandled Rejection")
-        .setDescription(`\`\`\`js\n${error.stack || error}\n\`\`\``)
-        .setColor("Red")
-        .setTimestamp();
-    web.send({ embeds: [embed] }).catch(() => {});
+ client.logger?.log(error, 'error');
+ if (client.config.webhooks?.errorLogs) {
+    const { logError } = require('./utils/errorHandler');
+    logError(client, error, { source: 'Unhandled Rejection' }).catch(() => {});
  }
 });
 process.on("uncaughtException", (err, origin) => {
- console.error('Uncaught Exception:', err);
- if (client.config.webhooks.errorLogs) {
-    const web = new WebhookClient({ url: client.config.webhooks.errorLogs });
-    const embed = new EmbedBuilder()
-        .setTitle("Uncaught Exception")
-        .setDescription(`\`\`\`js\n${err.stack || err}\n\`\`\``)
-        .setColor("Red")
-        .setTimestamp();
-    web.send({ embeds: [embed] }).catch(() => {});
+ client.logger?.log(err, 'error');
+ if (client.config.webhooks?.errorLogs) {
+    const { logError } = require('./utils/errorHandler');
+    logError(client, err, { source: 'Uncaught Exception', origin }).catch(() => {});
  }
 });

@@ -22,7 +22,7 @@ module.exports = {
 
     const mainPage = new EmbedBuilder()
       .setDescription(`Help me by voting! You'll get access to premium commands for 12 hours if you vote me on [Top.gg](https://top.gg/bot/${client.user.id}/vote)`)
-      .setColor(0xff0051);
+      .setColor(message.client?.embedColor || '#ff0051');
       
     message.channel.send({ embeds: [mainPage], components: [row] });
   }

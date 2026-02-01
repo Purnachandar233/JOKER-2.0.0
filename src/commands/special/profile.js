@@ -63,7 +63,7 @@ module.exports = {
         if(voteok) cache2.push(`**Voted** You can use all premium commands for 12 hours.`)
 
         const profile = new EmbedBuilder()
-            .setColor(0xff0051)
+            .setColor(message.client?.embedColor || '#ff0051')
             .setAuthor({ name: `Joker Music Profile Of ${member.user.username}` })
             .addFields(
                 { name: "Commands used", value: `${data.count}` },

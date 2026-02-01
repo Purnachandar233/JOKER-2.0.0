@@ -23,7 +23,7 @@ module.exports = {
                 if (!msg) return;
                 const embed = new EmbedBuilder()
               .setDescription(`\`\`\`fix\nWebsocket Latency : ${Math.floor(msg.createdAt - interaction.createdAt)}ms\nAPI Latency : ${client.ws.ping}ms\`\`\``)
-              .setColor(0xff0051)
+              .setColor(interaction.client?.embedColor || '#ff0051')
               msg.edit({ content: "⠀", embeds : [embed]}).catch(() => {});
     } 
 }

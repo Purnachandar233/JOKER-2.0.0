@@ -2,7 +2,7 @@
 
 ## Overview
 
-Joker Music Bot is a Discord music bot built with Discord.js v14 that connects to Lavalink servers via erela.js for high-quality audio streaming. The bot supports multiple music sources including Spotify, Soundcloud, and YouTube, with features like audio filters, DJ role system, premium/vote-gated commands, playlist management, and 24/7 voice channel presence. It uses discord-hybrid-sharding for horizontal scaling across multiple clusters.
+Joker Music Bot is a Discord music bot built with Discord.js v14 that connects to Lavalink servers via `lavalink-client` for high-quality audio streaming. The bot supports multiple music sources including Spotify, Soundcloud, and YouTube, with features like audio filters, DJ role system, premium/vote-gated commands, playlist management, and 24/7 voice channel presence. It uses `discord-hybrid-sharding` for horizontal scaling across multiple clusters.
 
 ## User Preferences
 
@@ -13,7 +13,7 @@ Preferred communication style: Simple, everyday language.
 ### Core Framework
 - **Runtime**: Node.js v20+
 - **Discord Library**: Discord.js v14 with hybrid sharding via discord-hybrid-sharding
-- **Audio System**: Lavalink server connection through erela.js library
+- **Audio System**: Lavalink server connection through `lavalink-client`
 - **Entry Point**: `cluster.js` spawns sharded bot processes from `src/bot.js`
 
 ### Command Structure
@@ -58,7 +58,7 @@ Located in `src/schema/`:
 
 ### Third-Party APIs
 - **Top.gg API**: Vote verification and bot statistics posting via `@top-gg/sdk` and `topgg-autoposter`
-- **Spotify API**: Track/playlist resolution via `better-erela.js-spotify`, `spotify-url-info`, `@ksolo/spotify-search`
+- **Spotify API**: Track/playlist resolution via `spotify-url-info` and Lavalink searches
 - **Apple Music**: Track resolution via `better-erela.js-apple`
 
 ### Configuration

@@ -13,10 +13,10 @@ module.exports = {
         let no = client.emoji.no;
             const aa = new EmbedBuilder()
             .setDescription(`Please Provide A User Id...`)
-            .setColor(0xff0051)
+            .setColor(message.client?.embedColor || '#ff0051')
         const aaa = new EmbedBuilder()
             .setDescription(`Please Provide A Valid User ID`)
-            .setColor(0xff0051)
+            .setColor(message.client?.embedColor || '#ff0051')
         if (!args[0]) return message.reply({ embeds: [aa] })
         if (!client.users.cache.has(args[0])) return message.reply({ embeds: [aaa] });
 
@@ -37,7 +37,7 @@ module.exports = {
 
     const lol = new EmbedBuilder()
         .setDescription(`${ok} Blacklisted ${username} from using the bot!`)
-        .setColor(0xff0051)
+        .setColor(message.client?.embedColor || '#ff0051')
     message.reply({ embeds: [lol] })
     }
 }

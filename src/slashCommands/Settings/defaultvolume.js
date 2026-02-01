@@ -34,14 +34,14 @@ module.exports = {
     
         if (!interaction.member.permissions.has('MANAGE_CHANNELS')) {
             const noperms = new EmbedBuilder()
-           .setColor(0xff0051)
+           .setColor(interaction.client?.embedColor || '#ff0051')
            .setDescription(`You need this required Permissions: \`MANAGE_CHANNELS\` to run this command.`)
            return await interaction.followUp({embeds: [noperms]});
         }
       const volume = interaction.options.getNumber("volume");
       if(volume > 150 ) {
         let thing = new EmbedBuilder()
-                     .setColor(0xff0051)
+                     .setColor(interaction.client?.embedColor || '#ff0051')
                    .setDescription(`${no} You cannot set the default volume over \`150\``);
                    return await interaction.followUp({embeds: [thing]});
    }
@@ -67,7 +67,7 @@ try {
         })
     }
 } catch(err) {
-    console.log(err)
+    try { client.logger?.log(err && (err.stack || err.toString()), 'error'); } catch (e) { console.log(err); }
 }
 
 			 let thing = new EmbedBuilder()

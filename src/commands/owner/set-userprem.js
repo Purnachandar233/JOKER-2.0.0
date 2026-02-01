@@ -18,7 +18,7 @@ module.exports = {
         if (isPremiumUser) {
             let alr = new EmbedBuilder()
                 .setDescription(`${no} | This User Already Has a Premium Subscription.`)
-                .setColor(0xff0051);
+                .setColor(message.client?.embedColor || '#ff0051');
             return message.channel.send({ embeds: [alr] });
         }
 
@@ -28,7 +28,7 @@ module.exports = {
         if (!CodeOk) {
             let exp = new EmbedBuilder()
                 .setDescription(`${no} | Code Is Invalid Or Expired`)
-                .setColor(0xff0051);
+                .setColor(message.client?.embedColor || '#ff0051');
             return message.channel.send({ embeds: [exp] });
         }
 
@@ -51,7 +51,7 @@ module.exports = {
         let success = new EmbedBuilder()
             .setTitle(`Premium Activated`)
             .setDescription(`${ok} | \`Joker Music Premium Activated Successfully\`\n\`\`\`asciidoc\nUser         :: ${member.user.tag}\nExpiry       :: ${prettyMiliSeconds(CodeOk.Expiry - Date.now())}\n\`\`\``)
-            .setColor(0xff0051);
+            .setColor(message.client?.embedColor || '#ff0051');
 
         message.channel.send({ embeds: [success] });
     }

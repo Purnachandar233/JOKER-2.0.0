@@ -11,7 +11,9 @@ const { ActionRowBuilder, EmbedBuilder, ButtonBuilder, ComponentType } = require
  * @returns
  */
 const messagepaginationEmbed = async (message, pages, buttonList, author, timeout) => {
-    if (buttonList[0].data.style === 5 || buttonList[1].data.style === 5 || buttonList[2].data.style === 5 || buttonList[3].data.style === 5) { throw new Error('Link isnt supported.'); }
+    for (let button of buttonList) {
+        if (button.data.style === 5) throw new Error('Link isnt supported.');
+    }
     let page = 0;
     const row = new ActionRowBuilder().addComponents(buttonList);
     const currentPage = await message.reply({ 
@@ -64,14 +66,17 @@ const messagepaginationEmbed = async (message, pages, buttonList, author, timeou
 };
 
 const intpaginationEmbed = async (interaction, pages, buttonList, author, timeout) => {
-    if (buttonList[0].data.style === 5 || buttonList[1].data.style === 5 || buttonList[2].data.style === 5 || buttonList[3].data.style === 5) { throw new Error('Link isnt supported'); }
+    for (let button of buttonList) {
+        if (button.data.style === 5) throw new Error('Link isnt supported');
+    }
     let page = 0;
     const row = new ActionRowBuilder().addComponents(buttonList);
-    const currentPage = await interaction.reply({ 
-        embeds: [pages[page].setFooter({ text: `Page ${page + 1}/${pages.length}` })], 
-        components: [row], 
-        fetchReply: true 
+    const replyMethod = interaction.deferred ? 'editReply' : 'reply';
+    await interaction[replyMethod]({
+        embeds: [pages[page].setFooter({ text: `Page ${page + 1}/${pages.length}` })],
+        components: [row]
     });
+    const currentPage = await interaction.fetchReply();
 
     const filter = (i) => i.user.id === author.id;
     const collector = await currentPage.createMessageComponentCollector({ filter, time: timeout });
@@ -117,15 +122,27 @@ const intpaginationEmbed = async (interaction, pages, buttonList, author, timeou
 };
 
 const queuepaginationEmbed = async (interaction, pages, buttonList, author, timeout) => {
+    if (!Array.isArray(pages) || pages.length === 0) {
+        pages = [new EmbedBuilder().setColor((typeof interaction !== 'undefined' && interaction?.client?.embedColor) ? interaction.client.embedColor : '#ff0051').setDescription("*No pages to display.*")];
+    }
+    if (!Array.isArray(buttonList) || buttonList.length < 4) {
+        throw new Error('Invalid buttonList provided to queuepaginationEmbed');
+    }
     if (buttonList[0].data.style === 5 || buttonList[1].data.style === 5 || buttonList[2].data.style === 5 || buttonList[3].data.style === 5) { throw new Error('Link isnt supported'); }
     let page = 0;
     const row = new ActionRowBuilder().addComponents(buttonList);
-    const currentPage = await interaction.followUp({ 
-        embeds: [pages[page].setFooter({ text: `Page ${page + 1}/${pages.length}` })], 
-        components: [row], 
-        fetchReply: true, 
-        ephemeral: true  
+    const replyMethod = interaction.deferred ? 'editReply' : 'reply';
+    // ensure current page embed exists and is an EmbedBuilder
+    if (!pages[page] || typeof pages[page].setFooter !== 'function') {
+        pages[page] = new EmbedBuilder().setColor((typeof interaction !== 'undefined' && interaction?.client?.embedColor) ? interaction.client.embedColor : '#ff0051').setDescription(String(pages[page] || '*No content*'));
+    }
+    // send ephemeral reply via flags and fetch the reply afterwards
+    await interaction[replyMethod]({
+        embeds: [pages[page].setFooter({ text: `Page ${page + 1}/${pages.length}` })],
+        components: [row],
+        flags: [64]
     });
+    const currentPage = await interaction.fetchReply();
 
     const filter = (i) => i.user.id === author.id;
     const collector = await currentPage.createMessageComponentCollector({ filter, time: timeout });
@@ -148,6 +165,9 @@ const queuepaginationEmbed = async (interaction, pages, buttonList, author, time
             default:
                 break;
         }
+        if (!pages[page] || typeof pages[page].setFooter !== 'function') {
+            pages[page] = new EmbedBuilder().setColor((typeof interaction !== 'undefined' && interaction?.client?.embedColor) ? interaction.client.embedColor : '#ff0051').setDescription(String(pages[page] || '*No content*'));
+        }
         await i.editReply({ 
             embeds: [pages[page].setFooter({ text: `Page ${page + 1}/${pages.length}` })], 
             components: [row] 
@@ -162,6 +182,9 @@ const queuepaginationEmbed = async (interaction, pages, buttonList, author, time
             buttonList[2].setDisabled(true), 
             buttonList[3].setDisabled(true)
         );
+        if (!pages[page] || typeof pages[page].setFooter !== 'function') {
+            pages[page] = new EmbedBuilder().setColor((typeof interaction !== 'undefined' && interaction?.client?.embedColor) ? interaction.client.embedColor : '#ff0051').setDescription(String(pages[page] || '*No content*'));
+        }
         interaction.editReply({ 
             embeds: [pages[page].setFooter({ text: `Page ${page + 1}/${pages.length}` })], 
             components: [disabledRow] 

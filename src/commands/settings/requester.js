@@ -15,7 +15,7 @@ module.exports = {
 
     if (!message.member.permissions.has('MANAGE_CHANNELS')) {
         const noperms = new EmbedBuilder()
-       .setColor(0xff0051)
+       .setColor(message.client?.embedColor || '#ff0051')
        .setDescription(`${no} You need this required Permissions: \`MANAGE_CHANNELS\` to run this command.`)
        return await message.channel.send({embeds: [noperms]});
     }

@@ -15,7 +15,7 @@ module.exports = {
     
     if (!message.member.permissions.has('MANNAGE_CHANNELS')) {
       const noperms = new EmbedBuilder()
-     .setColor(0xff0051)
+     .setColor(message.client?.embedColor || '#ff0051')
      .setDescription(`${no} You need this required Permissions: \`MANAGE_CHANNELS\` to run this command.`)
 return await message.channel.send({embeds: [noperms]});
   }
@@ -25,9 +25,10 @@ return await message.channel.send({embeds: [noperms]});
 
   const player = client.lavalink.players.get(message.guild.id);
  
-      player.destroy();
+      const safePlayer = require('../../utils/safePlayer');
+      await safePlayer.safeDestroy(player);
       let thing = new EmbedBuilder()
-      .setColor(0xff0051)
+      .setColor(message.client?.embedColor || '#ff0051')
       .setDescription(`${ok} Forcely Destroyed the player for this guild!`)
       return message.channel.send({ embeds: [thing] });
       

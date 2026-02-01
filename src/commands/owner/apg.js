@@ -27,7 +27,7 @@ module.exports = {
         const guildname = client.guilds.cache.get(args[0])?.name || args[0];
         const lol = new EmbedBuilder()
             .setDescription(`${ok} Successfully Added **${guildname}** In Premium List`)
-            .setColor(0xff0051)
+            .setColor(message.client?.embedColor || '#ff0051')
         message.reply({ embeds: [lol] })
     }
 }

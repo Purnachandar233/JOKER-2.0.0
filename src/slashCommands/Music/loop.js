@@ -52,36 +52,38 @@ module.exports = {
       if (!channel) {
                       const noperms = new EmbedBuilder()
                      
-           .setColor(0xff0051)
+           .setColor(interaction.client?.embedColor || '#ff0051')
              .setDescription(`${no} You must be connected to a voice channel to use this command.`)
           return await interaction.followUp({embeds: [noperms]});
       }
       if(interaction.member.voice.selfDeaf) {	
         let thing = new EmbedBuilder()
-         .setColor(0xff0051)
+         .setColor(interaction.client?.embedColor || '#ff0051')
 
        .setDescription(`${no} <@${interaction.member.id}> You cannot run this command while deafened.`)
          return await interaction.followUp({embeds: [thing]});
        }
             const player = client.lavalink.players.get(interaction.guild.id);
-      if(!player || !player.queue.current) {
+        const { getQueueArray } = require('../../utils/queue.js');
+        const tracks = getQueueArray(player);
+        if(!player || !tracks || tracks.length === 0) {
                       const noperms = new EmbedBuilder()
 
-           .setColor(0xff0051)
+           .setColor(interaction.client?.embedColor || '#ff0051')
            .setDescription(`${no} There is nothing playing in this server.`)
           return await interaction.followUp({embeds: [noperms]});
       }
       if(player && channel.id !== player.voiceChannelId) {
                                   const noperms = new EmbedBuilder()
-             .setColor(0xff0051)
+             .setColor(interaction.client?.embedColor || '#ff0051')
           .setDescription(`${no} You must be connected to the same voice channel as me.`)
           return await interaction.followUp({embeds: [noperms]});
       }
 		
       const chosenString = interaction.options.getString("mode")
 if(chosenString === 'track'){
-    player.setTrackRepeat(!player.trackRepeat);
-    const trackRepeat = player.trackRepeat ? "enabled" : "disabled";
+    player.setRepeatMode(player.repeatMode === 'track' ? 'off' : 'track');
+    const trackRepeat = player.repeatMode === 'track' ? "enabled" : "disabled";
     let thing = new EmbedBuilder()
     .setColor(interaction.client.embedColor)
     .setDescription(`${ok} Looping the track is now \`${trackRepeat}\``)
@@ -89,8 +91,8 @@ if(chosenString === 'track'){
 
 }
 if(chosenString === 'queue'){
-    player.setQueueRepeat(!player.queueRepeat);
-    const queueRepeat = player.queueRepeat ? "enabled" : "disabled";
+    player.setRepeatMode(player.repeatMode === 'queue' ? 'off' : 'queue');
+    const queueRepeat = player.repeatMode === 'queue' ? "enabled" : "disabled";
     let thing = new EmbedBuilder()
     .setColor(interaction.client.embedColor)
     .setDescription(`${ok} Looping the queue is now \`${queueRepeat}\``)
@@ -98,8 +100,7 @@ if(chosenString === 'queue'){
 
 }
 if(chosenString === 'disabled'){
-    player.setQueueRepeat(false);
-    player.setTrackRepeat(false);
+    player.setRepeatMode('off');
     let thing = new EmbedBuilder()
     .setColor(interaction.client.embedColor)
     .setDescription(`${ok} Disabled all looping options.`)

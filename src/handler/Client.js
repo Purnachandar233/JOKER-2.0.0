@@ -3,6 +3,7 @@ const chalk = require("chalk");
 const mongoose = require('mongoose');
 const { LavalinkManager, Node } = require("lavalink-client");
 const { readdirSync } = require("fs");
+const safePlayer = require('../utils/safePlayer');
 
 
 /**
@@ -14,6 +15,19 @@ module.exports = async (client) => {
         if (client.lavalink) client.lavalink.sendRawData(d);
     });
 
+    // Safe logger wrapper: prefer client.logger if available, fall back to console
+    const safeLog = (message, type = 'info') => {
+        try {
+            if (client && client.logger && typeof client.logger.log === 'function') {
+                client.logger.log(message, type);
+            } else {
+                console.log(message);
+            }
+        } catch (e) {
+            try { console.log(message); } catch (_) {}
+        }
+    };
+
 
 
 
@@ -21,37 +35,43 @@ module.exports = async (client) => {
      * Mongodb connection
      */
     
-    const dbOptions = {
-        autoIndex: false,
-        connectTimeoutMS: 10000,
-        family: 4,
-      };
-        const mongoUrl = process.env.MONGODB_URL || client.config.mongourl;
-        if (mongoUrl && mongoUrl.startsWith('mongodb')) {
-          mongoose.connect(mongoUrl, dbOptions);
-        } else {
-          console.log('[WARN] No valid MongoDB URL provided. Database features will be unavailable.');
+        const dbOptions = {
+                autoIndex: false,
+                connectTimeoutMS: 30000,
+                serverSelectionTimeoutMS: 30000,
+                family: 4,
+            };
+
+    const mongoUrl = process.env.MONGODB_URL || process.env.MONGOURI || client.config.mongourl;
+    mongoose.Promise = global.Promise;
+
+    if (mongoUrl && typeof mongoUrl === 'string' && mongoUrl.startsWith('mongodb')) {
+            try {
+            await mongoose.connect(mongoUrl, dbOptions);
+            safeLog('Connected to MongoDB', 'info');
+        } catch (err) {
+            safeLog(`[ERROR] MongoDB connection failed: ${err.message || err}`, 'error');
         }
-        mongoose.Promise = global.Promise;
-          mongoose.connection.on('connected', () => {
-              console.log('Connected to MongoDB');
-              });
-          mongoose.connection.on('error', (err) => {
-                  console.log(`Mongoose connection error: \n ${err.stack}`);
-              });
-          mongoose.connection.on('disconnected', () => {
-                  console.log('MongoDB Disconnected');
-              });
+    } else {
+        safeLog('[WARN] No valid MongoDB URL provided. Database features will be unavailable.', 'warn');
+    }
+    mongoose.connection.on('error', (err) => {
+        safeLog(`Mongoose connection error: \n ${err && err.stack ? err.stack : err}`, 'error');
+    });
+
+    mongoose.connection.on('disconnected', () => {
+        safeLog('MongoDB Disconnected', 'warn');
+    });
         
     /**
      * Error Handler
      */
-    client.on("disconnect", () => console.log("Bot is disconnecting..."))
-    client.on("reconnecting", () => console.log("Bot reconnecting..."))
-    client.on('warn', error => { console.log(error)});
-    client.on('error', error => { console.log(error)});
-    process.on('unhandledRejection', error => { console.log(error)});
-    process.on('uncaughtException', error => {console.log(error) });
+    client.on("disconnect", () => safeLog("Bot is disconnecting...", 'warn'))
+    client.on("reconnecting", () => safeLog("Bot reconnecting...", 'warn'))
+    client.on('warn', error => { safeLog(error && (error.stack || error.toString()), 'warn'); });
+    client.on('error', error => { safeLog(error && (error.stack || error.toString()), 'error'); });
+    process.on('unhandledRejection', error => { safeLog(error && (error.stack || error.toString()), 'error'); });
+    process.on('uncaughtException', error => { safeLog(error && (error.stack || error.toString()), 'error'); });
 
  /**
  * Client Events
@@ -62,10 +82,6 @@ readdirSync("./src/events/Client/").forEach(file => {
    // client.logger.log(`Loading Events Client ${eventName}`);
     client.on(eventName, event.bind(null, client));
 });
-
-// Load standard events
-const welcomeEvent = require("../events/guildMemberAdd");
-welcomeEvent(client);
 
 
 const data = [];
@@ -117,12 +133,15 @@ readdirSync("./src/slashCommands/").forEach((dir) => {
     });
    
 
-    client.once("ready", async () => {
+    // The discord.js v15 ready event was renamed to `clientReady`. Register the
+    // same initialization for both event names to remain backwards compatible
+    // and avoid the deprecation warning.
+    const setupLavalink = async () => {
          // Initialize Lavalink Manager
          const nodes = client.config?.nodes || [];
          
-         if (!nodes || nodes.length === 0) {
-             console.warn('[WARN] No Lavalink nodes configured in config.json. Music features will be unavailable.');
+             if (!nodes || nodes.length === 0) {
+             safeLog('[WARN] No Lavalink nodes configured in config.json. Music features will be unavailable.', 'warn');
              return;
          }
          
@@ -142,19 +161,28 @@ readdirSync("./src/slashCommands/").forEach((dir) => {
 
              // Lavalink Node Manager Logging
              client.lavalink.nodeManager.on("connect", (node) => {
-                 console.log(`LAVALINK => [NODE] ${node.id} connected successfully.`);
+                 safeLog(`LAVALINK => [NODE] ${node.id} connected successfully.`, 'info');
              });
              client.lavalink.nodeManager.on("disconnect", (node) => {
-                 console.log(`LAVALINK => [NODE] ${node.id} disconnected.`);
+                 safeLog(`LAVALINK => [NODE] ${node.id} disconnected.`, 'warn');
              });
              client.lavalink.nodeManager.on("error", (node, error) => {
-                 console.error(`LAVALINK => [NODE] ${node.id} encountered an error:`, error.message);
+                 safeLog(`LAVALINK => [NODE] ${node.id} encountered an error: ${error && error.message}`, 'error');
+             });
+
+             // Handle Lavalink player errors
+             client.lavalink.on("playerError", (player, error) => {
+                 safeLog(`LAVALINK => [PLAYER] ${player.guildId} encountered an error: ${error && error.message}`, 'error');
+                 // Optionally destroy the player on error
+                 if (player) {
+                     safePlayer.safeDestroy(player);
+                 }
              });
              client.lavalink.nodeManager.on("reconnect", (node) => {
-                 console.log(`LAVALINK => [NODE] ${node.id} reconnecting...`);
+                 safeLog(`LAVALINK => [NODE] ${node.id} reconnecting...`, 'info');
              });
              client.lavalink.nodeManager.on("create", (node) => {
-                 console.log(`LAVALINK => [NODE] ${node.id} created.`);
+                 safeLog(`LAVALINK => [NODE] ${node.id} created.`, 'info');
              });
 
              /**
@@ -167,12 +195,15 @@ readdirSync("./src/slashCommands/").forEach((dir) => {
                  client.lavalink.on(eventName, event.bind(null, client));
              });
 
-             client.application.commands.set(data).catch((e) => console.log(e));
+             client.application.commands.set(data).catch((e) => safeLog(e && (e.stack || e.toString()), 'error'));
          } catch (error) {
-             console.error('[ERROR] Failed to initialize Lavalink Manager:', error.message);
-             console.error(error);
+             safeLog(`[ERROR] Failed to initialize Lavalink Manager: ${error && error.message}`, 'error');
+             safeLog(error && (error.stack || error.toString()), 'error');
          }
-    });
+    };
+
+    client.once("ready", setupLavalink);
+    client.once("clientReady", setupLavalink);
 
   
 

@@ -23,7 +23,7 @@ module.exports = {
     const embed = new EmbedBuilder()
       .setTitle("Would You Rather")
       .setDescription(question)
-      .setColor(0xff0051)
+      .setColor(message.client?.embedColor || '#ff0051')
       .setFooter({ text: `Requested by ${message.author.tag}` });
     
     message.channel.send({ embeds: [embed] });

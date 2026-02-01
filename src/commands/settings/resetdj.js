@@ -13,25 +13,26 @@ module.exports = {
     let no = client.emoji.no;
     
 
-    if (!message.member.permissions.has('MANAGE_CHANNELS')) {
+    if (!message.member.permissions.has('MANAGE_ROLES')) {
         const noperms = new EmbedBuilder()
-       .setColor(0xff0051)
-       .setDescription(`${no} You need this required Permissions: \`MANAGE_CHANNELS\` to run this command.`)
+       .setColor(message.client?.embedColor || '#ff0051')
+       .setDescription(`${no} You need this required Permissions: \`MANAGE_ROLES\` to run this command.`)
        return await message.channel.send({embeds: [noperms]});
     }
-    const role = args.join(" ")
     const dSchema = require('../../schema/djroleSchema.js');
-    let data;
     try {
-        data = await dSchema.findOne({
-            guildID: message.guild.id
-        })
-        await data.delete();
+        const deleted = await dSchema.findOneAndDelete({ guildID: message.guild.id });
+        if (!deleted) {
+            const embed = new EmbedBuilder()
+              .setColor(message.client?.embedColor || '#ff0051')
+              .setDescription(`${no} No DJ role was configured for this server.`);
+            return await message.channel.send({ embeds: [embed] });
+        }
     } catch(err) {
-        console.log(err)
+        try { client.logger?.log(err && (err.stack || err.toString()), 'error'); } catch (e) { console.log(err); }
     }
     const embed = new EmbedBuilder()
-    .setColor(0xff0051)
+    .setColor(message.client?.embedColor || '#ff0051')
          .setDescription(`Reseted the dj role for this server.`)
          return await message.channel.send({ embeds : [embed]})
    }

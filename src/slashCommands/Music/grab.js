@@ -30,33 +30,35 @@ module.exports = {
           if (!channel) {
                           const noperms = new EmbedBuilder()
            
-               .setColor(0xff0051)
+               .setColor(interaction.client?.embedColor || '#ff0051')
                  .setDescription(`${no} You must be connected to a voice channel to use this command.`)
               return await interaction.followUp({embeds: [noperms]});
           }
           if(interaction.member.voice.selfDeaf) {	
             let thing = new EmbedBuilder()
-             .setColor(0xff0051)
+             .setColor(interaction.client?.embedColor || '#ff0051')
 
            .setDescription(`${no} <@${interaction.member.id}> You cannot run this command while deafened.`)
              return await interaction.followUp({embeds: [thing]});
            }
               const player = client.lavalink.players.get(interaction.guild.id);
-          if(!player || !player.queue.current) {
+              const { getQueueArray } = require('../../utils/queue.js');
+              const tracks = getQueueArray(player);
+              if(!player || !tracks || tracks.length === 0) {
                           const noperms = new EmbedBuilder()
              
-               .setColor(0xff0051)
+               .setColor(interaction.client?.embedColor || '#ff0051')
                .setDescription(`${no} There is nothing playing in this server.`)
               return await interaction.followUp({embeds: [noperms]});
           }
           if(player && channel.id !== player.voiceChannelId) {
                                       const noperms = new EmbedBuilder()
-                .setColor(0xff0051)
+                .setColor(interaction.client?.embedColor || '#ff0051')
               .setDescription(`${no} You must be connected to the same voice channel as me.`)
               return await interaction.followUp({embeds: [noperms]});
           }
 
-        const song = player.queue.current
+        const song = tracks[0]
 
 
       
@@ -65,9 +67,9 @@ module.exports = {
 .addField('Song', `[${song.info?.title || song.title}](https://discord.gg/pCj2UBbwST)`)
 .addField('Song By', `[ ${song.info?.author || song.author} ]`)
 .addField('Duration', `[ \`${!song.isStream ? `${new Date(song.duration).toISOString().slice(11, 19)}` : '◉ LIVE'}\` ]`) 
-.addField(`Queue length: `,`${player.queue.size} Songs`) 
+.addField(`Queue length: `,`${tracks.length} Songs`) 
 .addField(`Progress: `, createBar(player)) 
-.setColor(0xff0051)
+.setColor(interaction.client?.embedColor || '#ff0051')
             
             interaction.member.send({embeds: [embed]}).catch(e=>{
             return interaction.editReply({ content : `Couldn't send you a dm 

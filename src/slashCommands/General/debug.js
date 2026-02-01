@@ -32,7 +32,7 @@ module.exports = {
          .addField("Shard Id", `\`\`\`js\n${interaction.guild.shard.id*1+1 }\`\`\``, true)
          .addField("Guild Player state", `\`\`\`js\n${state}\`\`\``, true)
          .addField("Players", `\`\`\`js\n${client.lavalink.nodeManager.nodes.values().next().value.stats.playingPlayers}/${client.lavalink.nodeManager.nodes.values().next().value.stats.players}\`\`\``, true)
-             .setColor(0xff0051)
+             .setColor(interaction.client?.embedColor || '#ff0051')
         await interaction.followUp({embeds: [embed]})
     }
 }

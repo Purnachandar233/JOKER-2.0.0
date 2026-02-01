@@ -48,7 +48,7 @@ module.exports = {
 
         const embed = new EmbedBuilder()
             .setTitle(`${ok} Premium Dashboard`)
-            .setColor(0xff0051)
+            .setColor(message.client?.embedColor || '#ff0051')
             .addFields(
                 { name: "Active Premium Guilds", value: guildList.length > 1024 ? guildList.substring(0, 1021) + "..." : guildList, inline: false },
                 { name: "Active Premium Users", value: userList.length > 1024 ? userList.substring(0, 1021) + "..." : userList, inline: false },

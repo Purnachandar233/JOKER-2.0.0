@@ -14,7 +14,7 @@ module.exports = {
     const up = `${d.days()}d ${d.hours()}h ${d.minutes()}m`;
 
     const embed = new EmbedBuilder()
-      .setColor(0xff0051)
+      .setColor(message.client?.embedColor || '#ff0051')
       .setAuthor({ name: `System Diagnostics`, iconURL: client.user.displayAvatarURL() })
       .setTitle(`Joker Music Stats`)
       .addFields(

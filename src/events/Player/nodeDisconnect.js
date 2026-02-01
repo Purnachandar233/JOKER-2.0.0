@@ -1,5 +1,5 @@
 module.exports = async (client, node, reason) => {
 
-	console.log(`LAVALINK => [STATUS] ${node.options.identifier} disconnect.`)
+	try { client.logger?.log(`LAVALINK => [STATUS] ${node.options.identifier} disconnect.`, 'warn'); } catch (e) { console.log(`LAVALINK => [STATUS] ${node.options.identifier} disconnect.`); }
 
 }

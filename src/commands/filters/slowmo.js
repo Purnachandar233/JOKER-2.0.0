@@ -18,35 +18,37 @@ module.exports = {
     if (!channel) {
       const noperms = new EmbedBuilder()
 
-        .setColor(0xff0051)
+        .setColor(message.client?.embedColor || '#ff0051')
         .setDescription(`${no} You must be connected to a voice channel to use this command.`)
       return await message.channel.send({ embeds: [noperms] })
     }
     if (message.member.voice.selfDeaf) {
       const thing = new EmbedBuilder()
-        .setColor(0xff0051)
+        .setColor(message.client?.embedColor || '#ff0051')
         .setDescription(`${no} <@${message.member.id}> You cannot run this command while deafened.`)
       return await message.channel.send({ embeds: [thing] })
     }
         const player = client.lavalink.players.get(message.guild.id)
-    if(!player || !player.queue.current) {
+      const { getQueueArray } = require('../../../src/utils/queue.js');
+      const tracks = getQueueArray(player);
+      if(!player || !tracks || tracks.length === 0) {
       const noperms = new EmbedBuilder()
-        .setColor(0xff0051)
+        .setColor(message.client?.embedColor || '#ff0051')
         .setDescription(`${no} There is nothing playing in this server.`)
       return await message.channel.send({ embeds: [noperms] })
     }
     if (player && channel.id !== player.voiceChannelId) {
       const noperms = new EmbedBuilder()
-        .setColor(0xff0051)
+        .setColor(message.client?.embedColor || '#ff0051')
         .setDescription(`${no} You must be connected to the same voice channel as me.`)
       return await message.channel.send({ embeds: [noperms] })
     }
     //
 
-    const db = require('quick.db')
-    const filted = await db.get(`slowmo_${message.guild.id}`)
+    const settings = require('../../utils/settings');
+    const filted = await settings.getFilter(message.guild.id, 'slowmo')
     if (!filted) {
-      db.push(`slowmo_${message.guild.id}`, true)
+      await settings.setFilter(message.guild.id, 'slowmo', true)
       player.node.send({
         op: 'filters',
         guildId: message.guild.id,
@@ -67,7 +69,7 @@ module.exports = {
       })
       player.set('filter', '⏱ Slowmode')
       const noperms = new EmbedBuilder()
-        .setColor(0xff0051)
+        .setColor(message.client?.embedColor || '#ff0051')
         .setDescription(`${ok} Slowmode has been \`enabled\`.- <@${message.member.id}>`)
 
       message.channel.send({ embeds: [noperms] }).then(responce => {
@@ -82,7 +84,7 @@ module.exports = {
         }, 30000)
       })
     } else {
-      db.delete(`slowmo_${message.guild.id}`)
+      await settings.setFilter(message.guild.id, 'slowmo', false)
       player.clearEQ()
       player.node.send({
         op: 'filters',
@@ -100,7 +102,7 @@ module.exports = {
       player.set('eq', '💣 None')
       player.set('filter', '💣 None')
       const noperms = new EmbedBuilder()
-        .setColor(0xff0051)
+        .setColor(message.client?.embedColor || '#ff0051')
         .setDescription(`${ok} Slowmode has been \`disabled\`.- <@${message.member.id}>`)
 
       message.channel.send({ embeds: [noperms] }).then(responce => {

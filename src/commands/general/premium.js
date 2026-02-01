@@ -22,7 +22,7 @@ module.exports = {
 
         const mainPage = new EmbedBuilder()
         .setDescription(`Help me by buying premium :)`) 
-        .setColor(0xff0051)
+        .setColor(message.client?.embedColor || '#ff0051')
 message.channel.send({embeds : [mainPage], components : [buttonbolte]})
     }
 }

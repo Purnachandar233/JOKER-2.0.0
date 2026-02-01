@@ -1,5 +1,6 @@
 const { EmbedBuilder, Message } = require("discord.js");
 const { progressbar } = require('../../utils/progressbar.js')
+const safePlayer = require('../../utils/safePlayer');
 module.exports = {
   name: 'replay',
   category: 'music',
@@ -19,39 +20,42 @@ module.exports = {
        if (!channel) {
                        const noperms = new EmbedBuilder()
                
-            .setColor(0xff0051)
+            .setColor(message.client?.embedColor || '#ff0051')
               .setDescription(`${no} You must be connected to a voice channel to use this command.`)
            return await message.channel.send({embeds: [noperms]});
        }
        if(message.member.voice.selfDeaf) {	
          let thing = new EmbedBuilder()
-          .setColor(0xff0051)
+          .setColor(message.client?.embedColor || '#ff0051')
      
         .setDescription(`${no} <@${message.member.id}> You cannot run this command while deafened.`)
           return await message.channel.send({embeds: [thing]});
         }
               const player = client.lavalink.players.get(message.guild.id);
-       if(!player || !player.queue.current) {
+            const { getQueueArray } = require('../../utils/queue.js');
+            const tracks = getQueueArray(player);
+            if(!player || !tracks || tracks.length === 0) {
                        const noperms = new EmbedBuilder()
 
-            .setColor(0xff0051)
+            .setColor(message.client?.embedColor || '#ff0051')
             .setDescription(`${no} There is nothing playing in this server.`)
            return await message.channel.send({embeds: [noperms]});
        }
        if(player && channel.id !== player.voiceChannelId) {
                                    const noperms = new EmbedBuilder()
-          .setColor(0xff0051)
+          .setColor(message.client?.embedColor || '#ff0051')
            .setDescription(`${no} You must be connected to the same voice channel as me.`)
            return await message.channel.send({embeds: [noperms]});
        }
 
 
-       player.seek(0);
+        await safePlayer.safeCall(player, 'seek', 0);
               
-       let thing = new EmbedBuilder()
+         const current = tracks[0];
+         let thing = new EmbedBuilder()
 
-           .setColor(0xff0051)
-           .setDescription(`${ok} Restarting [${player.queue.current.title}](https://www.youtube.com/watch?v=dQw4w9WgXcQ)`);
+           .setColor(message.client?.embedColor || '#ff0051')
+           .setDescription(`${ok} Restarting [${current?.title || current?.info?.title || 'Track'}](https://www.youtube.com/watch?v=dQw4w9WgXcQ)`);
        return  await message.channel.send({embeds: [thing]});
 
        

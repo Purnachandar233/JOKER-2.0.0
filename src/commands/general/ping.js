@@ -8,8 +8,8 @@ module.exports = {
   wl: true,
   execute: async (message, args, client, prefix) => {
     const embed = new EmbedBuilder()
-      .setDescription('*Measuring the pulse...*')
-      .setColor(0xff0051);
+      .setDescription('*Measuring the ping...*')
+      .setColor(message.client?.embedColor || '#ff0051');
     
     const msg = await message.channel.send({ embeds: [embed] }).catch(() => {});
     if (!msg) return;
@@ -18,11 +18,9 @@ module.exports = {
     const latency = `${Math.floor(msg.createdTimestamp - timestamp)}ms`;
     const apiLatency = `${client.ws.ping}ms`;
     
-    embed.setTitle('Connection Pulse')
-      .setDescription(`\`\`\`fix\nWebsocket Latency : ${latency}\nAPI Latency : ${apiLatency}\n\`\`\``)
+    embed.setDescription(`\`\`\`fix\nWebsocket Latency : ${latency}\nAPI Latency : ${apiLatency}\n\`\`\``)
       .setAuthor({ name: `Ping Status`, iconURL: client.user.displayAvatarURL() })
-      .setColor(0xff0051)
-      .setFooter({ text: "Joker Music" });
+      .setColor(message.client?.embedColor || '#ff0051')
     
     msg.edit({ embeds: [embed] }).catch(() => {});
   }

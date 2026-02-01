@@ -18,7 +18,7 @@ module.exports = {
     // Validate user is in a voice channel
     if(!channel) {
         const nvc = new EmbedBuilder()
-        .setColor(0xff0051)
+        .setColor(message.client?.embedColor || '#ff0051')
         .setDescription(`${no} Please connect to a voice channel first`)
         return message.channel.send({embeds: [nvc]})
     }
@@ -28,7 +28,7 @@ module.exports = {
     // Validate bot has a voice channel
     if(!botChannel) {
         const nobot = new EmbedBuilder()
-        .setColor(0xff0051)
+        .setColor(message.client?.embedColor || '#ff0051')
         .setDescription(`${no} I am not connected to any voice channel`)
         return message.channel.send({embeds: [nobot]})
     }
@@ -36,18 +36,18 @@ module.exports = {
     // Check if already in same channel
     if(channel.id === botChannel.id) {
         const ttt = new EmbedBuilder()
-        .setColor(0xff0051)
+        .setColor(message.client?.embedColor || '#ff0051')
         .setDescription(`${no} I am already in your channel`)
         return message.channel.send({embeds: [ttt]})
     }
     
     const player = client.lavalink.players.get(message.guild.id)
     const opop = new EmbedBuilder()
-    .setColor(0xff0051)
+    .setColor(message.client?.embedColor || '#ff0051')
     .setDescription(`${ok} Joining your channel`)
     await message.channel.send({embeds: [opop]}).then(async msg => {
         const tne = new EmbedBuilder()
-        .setColor(0xff0051)
+        .setColor(message.client?.embedColor || '#ff0051')
         .setDescription(` Trying to continue the player!`)
         msg.edit({embeds: [tne]}).then(async msg => {
             await message.guild.members.me?.voice.setChannel(message.member.voice.channel, "Resume queue in new channel");
@@ -55,7 +55,7 @@ module.exports = {
                 await message.guild.members.me?.voice.setSuppressed(false)
             }
             const rrr = new EmbedBuilder()
-            .setColor(0xff0051)
+            .setColor(message.client?.embedColor || '#ff0051')
             .setDescription(`${ok} Successfully continued queue!`)
             msg.edit({embeds: [rrr]})
         })

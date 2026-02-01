@@ -25,7 +25,7 @@ module.exports = {
             info.push(`Uptime     :: ${require('pretty-ms')(node.stats.uptime, { verbose: true, secondsDecimalDigits: 0 })}`);
             all.push(info.join('\n'));
         });
-        const embed = new EmbedBuilder().setColor(0xff0051).setDescription(`\`\`\`nim\n${all.join('\n\n--------------------------------\n')}\`\`\``);
+        const embed = new EmbedBuilder().setColor(message.client?.embedColor || '#ff0051').setDescription(`\`\`\`nim\n${all.join('\n\n--------------------------------\n')}\`\`\``);
         message.reply({ embeds: [embed], allowedMentions: { repliedUser: false } });
     }
   }

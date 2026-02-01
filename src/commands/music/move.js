@@ -17,39 +17,46 @@ module.exports = {
     
      const player = client.lavalink.players.get(message.guild.id);
           //if no FROM args return error
+          const safePlayer = require('../../utils/safePlayer');
           if (!args[0]) {
             const emr = new EmbedBuilder()
     
-            .setDescription(` ${no} Wrong Command Usage!\n\nUsage: \`move <from> <to>\`\nExample: \`move ${player.queue.size - 2 <= 0 ? player.queue.size : player.queue.size - 2 } 1\``)
+            .setDescription(` ${no} Wrong Command Usage!\n\nUsage: \`move <from> <to>\`\nExample: \`move ${safePlayer.queueSize(player) - 2 <= 0 ? safePlayer.queueSize(player) : safePlayer.queueSize(player) - 2 } 1\``)
             return message.channel.send({embeds: [emr]})
           }
           //If no TO args return error
           if (!args[1]) {
             const ror = new EmbedBuilder()
         
-            .setDescription(`${no} Wrong Command Usage!\n\nUsage: \`move <from> <to>\`\nExample: \`move ${player.queue.size - 2 <= 0 ? player.queue.size : player.queue.size - 2 } 1\``)
+            .setDescription(`${no} Wrong Command Usage!\n\nUsage: \`move <from> <to>\`\nExample: \`move ${safePlayer.queueSize(player) - 2 <= 0 ? safePlayer.queueSize(player) : safePlayer.queueSize(player) - 2 } 1\``)
             return message.channel.send({embeds: [ror]})
           }
-          //if its not a number or too big / too small return error
-          if (isNaN(args[0]) || args[0] <= 1 || args[0] > player.queue.size) {
+          //if its not a number or too big / too small return error for from
+          if (isNaN(args[0]) || args[0] < 1 || args[0] > safePlayer.queueSize(player)) {
             const eoer = new EmbedBuilder()
-          
-            .setDescription(` ${no} Your Input must be a Number greater then \`1\` and smaller then \`${player.queue.size}\``)
+
+            .setDescription(` ${no} Your Input for 'from' must be a Number between \`1\` and \`${safePlayer.queueSize(player)}\``)
             return message.channel.send({embeds: [eoer]})
           }
-          //get the new Song
-          let song = player.queue[player.queue.size - 1];
-          //move the Song to the first position using my selfmade Function and save it on an array
-          let QueueArray = arrayMove(player.queue, player.queue.size - 1, 0);
-          //clear teh Queue
-          while (player.queue.size > 0) { player.queue.remove(0); };
-          //now add every old song again
-          for (const track of QueueArray)
-            player.queue.add(track);
+          //if its not a number or too big / too small return error for to
+          if (isNaN(args[1]) || args[1] < 1 || args[1] > safePlayer.queueSize(player)) {
+            const eoer = new EmbedBuilder()
+
+            .setDescription(` ${no} Your Input for 'to' must be a Number between \`1\` and \`${safePlayer.queueSize(player)}\``)
+            return message.channel.send({embeds: [eoer]})
+          }
+          const { getQueueArray } = require('../../utils/queue.js');
+          const arr = getQueueArray(player);
+          const fromIndex = Number(args[0]) - 1;
+          const toIndex = Number(args[1]) - 1;
+          const song = arr[fromIndex];
+          const QueueArray = arrayMove(arr, fromIndex, toIndex);
+          await safePlayer.queueClear(player);
+          safePlayer.queueAdd(player, QueueArray);
           //send informational message
           const ifkf = new EmbedBuilder()
-         .setColor(0xff0051)
-          .setDescription(` ${ok} Moved the Song in the Queue from Position \`${args[0]}\` to Position: \`${args[1]}\`\n\n[${song.info?.title || song.title}](https://www.youtube.com/watch?v=dQw4w9WgXcQ) - \`${format(song.info?.duration || song.duration)}\` `)
+         .setColor(message.client?.embedColor || '#ff0051')
+          .setDescription(` ${ok} Moved the Song in the Queue from Position \`${args[0]}\` to Position: \`${args[1]}\`\n\n[${song?.info?.title || song?.title || 'Track'}](https://www.youtube.com/watch?v=dQw4w9WgXcQ) - \`${format(song?.info?.duration || song?.duration || 0)}\` `)
           return message.channel.send({embeds: [ifkf]});
         }
     }

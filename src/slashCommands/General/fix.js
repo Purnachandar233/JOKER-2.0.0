@@ -36,7 +36,7 @@ module.exports = {
     
     if (!interaction.member.permissions.has('MANAGE_CHANNELS')) {
       const noperms = new EmbedBuilder()
-     .setColor(0xff0051)
+     .setColor(interaction.client?.embedColor || '#ff0051')
      .setDescription(`You need this required Permissions: \`MANAGE_CHANNELS\` to run this command.`)
      await interaction.followUp({embeds: [noperms]});
   }
@@ -44,27 +44,29 @@ module.exports = {
     if (!channel) {
                     const noperms = new EmbedBuilder()
                   
-         .setColor(0xff0051)
+         .setColor(interaction.client?.embedColor || '#ff0051')
            .setDescription(`${no} You must be connected to a voice channel to use this command.`)
         return await interaction.followUp({embeds: [noperms]});
     }
     if(interaction.member.voice.selfDeaf) {     
       let thing = new EmbedBuilder()
-       .setColor(0xff0051)
+       .setColor(interaction.client?.embedColor || '#ff0051')
      .setDescription(`${no} <@${interaction.user.id}> You cannot run this command while deafened.`)
        return await interaction.followUp({embeds: [thing]});
      }
         const player = client.lavalink.players.get(interaction.guild.id);
-    if(!player || !player.queue.current) {
+      const { getQueueArray } = require('../../utils/queue.js');
+      const tracks = getQueueArray(player);
+      if(!player || !tracks || tracks.length === 0) {
                     const noperms = new EmbedBuilder()
       
-         .setColor(0xff0051)
+         .setColor(interaction.client?.embedColor || '#ff0051')
          .setDescription(`${no} There is nothing playing in this server.`)
         return await interaction.followUp({embeds: [noperms]});
     }
     if(player && channel.id !== player.voiceChannelId) {
                                 const noperms = new EmbedBuilder()
-         .setColor(0xff0051)
+         .setColor(interaction.client?.embedColor || '#ff0051')
         .setDescription(`${no} You must be connected to the same voice channel as me.`)
         return await interaction.followUp({embeds: [noperms]});
     }
@@ -78,7 +80,7 @@ module.exports = {
         const validregions = ['us-west', 'brazil', 'hongkong', 'india', 'japan', 'rotterdam', 'russia', 'singapore', 'south-korea', 'southafrica', 'sydney', 'us-central', 'us-east', 'us-south'];
     if(!validregions.includes(interaction.options.getString("region"))) {
         const noperms = new EmbedBuilder()
-         .setColor(0xff0051)
+         .setColor(interaction.client?.embedColor || '#ff0051')
          .setDescription(`**This Is An Invalid Region Please Select A Valid Region**. \n\n Available regions - \`brazil\`, \`hongkong\`, \`india\`, \`japan\`, \`rotterdam\`, \`russia\`, \`singapore\`, \`south-korea\`, \`southafrica\`, \`sydney\`, \`us-central\`, \`us-east\`, \`us-south\`, \`us-west\``)
        return interaction.editReply({embeds: [noperms]}).then(responce => {
         setTimeout(() => {
@@ -103,7 +105,7 @@ module.exports = {
             voiceChannel.edit(channelOpts, `Fix command`);
   
               const noperms = new EmbedBuilder()
-              .setColor(0xff0051)
+              .setColor(interaction.client?.embedColor || '#ff0051')
                .setDescription(`Voice Region is now set to \`${args}\`.`)
                return await interaction.editReply({ embeds: [noperms] })
             
@@ -127,7 +129,7 @@ module.exports = {
         voiceChannel.edit(channelOpts, `Fix command`);
       
         const noperms = new EmbedBuilder()
-        .setColor(0xff0051)
+        .setColor(interaction.client?.embedColor || '#ff0051')
          .setDescription(`Voice Region is now set to \`${Responses[rc]}\`.`)
          return await interaction.editReply({ embeds: [noperms] })
     }catch(e){

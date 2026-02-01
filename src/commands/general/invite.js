@@ -12,24 +12,15 @@ module.exports = {
         new ButtonBuilder()
           .setLabel('Joker Music')
           .setStyle(5)
-          .setURL('https://discord.com/api/oauth2/authorize?client_id=898941398538158080&permissions=37088600&redirect_uri=https%3A%2F%2Fdiscord.gg%2FpCj2UBbwST&response_type=code&scope=bot%20applications.commands%20identify'),
-        new ButtonBuilder()
-          .setLabel('Joker Music 2')
-          .setStyle(5)
-          .setURL('https://discord.com/api/oauth2/authorize?client_id=955499830732546128&permissions=37088600&redirect_uri=https%3A%2F%2Fdiscord.gg%2FpCj2UBbwST&response_type=code&scope=bot%20applications.commands%20identify'),
-        new ButtonBuilder()
-          .setLabel('Joker Music 3')
-          .setStyle(5)
-          .setURL('https://discord.com/api/oauth2/authorize?client_id=955505051340775455&permissions=37088600&redirect_uri=https%3A%2F%2Fdiscord.gg%2FpCj2UBbwST&response_type=code&scope=bot%20applications.commands%20identify'),
-        new ButtonBuilder()
+          .setURL(`https://discord.com/oauth2/authorize?client_id=${client.user.id}&permissions=70510540062032&integration_type=0&scope=bot+applications.commands`)
           .setLabel('Support Server')
           .setStyle(5)
-          .setURL('https://discord.gg/pCj2UBbwST')
+          .setURL('https://discord.gg/JQzBqgmwFm')
       )
 
     const embed = new EmbedBuilder()
-      .setDescription(`[Click here](https://discord.gg/pCj2UBbwST) to join the support server!`)
-      .setColor(0xff0051)
+      .setDescription(`[Click here](https://discord.gg/JQzBqgmwFm) to join the support server!`)
+      .setColor(message.client?.embedColor || '#ff0051')
     message.channel.send({ embeds: [embed], components: [row] })
   }
 }

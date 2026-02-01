@@ -1,5 +1,5 @@
 const { CommandInteraction, Client, EmbedBuilder } = require("discord.js");
-const db = require("quick.db")
+const safePlayer = require('../../utils/safePlayer');
 module.exports = {
   name: "soundcloud",
   description: "plays some high quality music from soundcloud",
@@ -38,20 +38,20 @@ module.exports = {
 
     if (!interaction.replied) await interaction.deferReply().catch(() => {});
     const query = interaction.options.getString("query");
-    if (!query) return await interaction.editReply({ flags: [64], embeds: [new EmbedBuilder().setColor(0xff0051)                     
+    if (!query) return await interaction.editReply({ flags: [64], embeds: [new EmbedBuilder().setColor(interaction.client?.embedColor || '#ff0051')                     
       .setDescription(`${no}Please provide a search input to search.`)]
       }).catch(() => {});
       const { channel } = interaction.member.voice;
       if (!channel) {
                       const noperms = new EmbedBuilder()
                 
-           .setColor(0xff0051)
+           .setColor(interaction.client?.embedColor || '#ff0051')
              .setDescription(`${no} You must be connected to a voice channel to use this command.`)
           return await interaction.followUp({embeds: [noperms]});
       }
       if(interaction.member.voice.selfDeaf) {	
         let thing = new EmbedBuilder()
-         .setColor(0xff0051)
+         .setColor(interaction.client?.embedColor || '#ff0051')
 
        .setDescription(`${no} <@${interaction.member.id}> You cannot run this command while deafened.`)
          return await interaction.followUp({embeds: [thing]});
@@ -60,7 +60,7 @@ module.exports = {
     let player = client.lavalink.players.get(interaction.guildId);
     if(player && channel.id !== player.voiceChannelId) {
       const noperms = new EmbedBuilder()
-          .setColor(0xff0051)
+          .setColor(interaction.client?.embedColor || '#ff0051')
 .setDescription(`${no} You must be connected to the same voice channel as me.`)
 return await interaction.editReply({embeds: [noperms]});
 }
@@ -87,8 +87,8 @@ return await interaction.editReply({embeds: [noperms]});
       s = await Promise.race([searchPromise, timeoutPromise]);
     } catch (err) {
       client.logger?.log(`SoundCloud search error: ${err.message}`, 'error');
-      if (player && !player.queue.current) {
-        try { player.destroy(); } catch (e) {}
+      if (player && safePlayer.queueSize(player) === 0) {
+        await safePlayer.safeDestroy(player);
       }
       return await interaction.editReply({
         content: `${no} Search failed: ${err.message}`
@@ -96,53 +96,53 @@ return await interaction.editReply({embeds: [noperms]});
     }
 
     if (s.loadType === "LOAD_FAILED") {
-      if (player && !player.queue.current) {
-        try { player.destroy(); } catch (e) {}
+      if (player && safePlayer.queueSize(player) === 0) {
+        await safePlayer.safeDestroy(player);
       }
       return await interaction.editReply({
         content: `${no} Error while Loading track.`
       }).catch((err) => client.logger?.log(`Reply error: ${err.message}`, 'error'));
     } else if (s.loadType === "NO_MATCHES") {
-      if (player && !player.queue.current) {
-        try { player.destroy(); } catch (e) {}
+      if (player && safePlayer.queueSize(player) === 0) {
+        await safePlayer.safeDestroy(player);
       }
       return await interaction.editReply({
         content: `${no} No results found, try to be specific as possible.`
       }).catch((err) => client.logger?.log(`Reply error: ${err.message}`, 'error'));
     } else if (s.loadType === "TRACK_LOADED") {
       try {
-        if (player && player.state !== "CONNECTED") player.connect();
-        if (player && player.queue) player.queue.add(s.tracks[0]);
-        if (player && player.state === "CONNECTED" && !player.playing && !player.paused && !player.queue.size) player.play();
+        if (player && player.state !== "CONNECTED") await safePlayer.safeCall(player, 'connect');
+        safePlayer.queueAdd(player, s.tracks[0]);
+        if (player && player.state === "CONNECTED" && !player.playing && !player.paused && safePlayer.queueSize(player) === 0) await safePlayer.safeCall(player, 'play');
       } catch (err) {
         client.logger?.log(`Player error: ${err.message}`, 'error');
       }
       return await interaction.editReply({
-        embeds: [new EmbedBuilder() .setColor(0xff0051)
+        embeds: [new EmbedBuilder() .setColor(interaction.client?.embedColor || '#ff0051')
           .setDescription(`Queued [${s.tracks[0].title}](${s.tracks[0].uri}) [\`${interaction.member.user.tag}\`]`)]
       }).catch((err) => client.logger?.log(`Reply error: ${err.message}`, 'error'));
     } else if (s.loadType === "PLAYLIST_LOADED") {
       try {
-        if (player && player.state !== "CONNECTED") player.connect();
-        if (player && player.queue) player.queue.add(s.tracks);
-        if (player && player.state === "CONNECTED" && !player.playing && !player.paused && player.queue.totalSize === s.tracks.length) player.play();
+        if (player && player.state !== "CONNECTED") await safePlayer.safeCall(player, 'connect');
+        safePlayer.queueAdd(player, s.tracks);
+        if (player && player.state === "CONNECTED" && !player.playing && !player.paused && safePlayer.queueSize(player) === s.tracks.length) await safePlayer.safeCall(player, 'play');
       } catch (err) {
         client.logger?.log(`Player error: ${err.message}`, 'error');
       }
       return await interaction.editReply({
-        embeds: [new EmbedBuilder().setColor(0xff0051)
+        embeds: [new EmbedBuilder().setColor(interaction.client?.embedColor || '#ff0051')
         .setDescription(`Queued **${s.tracks.length}** tracks from **${s.playlist.name}**`)]
       }).catch((err) => client.logger?.log(`Reply error: ${err.message}`, 'error'));
     } else if (s.loadType === "SEARCH_RESULT") {
       try {
-        if (player && player.state !== "CONNECTED") player.connect();
-        if (player && player.queue) player.queue.add(s.tracks[0]);
-        if (player && player.state === "CONNECTED" && !player.playing && !player.paused && !player.queue.size) player.play();
+        if (player && player.state !== "CONNECTED") await safePlayer.safeCall(player, 'connect');
+        safePlayer.queueAdd(player, s.tracks[0]);
+        if (player && player.state === "CONNECTED" && !player.playing && !player.paused && safePlayer.queueSize(player) === 0) await safePlayer.safeCall(player, 'play');
       } catch (err) {
         client.logger?.log(`Player error: ${err.message}`, 'error');
       }
       return await interaction.editReply({
-        embeds: [new EmbedBuilder().setColor(0xff0051)
+        embeds: [new EmbedBuilder().setColor(interaction.client?.embedColor || '#ff0051')
           .setDescription(`Queued [${s.tracks[0].title}](${s.tracks[0].uri}) [\`${s.tracks[0].requester.tag}\`]`)]
       }).catch((err) => client.logger?.log(`Reply error: ${err.message}`, 'error'));
     } else {

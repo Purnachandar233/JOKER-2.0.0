@@ -22,7 +22,7 @@ module.exports = {
 
         const mainPage = new EmbedBuilder()
         .setDescription(`[Click here](https://discord.gg/pCj2UBbwST) to join our support server.`)
-        .setColor(0xff0051)
+        .setColor(message.client?.embedColor || '#ff0051')
 message.channel.send({embeds : [mainPage], components : [row]})
     }
 }

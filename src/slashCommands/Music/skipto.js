@@ -38,43 +38,47 @@ module.exports = {
       if (!channel) {
                       const noperms = new EmbedBuilder()
                      
-           .setColor(0xff0051)
+           .setColor(interaction.client?.embedColor || '#ff0051')
              .setDescription(`${no} You must be connected to a voice channel to use this command.`)
           return await interaction.followUp({embeds: [noperms]});
       }
       if(interaction.member.voice.selfDeaf) {	
         let thing = new EmbedBuilder()
-         .setColor(0xff0051)
+         .setColor(interaction.client?.embedColor || '#ff0051')
 
        .setDescription(`${no} <@${interaction.member.id}> You cannot run this command while deafened.`)
          return await interaction.followUp({embeds: [thing]});
        }
-          const player = client.lavalink.players.get(interaction.guild.id);
-      if(!player || !player.queue.current) {
+              const player = client.lavalink.players.get(interaction.guild.id);
+                const safePlayer = require('../../utils/safePlayer');
+              const { getQueueArray } = require('../../utils/queue.js');
+              const tracks = getQueueArray(player);
+              if(!player || !tracks || tracks.length === 0) {
                       const noperms = new EmbedBuilder()
 
-           .setColor(0xff0051)
+           .setColor(interaction.client?.embedColor || '#ff0051')
            .setDescription(`${no} There is nothing playing in this server.`)
           return await interaction.followUp({embeds: [noperms]});
       }
       if(player && channel.id !== player.voiceChannelId) {
                                   const noperms = new EmbedBuilder()
-             .setColor(0xff0051)
+             .setColor(interaction.client?.embedColor || '#ff0051')
           .setDescription(`${no} You must be connected to the same voice channel as me.`)
           return await interaction.followUp({embeds: [noperms]});
       }
       const position = number;
 
-      if (position < 0 || position > player.queue.size) { 
+      const qSize = safePlayer.queueSize(player);
+      if (position < 0 || position > qSize) { 
           let ething = new EmbedBuilder()
-          .setColor(0xff0051)
+          .setColor(interaction.client?.embedColor || '#ff0051')
           .setDescription(`${no} Track not found`)
           return await interaction.editReply({ embeds: [ething] });
       }
-     
-
-    player.queue.remove(0, position - 1);
-    player.stop();
+    
+    safePlayer.queueRemove(player, 0, position - 1);
+      // use stop to advance playback reliably
+      await safePlayer.safeStop(player);
     let thing = new EmbedBuilder()
     .setDescription(`${ok} Skipped **${position}** track(s).`)
     .setColor(interaction.client.embedColor)

@@ -21,13 +21,13 @@ module.exports = async (client, message) => {
   const mention = new RegExp(`^<@!?${client.user.id}>( |)$`);
   if (message.content.match(mention)) {
     const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setLabel("Invite").setStyle(5).setURL(`https://discord.com/api/oauth2/authorize?client_id=${client.user.id}&permissions=8&scope=bot%20applications.commands`),
-      new ButtonBuilder().setLabel("Support").setStyle(5).setURL(`https://discord.gg/DdTX6gPTWF`)
+      new ButtonBuilder().setLabel("Invite").setStyle(5).setURL(`https://discord.com/oauth2/authorize?client_id=${client.user.id}&permissions=70510540062032&integration_type=0&scope=bot+applications.commands`),
+      new ButtonBuilder().setLabel("Support").setStyle(5).setURL(`https://discord.gg/JQzBqgmwFm`)
     );
     const embed = new EmbedBuilder()
-      .setColor(0x00AE86)
+      .setColor(client?.embedColor || '#ff0051')
       .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-      .setDescription(`My prefix here is: \`${prefix}\` \n\nType \`${prefix}help\` to see commands.`);
+      .setDescription(`HEY iam joker music an high quality music bot \n\nMy prefix here is: \`${prefix}\` \n\nType \`${prefix}help\` to see commands.`);
     return message.channel.send({ embeds: [embed], components: [row] });
   }
 
@@ -58,7 +58,7 @@ module.exports = async (client, message) => {
 
   if (command.owneronly && !Owners.includes(message.author.id)) {
     const embed = new EmbedBuilder()
-      .setColor(0x2f3136)
+      .setColor(client?.embedColor || '#ff0051')
       .setDescription(`✧ This command is restricted to the **Bot Owner** only.`);
     return message.channel.send({ embeds: [embed] });
   }
@@ -71,7 +71,7 @@ module.exports = async (client, message) => {
       if (djdata && djdata.Roleid) {
         if (!message.member.roles.cache.has(djdata.Roleid)) {
           const embed = new EmbedBuilder()
-            .setColor(0xff0051)
+            .setColor(client?.embedColor || '#ff0051')
             .setDescription(`This command requires you to have the DJ role.`);
           return message.channel.send({ embeds: [embed] });
         }
@@ -79,7 +79,7 @@ module.exports = async (client, message) => {
         // No DJ role configured, only allow owner
         if (!Owners.includes(message.author.id)) {
           const embed = new EmbedBuilder()
-            .setColor(0xff0051)
+            .setColor(client?.embedColor || '#ff0051')
             .setDescription(`No DJ role configured. Contact server owner.`);
           return message.channel.send({ embeds: [embed] });
         }
@@ -87,7 +87,7 @@ module.exports = async (client, message) => {
     } catch (err) {
       client.logger?.log(`DJ role check error: ${err.message}`, 'error');
       const embed = new EmbedBuilder()
-        .setColor(0xff0051)
+        .setColor(client?.embedColor || '#ff0051')
         .setDescription(`Error checking DJ permissions. Please try again.`);
       return message.channel.send({ embeds: [embed] });
     }
@@ -113,21 +113,21 @@ module.exports = async (client, message) => {
     let isVoted = false;
     if (client.topgg && client.topgg.hasVoted) {
         try {
-            isVoted = await client.topgg.hasVoted(message.author.id);
+          isVoted = await client.topgg.hasVoted(message.author.id);
         } catch (e) {
-            console.log("Top.gg Vote Check Error:", e);
+          try { client.logger?.log(`Top.gg Vote Check Error: ${e && (e.stack || e.toString())}`, 'warn'); } catch (err) { console.log("Top.gg Vote Check Error:", e); }
         }
     }
 
     if (!isUserPremium && !isGuildPremium && !isVoted) {
       const embed = new EmbedBuilder()
-        .setColor(0x2f3136)
+        .setColor(client?.embedColor || '#ff0051')
         .setAuthor({ name: "Premium Required", iconURL: client.user.displayAvatarURL() })
-        .setDescription(`✧ This command requires a **Premium Subscription** or a **Vote** on Top.gg.`);
+        .setDescription(`✧ This command requires a **Premium Subscription** or a **Vote** on [Top.gg](https://top.gg/bot/${client.user.id}/vote).`);
       
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setLabel("Vote Me").setStyle(5).setURL(`https://top.gg/bot/${client.user.id}/vote`),
-        new ButtonBuilder().setLabel("Get Premium").setStyle(5).setURL(`https://www.patreon.com/alexmusicbot/membership`)
+        new ButtonBuilder().setLabel("Get Premium").setStyle(5).setURL(`https://discord.com/invite/JQzBqgmwFm`)
       );
 
       return message.channel.send({ embeds: [embed], components: [row] });
@@ -139,7 +139,7 @@ module.exports = async (client, message) => {
   } catch (error) {
     client.logger?.log(`Command execution error: ${error?.message}`, 'error');
     const embed = new EmbedBuilder()
-      .setColor(0xff0051)
+      .setColor(client?.embedColor || '#ff0051')
       .setDescription(`❌ Error executing command: ${error?.message || 'Unknown error'}`);
     try {
       await message.reply({ embeds: [embed] }).catch(() => {});

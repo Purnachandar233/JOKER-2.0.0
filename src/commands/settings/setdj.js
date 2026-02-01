@@ -14,37 +14,33 @@ module.exports = {
     let no = client.emoji.no;
     
 
-    if (!message.member.permissions.has('MANAGE_CHANNELS')) {
+    if (!message.member.permissions.has('MANAGE_ROLES')) {
         const noperms = new EmbedBuilder()
-       .setColor(0xff0051)
-       .setDescription(`${no} You need this required Permissions: \`MANAGE_CHANNELS\` to run this command.`)
+       .setColor(message.client?.embedColor || '#ff0051')
+       .setDescription(`${no} You need this required Permissions: \`MANAGE_ROLES\` to run this command.`)
        return await message.channel.send({embeds: [noperms]});
     }
     const role = message.mentions.roles.first();
+    if (!role) {
+        const embed = new EmbedBuilder()
+            .setColor(message.client?.embedColor || '#ff0051')
+            .setDescription(`${no} Please mention a role to set as the DJ role.`);
+        return await message.channel.send({ embeds: [embed] });
+    }
+
     const dSchema = require('../../schema/djroleSchema.js');
-    let data;
     try {
-        data = await dSchema.findOne({
-            guildID: message.guild.id
-        })
-        if(!data) {
-            let newData = await dSchema.create({
-                guildID: message.guild.id,
-                Roleid: role,
-            })
-            newData.save();
-        } else {
-            await dSchema.findOneAndUpdate({
-                guildID: message.guild.id,
-                Roleid: role,
-            })
-        }
-    } catch(err) {
-        console.log(err)
+        await dSchema.findOneAndUpdate(
+            { guildID: message.guild.id },
+            { $set: { Roleid: role.id } },
+            { upsert: true, new: true }
+        );
+    } catch (err) {
+        try { client.logger?.log(err && (err.stack || err.toString()), 'error'); } catch (e) { console.log(err); }
     }
     const embed = new EmbedBuilder()
-    .setColor(0xff0051)
-         .setDescription(`DJ role mode is now **enabled** and set to ${role}.`)
+    .setColor(message.client?.embedColor || '#ff0051')
+        .setDescription(`DJ role mode is now **enabled** and set to ${role}.`)
          return await message.channel.send({ embeds : [embed]})
    }
 }

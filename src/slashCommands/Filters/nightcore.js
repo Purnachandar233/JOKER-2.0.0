@@ -27,26 +27,28 @@ module.exports = {
        if (!channel) {
                        const noperms = new EmbedBuilder()
    
-            .setColor(0xff0051)
+            .setColor(interaction.client?.embedColor || '#ff0051')
               .setDescription(`${no} You must be connected to a voice channel to use this command.`)
            return await interaction.followUp({embeds: [noperms]});
        }
        if(interaction.member.voice.selfDeaf) {	
          let thing = new EmbedBuilder()
-          .setColor(0xff0051)
+          .setColor(interaction.client?.embedColor || '#ff0051')
         .setDescription(`${no} <@${interaction.member.id}> You cannot run this command while deafened.`)
           return await interaction.followUp({embeds: [thing]});
         }
-              const player = client.lavalink.players.get(interaction.guild.id);
-       if(!player || !player.queue.current) {
+            const player = client.lavalink.players.get(interaction.guild.id);
+        const { getQueueArray } = require('../../../utils/queue.js');
+        const tracks = getQueueArray(player);
+        if(!player || !tracks || tracks.length === 0) {
                        const noperms = new EmbedBuilder()
-            .setColor(0xff0051)
+            .setColor(interaction.client?.embedColor || '#ff0051')
             .setDescription(`${no} There is nothing playing in this server.`)
            return await interaction.followUp({embeds: [noperms]});
        }
        if(player && channel.id !== player.voiceChannelId) {
                                    const noperms = new EmbedBuilder()
-          .setColor(0xff0051)
+          .setColor(interaction.client?.embedColor || '#ff0051')
            .setDescription(`${no} You must be connected to the same voice channel as me.`)
            return await interaction.followUp({embeds: [noperms]});
        }
@@ -54,10 +56,10 @@ module.exports = {
         if(!player.nightcore === true){
             player.nightcore = true;
          const noperms = new EmbedBuilder()
-    .setColor(0xff0051)
+    .setColor(interaction.client?.embedColor || '#ff0051')
          .setDescription(`${ok} Nightcore has been \`enabled\`. - <@!${interaction.member.id}>`)
          const noperms1 = new EmbedBuilder()
-         .setColor(0xff0051)
+         .setColor(interaction.client?.embedColor || '#ff0051')
                .setDescription(`${ok} Applying the \`Nightcore\` Filter(*It might take up to 5 seconds until you hear the Filter*)`)
       return await interaction.followUp({embeds: [noperms1]}),
       interaction.channel.send({embeds: [noperms]}).then(responce => {
@@ -75,10 +77,10 @@ module.exports = {
        if(player.nightcore === true){
             player.nightcore = false;
                   const noperms = new EmbedBuilder()
-             .setColor(0xff0051)
+             .setColor(interaction.client?.embedColor || '#ff0051')
                   .setDescription(`${ok} Nightcore has been \`disabled\`. - <@!${interaction.member.id}>`)
                   const noperms1 = new EmbedBuilder()
-                  .setColor(0xff0051)
+                  .setColor(interaction.client?.embedColor || '#ff0051')
                         .setDescription(`${ok} Removing the \`Nightcore\` Filter(*It might take up to 5 seconds to remove the filter*)`)
       return await interaction.followUp({embeds: [noperms1]}),
       interaction.channel.send({embeds: [noperms]}).then(responce => {

@@ -26,7 +26,7 @@ module.exports = {
 
         const embed = new EmbedBuilder()
             .setDescription(`${ok} Successfully added Permanent Premium to **${target.tag}**`)
-            .setColor(0xff0051);
+            .setColor(message.client?.embedColor || '#ff0051');
         message.reply({ embeds: [embed] });
     }
 }

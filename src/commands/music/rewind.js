@@ -1,6 +1,7 @@
 const { CommandInteraction, Client, EmbedBuilder } = require("discord.js");
 const { convertTime } = require('../../utils/convert.js');
 const ms = require('ms');
+const safePlayer = require('../../utils/safePlayer');
 
 module.exports = {
   name: 'rewind',
@@ -23,28 +24,30 @@ module.exports = {
        if (!channel) {
                        const noperms = new EmbedBuilder()
                       
-            .setColor(0xff0051)
+            .setColor(message.client?.embedColor || '#ff0051')
               .setDescription(`${no} You must be connected to a voice channel to use this command.`)
            return await message.channel.send({embeds: [noperms]});
        }
        if(message.member.voice.selfDeaf) {	
          let thing = new EmbedBuilder()
-          .setColor(0xff0051)
+          .setColor(message.client?.embedColor || '#ff0051')
  
         .setDescription(`${no} <@${message.member.id}> You cannot run this command while deafened.`)
           return await message.channel.send({embeds: [thing]});
         }
               const player = client.lavalink.players.get(message.guild.id);
-       if(!player || !player.queue.current) {
+            const { getQueueArray } = require('../../utils/queue.js');
+            const tracks = getQueueArray(player);
+            if(!player || !tracks || tracks.length === 0) {
                        const noperms = new EmbedBuilder()
  
-            .setColor(0xff0051)
+            .setColor(message.client?.embedColor || '#ff0051')
             .setDescription(`${no} There is nothing playing in this server.`)
            return await message.channel.send({embeds: [noperms]});
        }
        if(player && channel.id !== player.voiceChannelId) {
                                    const noperms = new EmbedBuilder()
-              .setColor(0xff0051)
+              .setColor(message.client?.embedColor || '#ff0051')
            .setDescription(`${no} You must be connected to the same voice channel as me.`)
            return await message.channel.send({embeds: [noperms]});
        }
@@ -58,12 +61,13 @@ module.exports = {
       }
       const etime = require('ms')(time)
       let seektime = player.position - Number(etime);
-  if (seektime >= player.queue.current.duration - player.position || seektime < 0) {
+  const curDur = tracks[0]?.info?.duration || tracks[0]?.duration || 0;
+  if (seektime >= curDur - player.position || seektime < 0) {
     seektime = 0;
   }
-     player.seek(Number(seektime))
+    await safePlayer.safeCall(player, 'seek', Number(seektime))
      let thing = new EmbedBuilder()
-       .setColor(0xff0051)
+       .setColor(message.client?.embedColor || '#ff0051')
        .setDescription(`${ok} Forwarded to \`${convertTime(player.position)}\``)
      return await message.channel.send({ embeds: [thing] });
       

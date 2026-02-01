@@ -9,6 +9,7 @@ var {
     delay,
     arrayMove
   } = require("../../functions")
+  const safePlayer = require('../../utils/safePlayer');
 module.exports = {
   name: "search",
   description: "Searches a track from bandcamp.",
@@ -47,13 +48,13 @@ module.exports = {
       if (!channel) {
                       const noperms = new EmbedBuilder()
                 
-           .setColor(0xff0051)
+           .setColor(interaction.client?.embedColor || '#ff0051')
              .setDescription(`${no} You must be connected to a voice channel to use this command.`)
           return await interaction.followUp({embeds: [noperms]});
       }
       if(interaction.member.voice.selfDeaf) {   
         let thing = new EmbedBuilder()
-         .setColor(0xff0051)
+         .setColor(interaction.client?.embedColor || '#ff0051')
 
        .setDescription(`${no} <@${interaction.member.id}> You cannot run this command while deafened.`)
          return await interaction.followUp({embeds: [thing]});
@@ -62,7 +63,7 @@ module.exports = {
     let player = client.lavalink.players.get(interaction.guildId);
     if(player && channel.id !== player.voiceChannelId) {
       const noperms = new EmbedBuilder()
-          .setColor(0xff0051)
+          .setColor(interaction.client?.embedColor || '#ff0051')
 .setDescription(`${no} You must be connected to the same voice channel as me.`)
 return await interaction.followUp({embeds: [noperms]});
 }
@@ -81,20 +82,19 @@ try {
     }
     let state = player.state;
     if (state !== "CONNECTED") {
-
-      player.connect();
-      player.stop();
+      await safePlayer.safeCall(player, 'connect');
+      await safePlayer.safeStop(player);
     }
     if(search.toLowerCase().includes("youtube.com")){
       const noperms = new EmbedBuilder()
-      .setColor(0xff0051)
+      .setColor(interaction.client?.embedColor || '#ff0051')
       .setAuthor({ name: 'YouTube URL', iconURL: client.user.displayAvatarURL({ forceStatic: false }) })
       .setDescription(`We no longer support YouTube, please use other platforms like Spotify, SoundCloud or Bandcamp. Otherwise use a search query to use our default system.`)
       return await interaction.editReply({embeds: [noperms]});
     }
     if(search.toLowerCase().includes("youtu.be")){
       const noperms = new EmbedBuilder()
-      .setColor(0xff0051)
+      .setColor(interaction.client?.embedColor || '#ff0051')
       .setAuthor({ name: 'YouTube URL', iconURL: client.user.displayAvatarURL({ forceStatic: false }) })
       .setDescription(`We no longer support YouTube, please use other platforms like Spotify, SoundCloud or Bandcamp. Otherwise use a search query to use our default system.`)
       return await interaction.editReply({embeds: [noperms]});
@@ -111,11 +111,11 @@ try {
         message: `${ok} Playlists are not supported with this command. Use   ?playlist  `
       };
     } catch (e) {
-      console.log(e)
+      try { client.logger?.log(e.stack || e.toString(), 'error'); } catch (err) { console.log(e); }
        return await interaction.editReply({
         embeds: [new EmbedBuilder()
           .setTitle('Error searching for track.')
-          .setColor(0xff0051)
+          .setColor(interaction.client?.embedColor || '#ff0051')
         ]
       }).catch(() => {})
     }
@@ -133,7 +133,7 @@ try {
       if (!res.tracks[0]) {
         return await interaction.editReply({embeds : [new EmbedBuilder() 
           .setDescription(`${ok} No results found.`)
-          .setColor(0xff0051)]})
+          .setColor(interaction.client?.embedColor || '#ff0051')]})
         }
 
     const emojiarray = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"]
@@ -176,69 +176,60 @@ try {
       const collector = menumsg.createMessageComponentCollector({
         filter: i => i.isSelectMenu() && i.message.author.id == client.user.id && i.user,
         time: 90000
-      })
-      
+      });
+
       collector.on('collect', async menu => {
-        console.log('collecting')
-        if (menu.user.id === cmduser.id) {
-          collector.stop();
-          menu.deferUpdate();
-          if (menu.values[0] == "Cancel") {
-            menumsg.delete()
-            return await interaction.editReply({embeds : [new EmbedBuilder()
-              
-                .setColor(message.client.embedColor)
-                .setDescription("${ok} Cancelled")
-                ]});
-          }
-          var picked_songs = [];
-          let toAddTracks = [];
-          for (const value of menu.values) {
-            let songIndex = songoptions.findIndex(d => d.value == value);
-            var track = res.tracks[songIndex]
-            toAddTracks.push(track)
-            picked_songs.push(`[${track.title}](https://www.youtube.com/watch?v=dQw4w9WgXcQ)`)
-          }
-          menumsg.edit({
-            embeds: [menumsg.embeds[0].setDescription('Queued:\n' + picked_songs.join("\n"))],
-            components: [],
-  
-          })
-          if (player.state !== "CONNECTED") {
-            
-            player.connect();
-            
-            player.queue.add(toAddTracks);
-    
-            player.play();
-            player.pause(false);
 
-          } else if (!player.queue || !player.queue.current) {
-           
-            player.queue.add(toAddTracks);
-            player.play();
-            player.pause(false);
+        if (menu.user.id !== cmduser.id) {
+          await menu.reply({ content: `❌ You are not allowed to do that! Only: <@${cmduser.id}>`, flags: [64] });
+          return;
+        }
+
+        collector.stop();
+        await menu.deferUpdate();
+
+        if (menu.values[0] === "Cancel") {
+          try { await menumsg.delete(); } catch (e) {}
+          return await interaction.editReply({ embeds: [new EmbedBuilder().setColor(message.client.embedColor).setDescription(`${ok} Cancelled`)] });
+        }
+
+        const picked_songs = [];
+        const toAddTracks = [];
+        for (const value of menu.values) {
+          const songIndex = songoptions.findIndex(d => d.value == value);
+          const track = res.tracks[songIndex];
+          toAddTracks.push(track);
+          picked_songs.push(`[${track.title}](https://www.youtube.com/watch?v=dQw4w9WgXcQ)`);
+        }
+
+        await menumsg.edit({ embeds: [menumsg.embeds[0].setDescription('Queued:\n' + picked_songs.join('\n'))], components: [] });
+
+        if (player.state !== "CONNECTED") {
+          await safePlayer.safeCall(player, 'connect');
+          safePlayer.queueAdd(player, toAddTracks);
+          await safePlayer.safeCall(player, 'play');
+          await safePlayer.safeCall(player, 'pause', false);
+        } else {
+          const tracksNow = require('../../utils/queue.js').getQueueArray(player);
+          if (!tracksNow || tracksNow.length === 0) {
+            safePlayer.queueAdd(player, toAddTracks);
+            await safePlayer.safeCall(player, 'play');
+            await safePlayer.safeCall(player, 'pause', false);
           } else {
-            player.queue.add(toAddTracks);
-            var track = toAddTracks[0]
-  
+            safePlayer.queueAdd(player, toAddTracks);
+            const track = toAddTracks[0];
           }
-  
-
-        } else menu.reply({
-          content: `❌ You are not allowed to do that! Only: <@${cmduser.id}>`,
-          flags: [64]
-        });
+        }
       });
       collector.on('end', collected => {});
     }
 
 
   } catch (e) {
-      console.log(e)
+      try { client.logger?.log(e.stack || e.toString(), 'error'); } catch (err) { console.log(e); }
        return await interaction.editReply({embeds : [new EmbedBuilder() 
     .setDescription(`No results found.`)
-    .setColor("RED")]})
+    .setColor(interaction.client?.embedColor || '#ff0051')]})
   }
    
   }

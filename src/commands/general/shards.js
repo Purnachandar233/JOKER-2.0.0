@@ -54,7 +54,7 @@ module.exports = {
     });
 
     emee.addFields(fields);
-    emee.setColor(0xff0051);
+    emee.setColor(message.client?.embedColor || '#ff0051');
     
     message.channel.send({ embeds: [emee] });
   }

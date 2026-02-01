@@ -1,6 +1,7 @@
 const { CommandInteraction, Client, EmbedBuilder } = require("discord.js");
 const { convertTime } = require('../../utils/convert.js');
 const ms = require('ms');
+const safePlayer = require('../../utils/safePlayer');
 module.exports = {
     name: "seek",
     description: "Seek to a specific time in a song",
@@ -39,28 +40,30 @@ module.exports = {
       if (!channel) {
                       const noperms = new EmbedBuilder()
                      
-           .setColor(0xff0051)
+           .setColor(interaction.client?.embedColor || '#ff0051')
              .setDescription(`${no} You must be connected to a voice channel to use this command.`)
           return await interaction.followUp({embeds: [noperms]});
       }
       if(interaction.member.voice.selfDeaf) {	
         let thing = new EmbedBuilder()
-         .setColor(0xff0051)
+         .setColor(interaction.client?.embedColor || '#ff0051')
 
        .setDescription(`${no} <@${interaction.member.id}> You cannot run this command while deafened.`)
          return await interaction.followUp({embeds: [thing]});
        }
             const player = client.lavalink.players.get(interaction.guild.id);
-      if(!player || !player.queue.current) {
+                const { getQueueArray } = require('../../utils/queue.js');
+                const tracks = getQueueArray(player);
+                if(!player || !tracks || tracks.length === 0) {
                       const noperms = new EmbedBuilder()
 
-           .setColor(0xff0051)
+           .setColor(interaction.client?.embedColor || '#ff0051')
            .setDescription(`${no} There is nothing playing in this server.`)
           return await interaction.followUp({embeds: [noperms]});
       }
       if(player && channel.id !== player.voiceChannelId) {
                                   const noperms = new EmbedBuilder()
-             .setColor(0xff0051)
+             .setColor(interaction.client?.embedColor || '#ff0051')
           .setDescription(`${no} You must be connected to the same voice channel as me.`)
           return await interaction.followUp({embeds: [noperms]});
       }
@@ -68,13 +71,13 @@ module.exports = {
       const etime = require('ms')(time)
       if(!etime || isNaN(etime))  return await interaction.editReply({ embeds : [
         new EmbedBuilder()
-        .setColor(0xff0051)
+        .setColor(interaction.client?.embedColor || '#ff0051')
         .setDescription(`${no} Please specify a vaild time ex: \`1h\`.`)
     ]})
-    player.seek(etime)
+    await safePlayer.safeCall(player, 'seek', etime)
   
     let thing = new EmbedBuilder()
-      .setColor(0xff0051)
+      .setColor(interaction.client?.embedColor || '#ff0051')
       .setDescription(`${ok} seeked to \`${convertTime(player.position)}\``)
     return await interaction.editReply({ embeds: [thing] });
      

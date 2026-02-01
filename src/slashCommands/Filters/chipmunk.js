@@ -33,35 +33,37 @@ module.exports = {
     if (!channel) {
                     const noperms = new EmbedBuilder()
 
-         .setColor(0xff0051)
+         .setColor(interaction.client?.embedColor || '#ff0051')
            .setDescription(`${no} You must be connected to a voice channel to use this command.`)
         return await interaction.followUp({embeds: [noperms], flags: [64]});
     }
     if(interaction.member.voice.selfDeaf) {	
       let thing = new EmbedBuilder()
-       .setColor(0xff0051)
+       .setColor(interaction.client?.embedColor || '#ff0051')
      .setDescription(`${no} <@${interaction.member.id}> You cannot run this command while deafened.`)
        return await interaction.followUp({embeds: [thing], flags: [64]});
      }
         const player = client.lavalink.players.get(interaction.guild.id);
-    if(!player || !player.queue.current) {
+      const { getQueueArray } = require('../../../utils/queue.js');
+      const tracks = getQueueArray(player);
+      if(!player || !tracks || tracks.length === 0) {
                     const noperms = new EmbedBuilder()
-         .setColor(0xff0051)
+         .setColor(interaction.client?.embedColor || '#ff0051')
          .setDescription(`${no} There is nothing playing in this server.`)
         return await interaction.followUp({embeds: [noperms], flags: [64]});
     }
     if(player && channel.id !== player.voiceChannelId) {
                                 const noperms = new EmbedBuilder()
-       .setColor(0xff0051)
+       .setColor(interaction.client?.embedColor || '#ff0051')
         .setDescription(`${no} You must be connected to the same voice channel as me.`)
         return await interaction.followUp({embeds: [noperms], flags: [64]});
     }
         //
      
-        const db = require('quick.db')
-        const filted = await db.get(`chipmunk_${interaction.guild.id}`)
+        const settings = require('../../utils/settings');
+        const filted = await settings.getFilter(interaction.guild.id, 'chipmunk');
 if(!filted) {
-  db.push(`chipmunk_${interaction.guild.id}`, true)
+  await settings.setFilter(interaction.guild.id, 'chipmunk', true);
   player.node.send({
     op: "filters",
     guildId: interaction.guild.id,
@@ -82,10 +84,10 @@ if(!filted) {
   });
   player.set("filter", "🐿️ Chipmunk");
          const noperms = new EmbedBuilder()
-    .setColor(0xff0051)
+    .setColor(interaction.client?.embedColor || '#ff0051')
          .setDescription(`${ok} Chipmunk has been \`enabled\`. - <@!${interaction.member.id}>`)
          const noperms1 = new EmbedBuilder()
-         .setColor(0xff0051)
+         .setColor(interaction.client?.embedColor || '#ff0051')
                .setDescription(`${ok} Applying the \`Chipmunk\` Filter (*It might take up to 5 seconds until you hear the Filter*)`)
          return  await interaction.followUp({embeds: [noperms1]}),
          interaction.channel.send({embeds: [noperms]}).then(responce => {
@@ -100,7 +102,7 @@ if(!filted) {
           }, 30000)
       });;
         }else{
-          db.delete(`chipmunk_${interaction.guild.id}`)
+          await settings.setFilter(interaction.guild.id, 'chipmunk', false);
           player.clearEQ();
           player.node.send({
             op: "filters",
@@ -118,10 +120,10 @@ if(!filted) {
           player.set("eq", "💣 None");
           player.set("filter", "💣 None");
           const noperms = new EmbedBuilder()
-     .setColor(0xff0051)
+     .setColor(interaction.client?.embedColor || '#ff0051')
           .setDescription(`${ok} Chipmunk has been \`disabled\`. - <@!${interaction.member.id}>`)
           const noperms1 = new EmbedBuilder()
-          .setColor(0xff0051)
+          .setColor(interaction.client?.embedColor || '#ff0051')
                 .setDescription(`${ok} Removing the \`Chipmunk\` Filter (*It might take up to 5 seconds to remove the filter.*)`)
           return  await interaction.followUp({embeds: [noperms1]}),
           interaction.channel.send({embeds: [noperms]}).then(responce => {

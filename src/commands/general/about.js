@@ -11,7 +11,7 @@ module.exports = {
     );
 
     const embed = new EmbedBuilder()
-      .setColor(0xff0051)
+      .setColor(message.client?.embedColor || '#ff0051')
       .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
       .setDescription(`Joker Music is a high-quality Discord music bot.`)
       .setFooter({ text: "Developed with ❤️ by Joker Team", iconURL: client.user.displayAvatarURL() });

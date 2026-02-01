@@ -33,36 +33,31 @@ module.exports = {
     let ok = client.emoji.ok;
     let no = client.emoji.no;
     
-        if (!interaction.member.permissions.has('MANAGE_CHANNELS')) {
+        if (!interaction.member.permissions.has('MANAGE_ROLES')) {
             const noperms = new EmbedBuilder()
-           .setColor(0xff0051)
-           .setDescription(`You need this required Permissions: \`MANAGE_CHANNELS\` to run this command.`)
+           .setColor(interaction.client?.embedColor || '#ff0051')
+           .setDescription(`You need this required Permissions: \`MANAGE_ROLES\` to run this command.`)
            return await interaction.followUp({embeds: [noperms]});
         }
         const role = interaction.options.getRole("role");
+        if (!role) {
+            const noperms = new EmbedBuilder()
+           .setColor(interaction.client?.embedColor || '#ff0051')
+           .setDescription(`Please provide a valid role.`)
+           return await interaction.followUp({embeds: [noperms]});
+        }
         const dSchema = require('../../schema/djroleSchema.js');
-        let data;
         try {
-            data = await dSchema.findOne({
-                guildID: interaction.guild.id
-            })
-            if(!data) {
-                let newData = await dSchema.create({
-                    guildID: interaction.guild.id,
-                    Roleid: role.id,
-                })
-                newData.save();
-            } else {
-                await dSchema.findOneAndUpdate({
-                    guildID: interaction.guild.id,
-                    Roleid: role.id,
-                })
-            }
+            await dSchema.findOneAndUpdate(
+                { guildID: interaction.guild.id },
+                { $set: { Roleid: role.id } },
+                { upsert: true, new: true }
+            );
         } catch(err) {
-            console.log(err)
+            try { client.logger?.log(err && (err.stack || err.toString()), 'error'); } catch (e) { console.log(err); }
         }
         const embed = new EmbedBuilder()
-        .setColor(0xff0051)
+        .setColor(interaction.client?.embedColor || '#ff0051')
              .setDescription(`${ok} DJ role mode is now **enabled** and set to <@&${role.id}>.`)
              return await interaction.editReply({ embeds : [embed]})
        }

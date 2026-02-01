@@ -46,14 +46,14 @@ module.exports = {
         return number;
     },
     convertHmsToMs: function (hms) {
-        if (hms.length < 3) {
-            return hms = ((+a[0]) * 1000)
-        } else if (hms.length < 6) {
-            const a = hms.split(':')
-            return hms = (((+a[0]) * 60 + (+a[1])) * 1000)
+        if (!hms || typeof hms !== 'string') return 0
+        const parts = hms.split(':').map(p => Number(p) || 0)
+        if (parts.length === 1) {
+            return parts[0] * 1000
+        } else if (parts.length === 2) {
+            return ((parts[0] * 60) + parts[1]) * 1000
         } else {
-            const a = hms.split(':')
-            return hms = (((+a[0]) * 60 * 60 + (+a[1]) * 60 + (+a[2])) * 1000)
+            return ((parts[0] * 3600) + (parts[1] * 60) + parts[2]) * 1000
         }
     }
 }
