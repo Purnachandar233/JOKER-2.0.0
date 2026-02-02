@@ -18,8 +18,9 @@ module.exports = async (client) => {
     // Safe logger wrapper: prefer client.logger if available, fall back to console
     const safeLog = (message, type = 'info') => {
         try {
+            const mappedType = (type === 'info') ? 'log' : type;
             if (client && client.logger && typeof client.logger.log === 'function') {
-                client.logger.log(message, type);
+                client.logger.log(message, mappedType);
             } else {
                 console.log(message);
             }
@@ -43,6 +44,8 @@ module.exports = async (client) => {
             };
 
     const mongoUrl = process.env.MONGODB_URL || process.env.MONGOURI || client.config.mongourl;
+    const mongoSource = process.env.MONGODB_URL ? 'env' : (process.env.MONGOURI ? 'env(MONGOURI)' : (client.config.mongourl && client.config.mongourl !== 'MONGODB_URL' ? 'config' : 'none'));
+    safeLog(`MongoDB URL source: ${mongoSource}`, 'info');
     mongoose.Promise = global.Promise;
 
     if (mongoUrl && typeof mongoUrl === 'string' && mongoUrl.startsWith('mongodb')) {
@@ -136,7 +139,8 @@ readdirSync("./src/slashCommands/").forEach((dir) => {
     // The discord.js v15 ready event was renamed to `clientReady`. Register the
     // same initialization for both event names to remain backwards compatible
     // and avoid the deprecation warning.
-    const setupLavalink = async () => {
+        const setupLavalink = async () => {
+            safeLog('Starting Lavalink setup...', 'info');
          // Initialize Lavalink Manager
          const nodes = client.config?.nodes || [];
          
@@ -195,15 +199,44 @@ readdirSync("./src/slashCommands/").forEach((dir) => {
                  client.lavalink.on(eventName, event.bind(null, client));
              });
 
-             client.application.commands.set(data).catch((e) => safeLog(e && (e.stack || e.toString()), 'error'));
+            // Registration of global slash commands moved to `ready` handler
          } catch (error) {
              safeLog(`[ERROR] Failed to initialize Lavalink Manager: ${error && error.message}`, 'error');
              safeLog(error && (error.stack || error.toString()), 'error');
          }
     };
 
-    client.once("ready", setupLavalink);
-    client.once("clientReady", setupLavalink);
+    client.once("ready", async () => {
+        safeLog(`Discord client ready: ${client.user && client.user.tag ? client.user.tag : client.user}`, 'info');
+        // Register global slash commands on ready (independent of Lavalink)
+        try {
+            if (Array.isArray(data) && data.length > 0) {
+                if (client.application && client.application.commands && typeof client.application.commands.set === 'function') {
+                    await client.application.commands.set(data);
+                    safeLog(`Registered ${data.length} global slash commands.`, 'info');
+                } else {
+                    safeLog('client.application.commands not available to register slash commands yet', 'warn');
+                }
+            } else {
+                safeLog('No slash command data to register', 'info');
+            }
+        } catch (e) {
+            safeLog(`Failed to register global slash commands: ${e && (e.stack || e.toString())}`, 'error');
+        }
+        try {
+            await setupLavalink();
+        } catch (e) {
+            safeLog(e && (e.stack || e.toString()), 'error');
+        }
+    });
+    client.once("clientReady", async () => {
+        safeLog('clientReady event fired', 'info');
+        try {
+            await setupLavalink();
+        } catch (e) {
+            safeLog(e && (e.stack || e.toString()), 'error');
+        }
+    });
 
   
 
