@@ -39,7 +39,7 @@ wl : true,
        return await interaction.followUp({embeds: [thing]});
      }
         const player = client.lavalink.players.get(interaction.guild.id);
-    const { getQueueArray } = require('../../../utils/queue.js');
+    const { getQueueArray } = require('../../utils/queue.js');
     const tracks = getQueueArray(player);
     if(!player || !tracks || tracks.length === 0) {
                     const noperms = new EmbedBuilder()

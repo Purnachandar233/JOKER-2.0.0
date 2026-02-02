@@ -46,7 +46,27 @@ async function logError(client, error, context = {}) {
     const msg = sanitize(error?.message || String(error));
     const stack = sanitize(error?.stack || '');
 
-    client?.logger?.log(`[${context.source || 'ERROR'}] ${msg}`, 'error');
+    // If we received an Error object, pass it directly so the logger
+    // can extract the stack frame and filename. Otherwise log as string.
+    try {
+      if (error instanceof Error) {
+        client?.logger?.log(error, 'error');
+      } else {
+        // If this originated from a slash command, attempt to resolve the
+        // actual source filename from the registered slash commands map.
+        let sourceLabel = context.source || 'ERROR';
+        try {
+          if (context.source === 'SlashCommand' && context.command && client && client.sls && typeof client.sls.get === 'function') {
+            const cmd = client.sls.get(context.command);
+            if (cmd && cmd._filename) sourceLabel = cmd._filename;
+          }
+        } catch (x) {}
+        client?.logger?.log(`[${sourceLabel}] ${msg}`, 'error');
+      }
+    } catch (e) {
+      // Fallback to string logging on unexpected failures
+      client?.logger?.log(`[${context.source || 'ERROR'}] ${msg}`, 'error');
+    }
 
   // Send to webhook if configured. Allow env override and an enable flag.
   try {

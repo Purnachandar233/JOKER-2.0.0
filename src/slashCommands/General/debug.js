@@ -12,9 +12,7 @@ module.exports = {
      */
 
     run: async (client, interaction) => {
-        await interaction.deferReply({
-          ephemeral: false
-        });
+                await interaction.deferReply();
           
     let ok = client.emoji.ok;
     let no = client.emoji.no;
@@ -27,11 +25,13 @@ module.exports = {
         }
          const embed = new EmbedBuilder()
          .setTitle("Debug")
-         .addField("Server Id", `\`\`\`js\n${interaction.guild.id}\`\`\``, true)
-         .addField("Cluster Id", `\`\`\`js\n${interaction.guild.shard.id*1+1 }\`\`\``, true)
-         .addField("Shard Id", `\`\`\`js\n${interaction.guild.shard.id*1+1 }\`\`\``, true)
-         .addField("Guild Player state", `\`\`\`js\n${state}\`\`\``, true)
-         .addField("Players", `\`\`\`js\n${client.lavalink.nodeManager.nodes.values().next().value.stats.playingPlayers}/${client.lavalink.nodeManager.nodes.values().next().value.stats.players}\`\`\``, true)
+         .addFields([
+            { name: "Server Id", value: `\`\`\`js\n${interaction.guild.id}\`\`\``, inline: true },
+            { name: "Cluster Id", value: `\`\`\`js\n${interaction.guild.shard.id*1+1 }\`\`\``, inline: true },
+            { name: "Shard Id", value: `\`\`\`js\n${interaction.guild.shard.id*1+1 }\`\`\``, inline: true },
+            { name: "Guild Player state", value: `\`\`\`js\n${state}\`\`\``, inline: true },
+            { name: "Players", value: `\`\`\`js\n${client.lavalink.nodeManager.nodes.values().next().value.stats.playingPlayers}/${client.lavalink.nodeManager.nodes.values().next().value.stats.players}\`\`\``, inline: true }
+         ])
              .setColor(interaction.client?.embedColor || '#ff0051')
         await interaction.followUp({embeds: [embed]})
     }

@@ -1,7 +1,7 @@
 const { EmbedBuilder, WebhookClient } = require('discord.js');
 module.exports = async (client, guild) => {
     // allow env override and an enable flag
-    if (process.env.ENABLE_WEBHOOK_LOGS && process.env.ENABLE_WEBHOOK_LOGS.toLowerCase() === 'false') return;
+   
     const url = process.env.GUILD_WEBHOOK_URL || client.config.webhooks?.guildLogs;
     if (!url) return;
     const web = new WebhookClient({ url });

@@ -25,9 +25,7 @@ module.exports = {
      */
 
     run: async (client, interaction, prefix ) => {
-        await interaction.deferReply({
-          ephemeral: false
-        });
+                await interaction.deferReply();
           
     let ok = client.emoji.ok;
     let no = client.emoji.no;
@@ -38,7 +36,7 @@ module.exports = {
            .setDescription(`You need this required Permissions: \`MANAGE_CHANNELS\` to run this command.`)
            return await interaction.followUp({embeds: [noperms]});
         }
-      const volume = interaction.options.getNumber("volume");
+    const volume = interaction.options.getInteger("volume");
       if(volume > 150 ) {
         let thing = new EmbedBuilder()
                      .setColor(interaction.client?.embedColor || '#ff0051')

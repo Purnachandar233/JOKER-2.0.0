@@ -64,12 +64,14 @@ module.exports = {
       
   let embed = new EmbedBuilder()
   .setTitle("Now playing")
-.addField('Song', `[${song.info?.title || song.title}](https://discord.gg/pCj2UBbwST)`)
-.addField('Song By', `[ ${song.info?.author || song.author} ]`)
-.addField('Duration', `[ \`${!song.isStream ? `${new Date(song.duration).toISOString().slice(11, 19)}` : '◉ LIVE'}\` ]`) 
-.addField(`Queue length: `,`${tracks.length} Songs`) 
-.addField(`Progress: `, createBar(player)) 
-.setColor(interaction.client?.embedColor || '#ff0051')
+  .addFields([
+    { name: 'Song', value: `[${song.info?.title || song.title}](https://discord.gg/pCj2UBbwST)` },
+    { name: 'Song By', value: `[ ${song.info?.author || song.author} ]` },
+    { name: 'Duration', value: `\` + (!song.isStream ? `${new Date(song.duration).toISOString().slice(11, 19)}` : '◉ LIVE') + `\`` },
+    { name: `Queue length: `, value: `${tracks.length} Songs` },
+    { name: `Progress: `, value: createBar(player) }
+  ])
+  .setColor(interaction.client?.embedColor || '#ff0051')
             
             interaction.member.send({embeds: [embed]}).catch(e=>{
             return interaction.editReply({ content : `Couldn't send you a dm 

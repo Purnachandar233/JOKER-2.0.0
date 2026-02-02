@@ -30,14 +30,14 @@ module.exports = {
           
            .setColor(interaction.client?.embedColor || '#ff0051')
              .setDescription(`${no} You must be connected to a voice channel to use this command.`)
-          return await interaction.followUp({embeds: [noperms]});
+          return await interaction.reply({embeds: [noperms]});
       }
       if(interaction.member.voice.selfDeaf) {	
         let thing = new EmbedBuilder()
          .setColor(interaction.client?.embedColor || '#ff0051')
 
        .setDescription(`${no} <@${interaction.member.id}> You cannot run this command while deafened.`)
-         return await interaction.followUp({embeds: [thing]});
+         return await interaction.reply({embeds: [thing]});
        }
             const player = client.lavalink.players.get(interaction.guild.id);
           const { getQueueArray } = require('../../utils/queue.js');
@@ -47,13 +47,13 @@ module.exports = {
   
            .setColor(interaction.client?.embedColor || '#ff0051')
            .setDescription(`${no} There is nothing playing in this server.`)
-          return await interaction.followUp({embeds: [noperms]});
+          return await interaction.reply({embeds: [noperms]});
       }
       if(player && channel.id !== player.voiceChannelId) {
                                   const noperms = new EmbedBuilder()
           .setColor(interaction.client?.embedColor || '#ff0051')
           .setDescription(`${no} You must be connected to the same voice channel as me.`)
-          return await interaction.followUp({embeds: [noperms]});
+          return await interaction.reply({embeds: [noperms]});
       }
         
      		const safePlayer = require('../../utils/safePlayer');
@@ -63,7 +63,7 @@ module.exports = {
 		  let thing = new EmbedBuilder()
       .setColor(interaction.client?.embedColor || '#ff0051')
          .setDescription(`${ok} The queue has been cleared.`)
-         return interaction.editReply({embeds: [thing]});
+         return interaction.reply({embeds: [thing]});
 	
     }
 };

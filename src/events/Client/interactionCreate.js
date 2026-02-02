@@ -64,7 +64,11 @@ module.exports = async (client, interaction) => {
 
         const isVoted = client.topgg && typeof client.topgg.hasVoted === 'function' ? 
             await client.topgg.hasVoted(interaction.user.id).catch((err) => {
-                client.logger?.log(`Top.gg vote check error: ${err.message}`, 'warn');
+                // Suppress Top.gg warnings for unauthorized (e.g., unverified bot token)
+                if (err && (err.statusCode === 401 || (err.message && (err.message.includes('401') || err.message.includes('Unauthorized'))))) {
+                    return false;
+                }
+                client.logger?.log(`Top.gg vote check error: ${err && err.message ? err.message : String(err)}`, 'warn');
                 return false;
             }) : false;
 

@@ -53,6 +53,6 @@ Joker Music can be added to as many server as you want! [Click here to add it to
         
  
 .setColor(interaction.client?.embedColor || '#ff0051')
-        await interaction.followUp({embeds: [embed], components: [row]})
+        await interaction.reply({embeds: [embed], components: [row]})
     }
 }

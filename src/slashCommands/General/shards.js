@@ -33,8 +33,11 @@ module.exports = {
           const totalShards = client.cluster ? client.cluster.info.TOTAL_SHARDS : 1;
           for (let i = 0; i < totalShards; i++) {
               const status = client.cluster ? (client.cluster.mode === 'process' ? '<:online:968819259683770389>' : '<:dnd:968819300611817532>') : '<:online:968819259683770389>';
-              emee.addField(`${status} Shard ${i === (interaction.guild.shardId || 0) ? i + '   <:location_alex:997428426380161024>' : i}`,
-                  `\`\`\`ml\nServers: ${servers[i] || 'null'}\nUsers  : ${users[i] || 'null'}\nPing   : ${ping[i]}\nUptime : ${require('pretty-ms')(uptime[i]) || 'null'}\nMemory : ${Number(memoryUsage).toLocaleString()}mb\`\`\``, true);
+              emee.addFields({
+                  name: `${status} Shard ${i === (interaction.guild.shardId || 0) ? i + '   <:location_alex:997428426380161024>' : i}`,
+                  value: `\`\`\`ml\nServers: ${servers[i] || 'null'}\nUsers  : ${users[i] || 'null'}\nPing   : ${ping[i]}\nUptime : ${require('pretty-ms')(uptime[i]) || 'null'}\nMemory : ${Number(memoryUsage).toLocaleString()}mb\`\`\``,
+                  inline: true
+              });
           }
 
           let totalMembers = users.reduce((acc, memberCount) => acc + memberCount, 0);
@@ -44,8 +47,8 @@ module.exports = {
           let media = pingMedia / totalShards;
           const playerCount = client.lavalink?.nodeManager?.nodes?.values()?.next()?.value?.stats?.players || 0;
           const totalMemoryStr = bytes(bytes(usedMemMb + "MB"));
-          emee.addField('<:idle:968819647170347048> Total', `\`\`\`ml\nTotalServers: ${totalServers}\nTotalMembers: ${totalMembers}\nTotalPlayers: ${playerCount}\nTotalMemory : ${totalMemoryStr}\nPing        : ${Math.round(media)}\`\`\``);
+          emee.addFields({ name: '<:idle:968819647170347048> Total', value: `\`\`\`ml\nTotalServers: ${totalServers}\nTotalMembers: ${totalMembers}\nTotalPlayers: ${playerCount}\nTotalMemory : ${totalMemoryStr}\nPing        : ${Math.round(media)}\`\`\`` });
 
-          return interaction.editReply({ embeds: [emee] });
+          return interaction.reply({ embeds: [emee] });
     }
 };

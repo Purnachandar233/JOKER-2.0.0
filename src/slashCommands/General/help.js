@@ -60,20 +60,20 @@ module.exports = {
         .setDescription(`Alex is the easiest way to play music in your Discord server. It supports Spotify, YouTube, Soundcloud and more!`)
         .setColor(interaction.client?.embedColor || '#ff0051');
 
-      return interaction.editReply({ embeds: [embed], components: [row] });
+      return interaction.reply({ embeds: [embed], components: [row] });
     } else {
       const command = client.sls.get(em);
       if (!command) {
         const embed = new EmbedBuilder()
           .setDescription(`Couldn't find matching command name.`)
           .setColor(interaction.client?.embedColor || '#ff0051');
-        return interaction.editReply({ embeds: [embed] });
+        return interaction.reply({ embeds: [embed] });
       }
 
       const embed = new EmbedBuilder()
         .setDescription(`> Aliases: ${command.aliases ? `\`${command.aliases.join("` `")}\`` : "No aliases for this command."}\n> Usage: ${command.usage ? `\`${prefix}${command.name} ${command.usage}\`` : `not found`}\n> Description: ${command.description ? command.description : "No description for this command."}`)
         .setColor(interaction.client?.embedColor || '#ff0051');
-      return interaction.editReply({ embeds: [embed] });
+      return interaction.reply({ embeds: [embed] });
     }
   },
 };

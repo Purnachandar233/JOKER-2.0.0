@@ -93,6 +93,8 @@ readdirSync("./src/slashCommands/").forEach((dir) => {
     
         for (const file of slashCommandFile) {
             const slashCommand = require(`../slashCommands/${dir}/${file}`);
+            // Attach filename so error handlers can surface the originating file
+            try { slashCommand._filename = `src/slashCommands/${dir}/${file}`; } catch (e) {}
 
             if(!slashCommand.name) return console.error(`slashCommandNameError: ${file.split(".")[0]} application command name is required.`);
 
