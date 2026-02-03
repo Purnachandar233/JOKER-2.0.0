@@ -67,7 +67,7 @@ module.exports = {
   .addFields([
     { name: 'Song', value: `[${song.info?.title || song.title}](https://discord.gg/pCj2UBbwST)` },
     { name: 'Song By', value: `[ ${song.info?.author || song.author} ]` },
-    { name: 'Duration', value: `\` + (!song.isStream ? `${new Date(song.duration).toISOString().slice(11, 19)}` : '◉ LIVE') + `\`` },
+    { name: 'Duration', value: !song.isStream ? `\`${new Date(song.duration).toISOString().slice(11, 19)}\`` : `\`◉ LIVE\`` },
     { name: `Queue length: `, value: `${tracks.length} Songs` },
     { name: `Progress: `, value: createBar(player) }
   ])

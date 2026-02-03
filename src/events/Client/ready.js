@@ -2,7 +2,7 @@ const { ActivityType, Events } = require("discord.js");
 const Topgg = require("@top-gg/sdk");
 const autojoin = require("../../schema/twentyfourseven.js");
 
-const LAVALINK_INIT_DELAY = 4000;// 5 second delay for Lavalink to initialize
+const LAVALINK_INIT_DELAY = 1;// 5 second delay for Lavalink to initialize
 
 module.exports = async (client) => {
     client.logger.log(`${client.user.username} online!`, "ready");

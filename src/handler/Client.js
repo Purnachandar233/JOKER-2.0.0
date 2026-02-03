@@ -44,10 +44,7 @@ module.exports = async (client) => {
             };
 
     const mongoUrl = process.env.MONGODB_URL || process.env.MONGOURI || client.config.mongourl;
-    const mongoSource = process.env.MONGODB_URL ? 'env' : (process.env.MONGOURI ? 'env(MONGOURI)' : (client.config.mongourl && client.config.mongourl !== 'MONGODB_URL' ? 'config' : 'none'));
-    safeLog(`MongoDB URL source: ${mongoSource}`, 'info');
-    mongoose.Promise = global.Promise;
-
+   
     if (mongoUrl && typeof mongoUrl === 'string' && mongoUrl.startsWith('mongodb')) {
             try {
             await mongoose.connect(mongoUrl, dbOptions);
@@ -79,12 +76,24 @@ module.exports = async (client) => {
  /**
  * Client Events
  */
-readdirSync("./src/events/Client/").forEach(file => {
-    const event = require(`../events/Client/${file}`);
-    let eventName = file.split(".")[0];
-   // client.logger.log(`Loading Events Client ${eventName}`);
-    client.on(eventName, event.bind(null, client));
-});
+// Load Client event handlers and report which files were loaded
+try {
+    const clientEventFiles = readdirSync("./src/events/Client/");
+    const loadedClientEvents = [];
+    clientEventFiles.forEach(file => {
+        try {
+            const event = require(`../events/Client/${file}`);
+            let eventName = file.split(".")[0];
+            client.on(eventName, event.bind(null, client));
+            loadedClientEvents.push(eventName);
+        } catch (err) {
+            safeLog(`[ERROR] Failed to load Client event file ${file}: ${err && (err.stack || err.message || err)}`, 'error');
+        }
+    });
+    safeLog(`Loaded Client events: ${loadedClientEvents.join(', ')}`, 'info');
+} catch (err) {
+    safeLog(`[ERROR] Unable to read Client events folder: ${err && (err.stack || err.message || err)}`, 'error');
+}
 
 
 const data = [];
@@ -144,12 +153,20 @@ readdirSync("./src/slashCommands/").forEach((dir) => {
         const setupLavalink = async () => {
             safeLog('Starting Lavalink setup...', 'info');
          // Initialize Lavalink Manager
-         const nodes = client.config?.nodes || [];
-         
-             if (!nodes || nodes.length === 0) {
-             safeLog('[WARN] No Lavalink nodes configured in config.json. Music features will be unavailable.', 'warn');
-             return;
-         }
+        const nodes = client.config?.nodes || [];
+
+            // Log node configuration (mask authorization) for debugging in hosted environments
+            try {
+                const nodeSummary = Array.isArray(nodes) && nodes.length > 0 ? nodes.map(n => `${n.host}:${n.port} (secure:${n.secure}) auth:${n.authorization ? '[REDACTED]' : '[none]'}`).join(', ') : 'none';
+                safeLog(`Lavalink nodes configured: ${Array.isArray(nodes) ? nodes.length : 0} -> ${nodeSummary}`, 'info');
+            } catch (e) {
+                safeLog(`Error summarizing Lavalink nodes: ${e && (e.stack || e.message || e)}`, 'warn');
+            }
+
+            if (!nodes || nodes.length === 0) {
+            safeLog('[WARN] No Lavalink nodes configured in config.json. Music features will be unavailable.', 'warn');
+            return;
+        }
          
          try {
              client.lavalink = new LavalinkManager({
