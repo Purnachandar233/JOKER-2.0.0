@@ -18,7 +18,7 @@ module.exports = async (client, player) => {
             name: `Queue More Songs/Enable Autoplay!`, 
             iconURL: client.user.displayAvatarURL() 
         })
-        .setDescription(`The queue has ended. You can [vote](https://top.gg/bot/898941398538158080/vote) for the bot to support us!`);
+        .setDescription(`The queue has ended. You can [vote](https://top.gg/bot/${client.user.id}/vote) for the bot to support us!`);
 
     // Check autoplay (player metadata) and 24/7 setting (database)
     const isAutoplayEnabled = player.get && player.get('autoplay') === true;

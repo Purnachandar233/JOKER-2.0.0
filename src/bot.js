@@ -52,12 +52,6 @@ require('events').EventEmitter.defaultMaxListeners = 1000;
 process.setMaxListeners(1000);
 
 const token = process.env.TOKEN || client.config.token;
-const tokenSource = process.env.TOKEN ? 'env' : (client.config.token && client.config.token !== 'DISCORD_BOT_TOKEN' ? 'config' : 'none');
-if (client.logger && typeof client.logger.log === 'function') {
-    client.logger.log(`Token source: ${tokenSource}`, 'log');
-} else {
-    console.log(`Token source: ${tokenSource}`);
-}
 if (!token || token === "DISCORD_BOT_TOKEN") {
     console.error("[ERROR] No Discord bot token provided. Please set the TOKEN secret or add it to config.json.");
     process.exit(1);

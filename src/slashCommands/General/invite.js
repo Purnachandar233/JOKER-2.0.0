@@ -27,7 +27,7 @@ module.exports = {
       .setURL(`https://discord.com/api/oauth2/authorize?client_id=${client.user.id}&permissions=37088600&redirect_uri=https%3A%2F%2Fdiscord.gg%2FpCj2UBbwST&response_type=code&scope=bot%20applications.commands%20identify`)
       .setLabel("Support Server")
       .setStyle(5)
-      .setURL(`https://discord.gg/pCj2UBbwST`),
+      .setURL(`https://discord.gg/JQzBqgmwFm`),
         );
        
                 const embed = new EmbedBuilder()

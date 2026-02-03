@@ -70,7 +70,7 @@ async function logError(client, error, context = {}) {
 
   // Send to webhook if configured. Allow env override and an enable flag.
   try {
-    if (process.env.ENABLE_WEBHOOK_LOGS && process.env.ENABLE_WEBHOOK_LOGS.toLowerCase() === 'false') return;
+  
     const webhookUrl = process.env.ERROR_WEBHOOK_URL || client?.config?.webhooks?.errorLogs;
     if (!webhookUrl) return;
     const { WebhookClient, EmbedBuilder } = require('discord.js');

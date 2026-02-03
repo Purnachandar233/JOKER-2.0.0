@@ -43,15 +43,15 @@ module.exports = {
         new ButtonBuilder()
           .setLabel("Support Server")
           .setStyle(5)
-          .setURL(`https://discord.gg/pCj2UBbwST`),
+          .setURL(`https://discord.gg/JQzBqgmwFm`),
         new ButtonBuilder()
           .setLabel("Invite Me")
           .setStyle(5)
-          .setURL(`https://discord.com/api/oauth2/authorize?client_id=${client.user.id}&permissions=8&scope=bot%20applications.commands`),
+          .setURL(`https://discord.com/oauth2/authorize?client_id=${client.user.id}&permissions=70510540062032&integration_type=0&scope=bot+applications.commands`),
         new ButtonBuilder()
           .setLabel("Vote")
           .setStyle(5)
-          .setURL(`https://top.gg/bot/898941398538158080/vote`)
+          .setURL(`https://top.gg/bot/${client.user.id}/vote`)
       );
 
       const embed = new EmbedBuilder()

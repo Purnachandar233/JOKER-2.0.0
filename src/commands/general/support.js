@@ -16,12 +16,12 @@ module.exports = {
     .addComponents(
       new ButtonBuilder()
   .setLabel("Support Server")
-  .setURL("https://discord.gg/pCj2UBbwST").setStyle(5)
-  .setURL(`https://discord.gg/pCj2UBbwST`),
+  .setURL("https://discord.gg/JQzBqgmwFmT").setStyle(5)
+  .setURL(`https://discord.gg/JQzBqgmwFm`),
     );
 
         const mainPage = new EmbedBuilder()
-        .setDescription(`[Click here](https://discord.gg/pCj2UBbwST) to join our support server.`)
+        .setDescription(`[Click here](https://discord.gg/JQzBqgmwFm) to join our support server.`)
         .setColor(message.client?.embedColor || '#ff0051')
 message.channel.send({embeds : [mainPage], components : [row]})
     }
