@@ -62,12 +62,13 @@ module.exports = {
      
         const settings = require('../../utils/settings');
         const filted = await settings.getFilter(interaction.guild.id, 'chipmunk');
-if(!filted) {
+  if(!filted) {
   await settings.setFilter(interaction.guild.id, 'chipmunk', true);
+  const bandsForEq = Array.isArray(player.bands) ? player.bands : new Array(15).fill(0);
   player.node.send({
     op: "filters",
     guildId: interaction.guild.id,
-    equalizer: player.bands.map((gain, index) => {
+    equalizer: bandsForEq.map((gain, index) => {
       var Obj = {
         "band": 0,
         "gain": 0,
@@ -104,10 +105,11 @@ if(!filted) {
         }else{
           await settings.setFilter(interaction.guild.id, 'chipmunk', false);
           player.clearEQ();
+          const bandsForEq2 = Array.isArray(player.bands) ? player.bands : new Array(15).fill(0);
           player.node.send({
             op: "filters",
             guildId: interaction.guild.id,
-            equalizer: player.bands.map((gain, index) => {
+            equalizer: bandsForEq2.map((gain, index) => {
               var Obj = {
                 "band": 0,
                 "gain": 0,

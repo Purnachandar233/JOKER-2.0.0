@@ -50,8 +50,11 @@ module.exports = async (client) => {
                 const savedAutoplay = await autoplaySchema.findOne({ guildID: vc.guildID });
                 if (savedAutoplay && savedAutoplay.enabled) {
                     player.set("autoplay", true);
-                    player.set("requester", savedAutoplay.requester);
+                    // savedAutoplay stores requesterId; keep requesterId and clear any full object
+                    player.set("requester", null);
+                    player.set("requesterId", savedAutoplay.requesterId || null);
                     player.set("identifier", savedAutoplay.identifier);
+                    player.set("autoplayQuery", savedAutoplay.query || null);
                     client.logger.log(`Restored autoplay state for 24/7 in ${guild.name}`, "ready");
                 }
 

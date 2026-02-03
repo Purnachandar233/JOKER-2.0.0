@@ -11,7 +11,7 @@ module.exports = async (client, player, track, payload) => {
         const trackTitle = track?.title || track?.info?.title || 'Unknown';
         const thing = new EmbedBuilder()
             .setColor(client?.embedColor || '#ff0051')
-            .setDescription(`An error occurred while playing [${trackTitle}](https://www.youtube.com/watch?v=dQw4w9WgXcQ)\nThis song may be banned or private in your country.`);
+            .setDescription(`An error occurred while playing ${trackTitle}\nThis song may be banned or private in your country.`);
         
         await channel.send({ embeds: [thing] }).catch(() => {});
 

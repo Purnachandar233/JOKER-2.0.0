@@ -54,27 +54,48 @@ module.exports = {
      
        const autoplay = player.get("autoplay");
        if (autoplay === false) {
-         const identifier = tracks[0]?.identifier || tracks[0]?.info?.identifier;
+         const identifier = tracks[0]?.identifier || tracks[0]?.info?.identifier || null;
+         const title = tracks[0]?.info?.title || tracks[0]?.title || '';
+         const author = tracks[0]?.info?.author || tracks[0]?.author || '';
+         const query = (title ? `${title} ${author}`.trim() : null);
+
          player.set("autoplay", true);
-         player.set("requester", message.member.id);
+         player.set("requester", null);
+         player.set("requesterId", message.member.id);
          player.set("identifier", identifier);
-         const search = `https://www.youtube.com/watch?v=${identifier}&list=RD${identifier}`;
-         const res = await player.search(search, message.member);
-         if (!res || res.loadType === 'LOAD_FAILED' || res.loadType !== 'PLAYLIST_LOADED' || res.loadType === 'NO_MATCHES') {
-           let embed = new EmbedBuilder()
-           .setDescription(`Found nothing related for the latest song!`)
-           .setColor(message.client.embedColor || client?.config?.embedColor || '#ff0051')
-           try {
-             client.channels.cache.get(player.textChannelId).send({embeds: [embed]})
-           } catch (e) {  }
+         player.set("autoplayQuery", query);
+
+         const autoplaySchema = require('../../schema/autoplay.js');
+         await autoplaySchema.findOneAndUpdate(
+           { guildID: message.guild.id },
+           { enabled: true, requesterId: message.member.id, identifier: identifier, query: query, lastUpdated: Date.now() },
+           { upsert: true }
+         );
+
+         // Try searching non-YouTube sources using query
+         let res = null;
+         if (query) {
+           const sources = ['soundcloud', 'spotify', 'bandcamp', 'deezer', 'applemusic'];
+           for (const source of sources) {
+             try {
+               const sp = player.search({ query, source }, message.member);
+               const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('search timeout')), 8000));
+               const r = await Promise.race([sp, timeout]).catch(() => null);
+               if (r && r.tracks && r.tracks.length > 0) { res = r; break; }
+             } catch (_) { continue; }
+           }
          }
-         // Clear the queue
-         await safePlayer.queueClear(player);
-         safePlayer.queueAdd(player, res.tracks[0])
-         let thing = new EmbedBuilder()
-         .setColor(message.client.embedColor)
-             .setDescription(`${ok} Starting to play recommended tracks.`)
-             return await message.channel.send({embeds: [thing]});
+
+         if (!res || !res.tracks || res.tracks.length === 0) {
+           let embed = new EmbedBuilder().setDescription(`Found nothing related for the latest song!`).setColor(message.client.embedColor || client?.config?.embedColor || '#ff0051');
+           try { client.channels.cache.get(player.textChannelId).send({embeds: [embed]}) } catch (e) {}
+         } else {
+           await safePlayer.queueClear(player);
+           safePlayer.queueAdd(player, res.tracks[0]);
+         }
+
+         let thing = new EmbedBuilder().setColor(message.client.embedColor).setDescription(`${ok} Starting to play recommended tracks.`)
+         return await message.channel.send({embeds: [thing]});
      } else {
          player.set("autoplay", false);
          // Clear the queue

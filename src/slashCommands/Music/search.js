@@ -128,7 +128,7 @@ try {
     var track = res.tracks[0]
     var theresults = res.tracks
       .slice(0, max)
-    var results = theresults.map((track, index) => `**${++index})** [\`${String(track.title).substr(0, 60).split("[").join("{").split("]").join("}")}\`](https://www.youtube.com/watch?v=dQw4w9WgXcQ) - \`${format(track.duration).split("")[0]}\``)
+    var results = theresults.map((track, index) => `**${++index})** \`${String(track.title).substr(0, 60).split("[").join("{").split("]").join("}")}\` - \`${format(track.duration).split("")[0]}\``)
       .join('\n');
       if (!res.tracks[0]) {
         return await interaction.editReply({embeds : [new EmbedBuilder() 
@@ -199,7 +199,7 @@ try {
           const songIndex = songoptions.findIndex(d => d.value == value);
           const track = res.tracks[songIndex];
           toAddTracks.push(track);
-          picked_songs.push(`[${track.title}](https://www.youtube.com/watch?v=dQw4w9WgXcQ)`);
+          picked_songs.push(`${track.title}`);
         }
 
         await menumsg.edit({ embeds: [menumsg.embeds[0].setDescription('Queued:\n' + picked_songs.join('\n'))], components: [] });

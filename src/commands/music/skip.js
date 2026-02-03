@@ -53,29 +53,27 @@ module.exports = {
           const safePlayer = require('../../utils/safePlayer');
           const upcomingArr = arr || [];
           const reportedSize = (typeof player.queue?.totalSize === 'number') ? player.queue.totalSize : (typeof player.queue?.size === 'number' ? player.queue.size : 0);
-          const upcomingCount = Math.max(0, upcomingArr.length, reportedSize - (player.queue?.current ? 1 : 0));
+          const upcomingCount = Math.max(0, (upcomingArr.length > 0 ? upcomingArr.length - 1 : 0), (reportedSize > 0 ? reportedSize - 1 : 0));
 
-          // Skip diagnostics removed to reduce logging noise
-
-          try {
-            await safePlayer.safeStop(player);
-          } catch (e) {
-            try { await safePlayer.safeStop(player); } catch (_) {}
-          }
-
+          // If there is a next track, advance to it
           if (upcomingCount > 0) {
+            try {
+              await safePlayer.safeStop(player);
+            } catch (e) {
+              try { await safePlayer.safeStop(player); } catch (_) {}
+            }
+
             return await message.channel.send({ embeds: [new EmbedBuilder().setColor(message.client?.embedColor || '#ff0051').setDescription(`${ok} Skipping to the next track.`)] }).catch(() => {});
           }
 
-          const twentyfourseven = require('../../schema/twentyfourseven.js');
+          // No upcoming tracks — do not destroy player; inform user instead
           const is247Enabled = await twentyfourseven.findOne({ guildID: message.guild.id });
           if (is247Enabled) {
             return await message.channel.send({ embeds: [new EmbedBuilder().setColor(message.client?.embedColor || '#ff0051').setDescription(`${no} No songs in queue, add more to skip.`)] }).catch(() => {});
           }
 
-          try { await safePlayer.safeDestroy(player); } catch (e) {}
-          return await message.channel.send({ embeds: [new EmbedBuilder().setColor(message.client?.embedColor || '#ff0051').setDescription(`${ok} Skipped the last track. No more tracks in queue.`)] }).catch(() => {});
-          } catch (err) {
+          return await message.channel.send({ embeds: [new EmbedBuilder().setColor(message.client?.embedColor || '#ff0051').setDescription(`${no} There are no more tracks to skip.`)] }).catch(() => {});
+        } catch (err) {
           client.logger?.log(`Skip command error: ${err?.message || err}`, 'error');
           try { client.logger?.log(err && (err.stack || err.toString()), 'error'); } catch (e) { console.error('Skip command full error', err); }
           return await message.channel.send({ embeds: [new EmbedBuilder().setColor(message.client?.embedColor || '#ff0051').setDescription(`${no} Failed to skip track.`)] }).catch(() => {});

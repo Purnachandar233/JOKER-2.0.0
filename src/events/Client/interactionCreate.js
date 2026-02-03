@@ -93,11 +93,11 @@ module.exports = async (client, interaction) => {
                 const embed = new EmbedBuilder()
                     .setColor(client?.embedColor || '#ff0051')
                     .setAuthor({ name: "Premium Required", iconURL: client.user.displayAvatarURL() })
-                    .setDescription(`✧ This command requires a **Premium Subscription** or a **Vote** on Top.gg.`);
+                    .setDescription(`✧ This command requires a [Premium Subscription](https://discord.gg/JQzBqgmwFm) or a [Vote](https://top.gg/bot/${client.user.id}/vote) on Top.gg.`);
                 
                 const row = new ActionRowBuilder().addComponents(
                     new ButtonBuilder().setLabel("Vote Me").setStyle(5).setURL(`https://top.gg/bot/${client.user.id}/vote`),
-                    new ButtonBuilder().setLabel("Get Premium").setStyle(5).setURL(`https://www.patreon.com/alexmusicbot/membership`)
+                    new ButtonBuilder().setLabel("Get Premium").setStyle(5).setURL(`https://discord.gg/JQzBqgmwFm`)
                 );
 
                 return await interaction.editReply({ embeds: [embed], components: [row] }).catch(() => {});
@@ -213,9 +213,11 @@ module.exports = async (client, interaction) => {
                 try {
                     // Defensively compute whether there are upcoming tracks using multiple possible shapes
                     const { getQueueArray } = require('../../utils/queue.js');
-                      const upcomingArr = getQueueArray(player) || [];
-                      const reportedSize = safePlayer.queueSize(player);
-                      const upcomingCount = Math.max(0, upcomingArr.length, reportedSize - (upcomingArr.length > 0 ? 1 : 0));
+                                        const upcomingArr = getQueueArray(player) || [];
+                                            const reportedSize = safePlayer.queueSize(player);
+                                            // getQueueArray returns an array where index 0 is the current track.
+                                            // upcomingCount should represent tracks AFTER the current one.
+                                            const upcomingCount = Math.max(0, (upcomingArr.length > 0 ? upcomingArr.length - 1 : 0), (reportedSize > 0 ? reportedSize - 1 : 0));
 
                     // Debug log queue diagnostics
                     try {
@@ -223,26 +225,24 @@ module.exports = async (client, interaction) => {
                         // SkipHandler diagnostics suppressed
                     } catch (e) { try { client.logger?.log('SkipHandler log failure: ' + (e && (e.stack || e.toString())), 'warn'); } catch (err) { console.log('SkipHandler log failure', e); } }
 
-                    // Use stop to advance to the next track reliably (works even if no upcoming)
-                    try {
-                        await safePlayer.safeStop(player);
-                    } catch (e) {
-                        try { await safePlayer.safeStop(player); } catch (_) {}
-                    }
-
                     if (upcomingCount > 0) {
+                        // Advance to next track
+                        try {
+                            await safePlayer.safeStop(player);
+                        } catch (e) {
+                            try { await safePlayer.safeStop(player); } catch (_) {}
+                        }
                         return interaction.reply({ content: `${ok} Skipped to the next track.`, flags: [64] });
                     }
 
-                    // No upcoming tracks
+                    // No upcoming tracks — do not destroy the player, just inform the user.
                     const twentyfourseven = require('../../schema/twentyfourseven.js');
                     const is247Enabled = await twentyfourseven.findOne({ guildID: interaction.guild.id });
                     if (is247Enabled) {
                         return interaction.reply({ content: `${no} No songs in queue, add more to skip.`, flags: [64] });
                     }
 
-                    try { await safePlayer.safeDestroy(player); } catch (e) { }
-                    return interaction.reply({ content: `${ok} Skipped the last track. No more tracks in queue.`, flags: [64] });
+                    return interaction.reply({ content: `${no} There are no more tracks to skip.`, flags: [64] });
                 } catch (error) {
                     client.logger?.log(`Skip error: ${error?.message || error}`, 'error');
                     return interaction.reply({ content: `${no} Failed to skip track.`, flags: [64] });

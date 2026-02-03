@@ -4,7 +4,7 @@ module.exports = {
   name: 'debugmusic',
   category: 'music',
   description: 'Debug music subsystem (lavalink, player, queue).',
-  owner: false,
+  owner: true,
   wl: true,
   execute: async (message, args, client) => {
     const embed = new EmbedBuilder().setTitle('Music Debug').setColor(message.client?.embedColor || '#ff0051');

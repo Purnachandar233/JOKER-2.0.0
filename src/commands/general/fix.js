@@ -68,15 +68,16 @@ module.exports = {
       }
 
       try {
+        const region = Array.isArray(args) ? args[0] : args;
         const channelOpts = {
-          rtcRegion: args
+          rtcRegion: region
         }
 
         voiceChannel.edit(channelOpts, 'Fix command')
 
         const noperms = new EmbedBuilder()
           .setColor(message.client?.embedColor || '#ff0051')
-          .setDescription(`Voice Region is now set to \`${args}\`.`)
+          .setDescription(`Voice Region is now set to \`${region}\`.`)
         return await message.channel.send({ embeds: [noperms] })
       } catch (e) {
         return await message.channel.send({ content: 'Unable to change the voice region make sure I have the `MANAGE_CHANNELS` permission and make sure you specified a vaild voicechannel region.' })

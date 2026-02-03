@@ -37,12 +37,12 @@ module.exports = async (client, player, track, res) => {
             .setDescription(`[${title}](${uri}) - \`${isStream ? 'LIVE' : convertTime(duration)}\``)
             .setColor((typeof client !== 'undefined' && client?.embedColor) ? client.embedColor : '#ff0051');
 
+        // More professional button styling with labels + emojis
         const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setStyle(2).setEmoji('⏸️').setCustomId("prtrack"),
-            new ButtonBuilder().setStyle(2).setEmoji('⏭️').setCustomId("skiptrack"),
-            new ButtonBuilder().setStyle(2).setEmoji('🔁').setCustomId("looptrack"),
-            new ButtonBuilder().setStyle(2).setEmoji('📜').setCustomId("showqueue"),
-            new ButtonBuilder().setStyle(2).setEmoji('⏹️').setCustomId("stop")
+            new ButtonBuilder().setCustomId('prtrack').setStyle(2).setLabel('Pause'),
+            new ButtonBuilder().setCustomId('skiptrack').setStyle(2).setLabel('Skip'),
+            new ButtonBuilder().setCustomId('showqueue').setStyle(2).setLabel('Queue'),
+            new ButtonBuilder().setCustomId('stop').setStyle(4).setLabel('Stop')
         );
 
         try {

@@ -18,7 +18,7 @@ module.exports = {
           .setLabel("DBL")
           .setURL(`https://discordbotlist.com/bots/joker-music/upvote`) // Updated name
           .setStyle(5)
-      );
+      );  //https://discord.ly/joker-music
 
     const mainPage = new EmbedBuilder()
       .setDescription(`Help me by voting! You'll get access to premium commands for 12 hours if you vote me on [Top.gg](https://top.gg/bot/${client.user.id}/vote)`)

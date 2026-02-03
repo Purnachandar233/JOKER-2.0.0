@@ -6,6 +6,8 @@ const autoplaySchema = new mongoose.Schema({
     // store requester id instead of full member object
     requesterId: { type: String, default: null },
     identifier: { type: String, default: null },
+    // optional fallback query (title + artist) for non-YouTube sources
+    query: { type: String, default: null },
     lastUpdated: { type: Date, default: Date.now }
 });
 

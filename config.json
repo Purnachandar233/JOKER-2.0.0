@@ -11,8 +11,8 @@
   },
   "nodes": [
     {
-      "host": "94.249.138.22",
-      "port": 5056,
+      "host": "lavalink.jirayu.net",
+      "port": 13592,
       "authorization": "youshallnotpass",
       "secure": false
     }

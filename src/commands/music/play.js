@@ -30,7 +30,7 @@ module.exports = {
       const noperms = new EmbedBuilder()
         .setColor(message.client?.embedColor || '#ff0051')
         .setAuthor({ name: 'YouTube URL', iconURL: client.user.displayAvatarURL({ forceStatic: false }) })
-        .setDescription(`We no longer support YouTube, please use other platforms like Spotify, SoundCloud or Bandcamp.`);
+        .setDescription(`We do not support YouTube URLs. Please use other platforms like Spotify, SoundCloud, Bandcamp, Deezer or Apple Music.`);
       return await message.channel.send({ embeds: [noperms] });
     }
 
@@ -74,45 +74,99 @@ module.exports = {
         s = await Promise.race([directLoadPromise, timeoutPromise]);
       } catch (directErr) {
         client.logger?.log(`Direct Spotify URL load failed: ${directErr.message}, trying search...`, 'warn');
-        // Fallback: try to get track info and search
+        // Fallback: try to get playlist tracks via getTracks(), then search each track.
         try {
-          const data = await getPreview(query);
-          const searchQuery = `${data.title} ${data.artist}`;
-          const searchPromise = player.search({ query: searchQuery, source: 'spotify' }, message.member.user);
-          const searchTimeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Spotify search timeout')), 10000)
-          );
-          s = await Promise.race([searchPromise, searchTimeoutPromise]);
-        } catch (searchErr) {
-          client.logger?.log(`Spotify URL search error: ${searchErr.message}`, 'error');
-          // Fallback: search on other sources using extracted title/artist
+          let searchQuery = null;
+          // try getTracks (best for playlists)
           try {
-            const sources = ['soundcloud', 'bandcamp', 'deezer'];
-            for (const source of sources) {
-              try {
-                const fallbackSearchPromise = player.search({ query: searchQuery, source }, message.member.user);
-                const fallbackTimeoutPromise = new Promise((_, reject) =>
-                  setTimeout(() => reject(new Error(`${source} fallback search timeout`)), 8000)
-                );
-                s = await Promise.race([fallbackSearchPromise, fallbackTimeoutPromise]);
-                if (s && s.tracks && s.tracks.length > 0) break;
-              } catch (fallbackErr) {
-                client.logger?.log(`Fallback search failed for ${source}: ${fallbackErr.message}`, 'warn');
-                continue;
+            const tracksInfo = await getTracks(query).catch(() => null);
+            if (tracksInfo && Array.isArray(tracksInfo) && tracksInfo.length) {
+              const limit = Math.min(tracksInfo.length, 50);
+              const sources = ['soundcloud', 'spotify', 'bandcamp', 'deezer', 'applemusic'];
+              const searchOne = async (q) => {
+                for (const source of sources) {
+                  try {
+                    const p = player.search({ query: q, source }, message.member.user);
+                    const res = await Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('track search timeout')), 8000))]);
+                    if (res && res.tracks && res.tracks.length) return res.tracks[0];
+                  } catch (e) { continue; }
+                }
+                // final attempt without specifying source
+                try {
+                  const p = player.search({ query: q }, message.member.user);
+                  const res = await Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('track search timeout')), 8000))]);
+                  if (res && res.tracks && res.tracks.length) return res.tracks[0];
+                } catch (e) {}
+                return null;
+              };
+
+              const foundTracks = [];
+              for (const t of tracksInfo.slice(0, limit)) {
+                const q = `${t.name} ${ (t.artists && t.artists[0]) ? t.artists[0].name : '' }`;
+                try {
+                  const tr = await searchOne(q);
+                  if (tr) foundTracks.push(tr);
+                } catch (e) { continue; }
+              }
+              if (foundTracks.length) {
+                s = { loadType: 'PLAYLIST_LOADED', tracks: foundTracks, playlist: { name: tracksInfo.name || 'Spotify Playlist' } };
               }
             }
-            if (!s || !s.tracks || s.tracks.length === 0) {
-              return await message.channel.send({ embeds: [new EmbedBuilder().setColor(message.client?.embedColor || '#ff0051').setDescription("Failed to load Spotify content from alternative sources. Please try a different query.")] }).catch(() => {});
-            }
-          } catch (fallbackErr) {
-            client.logger?.log(`All fallback searches failed: ${fallbackErr.message}`, 'error');
-            return await message.channel.send({ embeds: [new EmbedBuilder().setColor(message.client?.embedColor || '#ff0051').setDescription("Failed to load Spotify content. Please try a different query.")] }).catch(() => {});
+          } catch (gtErr) {
+            client.logger?.log(`getTracks fallback error: ${gtErr.message}`, 'warn');
           }
+
+          // If getTracks didn't yield results, fallback to preview->search
+          if (!s) {
+            try {
+              const data = await getPreview(query).catch(() => null);
+              if (data) {
+                searchQuery = `${data.title} ${data.artist}`;
+                const searchPromise = player.search({ query: searchQuery, source: 'spotify' }, message.member.user);
+                const searchTimeoutPromise = new Promise((_, reject) =>
+                  setTimeout(() => reject(new Error('Spotify search timeout')), 10000)
+                );
+                s = await Promise.race([searchPromise, searchTimeoutPromise]);
+              }
+            } catch (searchErr) {
+              client.logger?.log(`Spotify URL search error: ${searchErr.message}`, 'error');
+            }
+          }
+
+          // If still no results, try other sources using either searchQuery or raw query
+          if (!s || !s.tracks || s.tracks.length === 0) {
+            try {
+              const sources = ['soundcloud', 'bandcamp', 'deezer', 'applemusic'];
+              const fallbackQuery = searchQuery || query;
+              for (const source of sources) {
+                try {
+                  const fallbackSearchPromise = player.search({ query: fallbackQuery, source }, message.member.user);
+                  const fallbackTimeoutPromise = new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error(`${source} fallback search timeout`)), 8000)
+                  );
+                  s = await Promise.race([fallbackSearchPromise, fallbackTimeoutPromise]);
+                  if (s && s.tracks && s.tracks.length > 0) break;
+                } catch (fallbackErr) {
+                  client.logger?.log(`Fallback search failed for ${source}: ${fallbackErr.message}`, 'warn');
+                  continue;
+                }
+              }
+              if (!s || !s.tracks || s.tracks.length === 0) {
+                return await message.channel.send({ embeds: [new EmbedBuilder().setColor(message.client?.embedColor || '#ff0051').setDescription("Failed to load Spotify content from alternative sources. Please try a different query.")] }).catch(() => {});
+              }
+            } catch (fallbackErr) {
+              client.logger?.log(`All fallback searches failed: ${fallbackErr.message}`, 'error');
+              return await message.channel.send({ embeds: [new EmbedBuilder().setColor(message.client?.embedColor || '#ff0051').setDescription("Failed to load Spotify content. Please try a different query.")] }).catch(() => {});
+            }
+          }
+        } catch (searchErr) {
+          client.logger?.log(`Spotify URL overall fallback error: ${searchErr.message}`, 'error');
+          return await message.channel.send({ embeds: [new EmbedBuilder().setColor(message.client?.embedColor || '#ff0051').setDescription("Failed to load Spotify content. Please try a different query.")] }).catch(() => {});
         }
       }
     } else {
       // Try multiple sources for regular searches
-      const sources = ['soundcloud', 'spotify', 'bandcamp', 'deezer'];
+      const sources = ['soundcloud', 'spotify', 'bandcamp', 'deezer', 'applemusic'];
       for (const source of sources) {
         try {
           const searchPromise = player.search({ query, source }, message.member.user);
@@ -165,6 +219,13 @@ module.exports = {
 
         if (s.loadType === "PLAYLIST_LOADED" && s.playlist) {
             if (player.queue) {
+              try {
+                // Debug: log minimal playlist info to help diagnose why only 1 track is added
+                try {
+                  const sampleUris = (s.tracks || []).slice(0,5).map(t => (t?.info?.uri || t?.uri || '').toString());
+                  client.logger?.log && client.logger.log(`playlist-debug: loadType=${s.loadType} tracks=${(s.tracks||[]).length} playlistName=${s.playlist?.name} sample=${sampleUris.join(',')}`,'debug');
+                } catch (e) { console.warn('playlist-debug log failed', e); }
+              } catch (e) {}
               // Add each track individually to the queue, skip duplicates by identifier
               const existing = getQueueArray(player).map(t => t?.info?.identifier || t?.identifier || t?.id || t?.uri).filter(Boolean);
               const toAdd = [];
@@ -186,8 +247,12 @@ module.exports = {
             return await message.channel.send({ embeds: [new EmbedBuilder().setColor(message.client?.embedColor || '#ff0051').setDescription("Failed to start playback. Please try again.")] }).catch(() => {});
           }
         }
+        const playlistName = s.playlist?.name || 'Unknown';
+        const playlistUrl = (typeof query === 'string' && query.match(/^https?:\/\//i)) ? query : (s.playlist?.info?.uri || s.playlist?.url || '');
+        const descParts = [`┕ Added **${s.tracks.length}** tracks from **${playlistName}**`];
+        if (playlistUrl) descParts.push(`┕ Playlist URL: ${playlistUrl}`);
         const playlistMsg = await message.channel.send({
-          embeds: [new EmbedBuilder().setColor(message.client?.embedColor || '#ff0051').setTitle("Playlist Entrusted").setDescription(`┕ Added **${s.tracks.length}** tracks from **${s.playlist.name || 'Unknown'}**`).setFooter({ text: "Classic Aesthetic • Joker Music" })]
+          embeds: [new EmbedBuilder().setColor(message.client?.embedColor || '#ff0051').setTitle("Playlist Entrusted").setDescription(descParts.join('\n')).setFooter({ text: "Classic Aesthetic • Joker Music" })]
         }).catch(() => {});
         try { player.set('suppressUntil', Date.now()); } catch (e) {}
         return playlistMsg;

@@ -30,13 +30,15 @@ module.exports = {
       return await message.channel.send({ embeds: [new EmbedBuilder().setColor(message.client?.embedColor || '#ff0051').setDescription("*We must be in the same voice channel.*")] });
     }
     
-    const queue = tracks.map((track, i) => {
-        const title = track.info?.title?.substring(0, 30) || track.title?.substring(0, 30) || 'Unknown Title';
-        const duration = track.info?.duration || track.duration;
-        const isStream = track.info?.isStream || track.isStream;
-        const durationStr = isStream ? 'LIVE' : (duration ? new Date(duration).toISOString().slice(14, 19) : 'Unknown');
-        return `**${i+1}.** ${title}... \`[${durationStr}]\``;
-    });
+      // Build upcoming queue WITHOUT including the currently playing track (tracks[0]).
+      const upcoming = (tracks.length > 1 ? tracks.slice(1) : []);
+      const queue = upcoming.map((track, i) => {
+          const title = track?.info?.title?.substring(0, 30) || track?.title?.substring(0, 30) || 'Unknown Title';
+          const duration = track?.info?.duration || track?.duration;
+          const isStream = track?.info?.isStream || track?.isStream;
+          const durationStr = isStream ? 'LIVE' : (duration ? new Date(duration).toISOString().slice(14, 19) : 'Unknown');
+          return `**${i+1}.** ${title}... \`[${durationStr}]\``;
+      });
     const chunked = chunk(queue, 10);
     const embeds = [];
 
@@ -46,7 +48,7 @@ module.exports = {
           .setColor(message.client?.embedColor || '#ff0051')
           .setTitle(`Current Queue`)
           .setAuthor({ name: message.guild.name, iconURL: message.guild.iconURL() })
-          .setDescription(`**Now Playing**\n┕ ${nowTitle}\n\n**Upcoming Tracks**\n${chunked[i].join('\n') || "*No more tracks in line.*"}`)
+            .setDescription(`**Now Playing**\n┕ ${nowTitle}\n\n**Upcoming Tracks**\n${chunked[i].join('\n') || "*No more tracks in line.*"}`)
           .setFooter({ text: `Classic Page ${i + 1}/${chunked.length} • Joker Music` }));
     }
 
@@ -56,7 +58,7 @@ module.exports = {
           .setColor(message.client?.embedColor || '#ff0051')
           .setTitle(`Current Queue`)
           .setAuthor({ name: message.guild.name, iconURL: message.guild.iconURL() })
-          .setDescription(`**Now Playing**\n┕ ${nowTitle}\n\n**Upcoming Tracks**\n*No more tracks in line.*`)
+            .setDescription(`**Now Playing**\n┕ ${nowTitle}\n\n**Upcoming Tracks**\n*No more tracks in line.*`)
           .setFooter({ text: `Classic Page 1/1 • Joker Music` })] });
     }
 

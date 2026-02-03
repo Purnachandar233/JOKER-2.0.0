@@ -87,7 +87,7 @@ return await interaction.followUp({embeds: [noperms]});
       if (player && player.state === "CONNECTED" && !player.playing && !player.paused && safePlayer.queueSize(player) === 0) await safePlayer.safeCall(player, 'play');
       return await interaction.editReply({
         embeds: [new EmbedBuilder() .setColor(interaction.client?.embedColor || '#ff0051')
-          .setDescription(`Queued [${s.tracks[0].title}](https://www.youtube.com/watch?v=dQw4w9WgXcQ) `)]
+          .setDescription(`Queued ${s.tracks[0].title}`)]
       }).catch(() => {});
     } else if (s.loadType === "PLAYLIST_LOADED") {
       if (player && player.state !== "CONNECTED") await safePlayer.safeCall(player, 'connect');
@@ -97,14 +97,14 @@ return await interaction.followUp({embeds: [noperms]});
       return await interaction.editReply({
         embeds: [new EmbedBuilder().setColor(interaction.client?.embedColor || '#ff0051')
         .setDescription(`Queued **${s.tracks.length}** tracks from **${s.playlist.name}**`)]
-      }).catch(() => {})
+      }).catch(() => {} )
     } else if (s.loadType === "SEARCH_RESULT") {
       if (player && player.state !== "CONNECTED") await safePlayer.safeCall(player, 'connect');
       if (player) safePlayer.queueAdd(player, s.tracks[0]);
       if (player && player.state === "CONNECTED" && !player.playing && !player.paused && safePlayer.queueSize(player) === 0) await safePlayer.safeCall(player, 'play');
       return await interaction.editReply({
         embeds: [new EmbedBuilder().setColor(interaction.client?.embedColor || '#ff0051')
-          .setDescription(`Queued [${s.tracks[0].title}](https://www.youtube.com/watch?v=dQw4w9WgXcQ) [\`${track.requester.user.tag}\`]`)]
+          .setDescription(`Queued ${s.tracks[0].title} [\`${track.requester.user.tag}\`]`)]
       }).catch(() => {});
     } else return await interaction.editReply({
       content: `${no} No results found, try to be specific as possible.`

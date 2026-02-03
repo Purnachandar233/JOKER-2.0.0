@@ -72,7 +72,7 @@ return await message.channel.send({embeds: [noperms]});
     if (player && player.state === "CONNECTED" && !player.playing && !player.paused && !safePlayer.queueSize(player)) await safePlayer.safeCall(player, 'play');
     return await message.channel.send({
       embeds: [new EmbedBuilder() .setColor(message.client?.embedColor || '#ff0051')
-        .setDescription(`Queued [${s.tracks[0].title}](https://www.youtube.com/watch?v=dQw4w9WgXcQ) `)]
+        .setDescription(`Queued ${s.tracks[0].title}`)]
     }).catch(() => {});
   } else if (s.loadType === "PLAYLIST_LOADED") {
     if (player && player.state !== "CONNECTED") await safePlayer.safeCall(player, 'connect');
@@ -82,14 +82,14 @@ return await message.channel.send({embeds: [noperms]});
     return await message.channel.send({
       embeds: [new EmbedBuilder().setColor(message.client?.embedColor || '#ff0051')
       .setDescription(`Queued **${s.tracks.length}** tracks from **${s.playlist.name}**`)]
-    }).catch(() => {})
+    }).catch(() => {} )
   } else if (s.loadType === "SEARCH_RESULT") {
     if (player && player.state !== "CONNECTED") await safePlayer.safeCall(player, 'connect');
     if (player) safePlayer.queueAdd(player, s.tracks[0]);
     if (player && player.state === "CONNECTED" && !player.playing && !player.paused && !safePlayer.queueSize(player)) await safePlayer.safeCall(player, 'play');
     return await message.channel.send({
       embeds: [new EmbedBuilder().setColor(message.client?.embedColor || '#ff0051')
-        .setDescription(`Queued [${s.tracks[0].title}](https://www.youtube.com/watch?v=dQw4w9WgXcQ) `)]
+        .setDescription(`Queued ${s.tracks[0].title}`)]
     }).catch(() => {});
   } else return await message.channel.send({
     content: `${no} No results found, try to be specific as possible.`

@@ -46,15 +46,11 @@ module.exports = {
        }
             const safePlayer = require('../../utils/safePlayer');
             const { getQueueArray } = require('../../utils/queue.js');
-            const player = client.lavalink.players.get(interaction.guild.id);
-            const tracks = getQueueArray(player);
-            if(!player || !tracks || tracks.length === 0) {
-                      const noperms = new EmbedBuilder()
-
-           .setColor(interaction.client?.embedColor || '#ff0051')
-           .setDescription(`${no} There is nothing playing in this server.`)
-          return await interaction.followUp({embeds: [noperms]});
-      }
+            let player = client.lavalink.players.get(interaction.guild.id);
+            let tracks = getQueueArray(player);
+            // If there is no active queue, allow enabling autoplay by using saved autoplay
+            // metadata from the database or existing player metadata. Only reject when
+            // there is no contextual data to derive an autoplay query/identifier.
       if(player && channel.id !== player.voiceChannelId) {
                                   const noperms = new EmbedBuilder()
              .setColor(interaction.client?.embedColor || '#ff0051')
@@ -63,47 +59,108 @@ module.exports = {
       }
 		
     
-      const autoplay = player.get("autoplay");
+      const autoplay = player ? player.get("autoplay") : false;
         if (autoplay === false) {
-          const identifier = tracks[0]?.identifier || tracks[0]?.info?.identifier || null;
-          player.set("autoplay", true);
-          player.set("requester", interaction.member.id);
-          player.set("identifier", identifier);
+          // If no tracks available, try to load lastTrack from player, then DB
+          let identifier = tracks && tracks[0] ? (tracks[0].identifier || tracks[0].info?.identifier) : null;
+          let title = tracks && tracks[0] ? (tracks[0].info?.title || tracks[0].title) : '';
+          let author = tracks && tracks[0] ? (tracks[0].info?.author || tracks[0].author) : '';
 
-        // Save autoplay state to database (store requesterId not full object)
+          // Try lastTrack from player metadata when queue is empty
+          if ((!identifier && !title) && player && typeof player.get === 'function') {
+            const last = player.get('lastTrack');
+            if (last) {
+              identifier = identifier || last.identifier || last.info?.identifier || null;
+              title = title || last.info?.title || last.title || '';
+              author = author || last.info?.author || last.author || '';
+            }
+          }
+
+          // If still missing, try DB saved autoplay info
+          if ((!identifier && !title) || !player) {
+            const saved = await autoplaySchema.findOne({ guildID: interaction.guild.id });
+            if (saved) {
+              identifier = identifier || saved.identifier || null;
+              // saved.query may already be title+author fallback
+              if (!title && saved.query) {
+                title = saved.query;
+                author = '';
+              }
+            }
+          }
+          const query = (title ? `${title} ${author}`.trim() : null);
+
+          // If still no identifier/query available, cannot enable autoplay
+          if (!identifier && !query) {
+            const noperms = new EmbedBuilder()
+              .setColor(interaction.client?.embedColor || '#ff0051')
+              .setDescription(`${no} There is nothing playing in this server.`)
+            return await interaction.followUp({embeds: [noperms]});
+          }
+
+          // Ensure player exists (create if missing) so we can set metadata and queue
+          if (!player) {
+            player = await client.lavalink.createPlayer({
+              guildId: interaction.guild.id,
+              voiceChannelId: interaction.member.voice.channel.id,
+              textChannelId: interaction.channel.id,
+              selfDeafen: true,
+            });
+            if (player && player.node && !player.node.connected) await player.node.connect();
+            tracks = getQueueArray(player);
+          }
+
+          player.set("autoplay", true);
+          // store requester id for later rehydration in trackEnd
+          player.set("requester", null);
+          player.set("requesterId", interaction.member.id);
+          player.set("identifier", identifier);
+          player.set("autoplayQuery", query);
+
+        // Save autoplay state to database (store requesterId and query)
         await autoplaySchema.findOneAndUpdate(
           { guildID: interaction.guild.id },
           {
             enabled: true,
             requesterId: interaction.member.id,
             identifier: identifier,
+            query: query,
             lastUpdated: Date.now()
           },
           { upsert: true }
         );
 
-        const search = `https://www.youtube.com/watch?v=${identifier}&list=RD${identifier}`;
-        const res = await player.search(search, interaction.member);
-        if (!res || res.loadType === 'LOAD_FAILED' || res.loadType !== 'PLAYLIST_LOADED') {
+        // Search non-YouTube sources using the built query.
+        let res = null;
+        if (query) {
+          const sources = ['soundcloud', 'spotify', 'bandcamp', 'deezer', 'applemusic'];
+          for (const source of sources) {
+            try {
+              const sp = player.search({ query, source }, interaction.member);
+              const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('search timeout')), 8000));
+              const r = await Promise.race([sp, timeout]).catch(() => null);
+              if (r && r.tracks && r.tracks.length > 0) { res = r; break; }
+            } catch (_) { continue; }
+          }
+        }
+
+        if (!res || !res.tracks || res.tracks.length === 0) {
           let embed = new EmbedBuilder()
           .setDescription(`${no} Found nothing related for the latest song!`)
           .setColor(interaction.client?.embedColor || '#ff0051')
-          try {
-            client.channels.cache.get(player.textChannelId).send({embeds: [embed]})
-          } catch (e) {  }
-        }
-
-        // Check if 24/7 is enabled
-        const is247Enabled = await twentyfourseven.findOne({ guildID: interaction.guild.id });
-
-        const safePlayer = require('../../utils/safePlayer');
-        if (is247Enabled) {
-          // With 24/7: Don't clear queue, just add to end
-          safePlayer.queueAdd(player, res.tracks[0]);
+          try { client.channels.cache.get(player.textChannelId).send({embeds: [embed]}) } catch (e) { }
         } else {
-          // Without 24/7: Clear queue and add first track
-          await safePlayer.queueClear(player);
-          safePlayer.queueAdd(player, res.tracks[0]);
+          // Check if 24/7 is enabled
+          const is247Enabled = await twentyfourseven.findOne({ guildID: interaction.guild.id });
+          const safePlayer = require('../../utils/safePlayer');
+          if (is247Enabled) {
+            // With 24/7: Don't clear queue, just add to end
+            safePlayer.queueAdd(player, res.tracks[0]);
+          } else {
+            // Without 24/7: Clear queue and add first track
+            await safePlayer.queueClear(player);
+            safePlayer.queueAdd(player, res.tracks[0]);
+          }
         }
 
         let thing = new EmbedBuilder()

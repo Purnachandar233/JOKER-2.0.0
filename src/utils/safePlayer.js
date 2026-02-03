@@ -64,18 +64,64 @@ module.exports = {
 
       // If the underlying queue object exposes an add method, prefer it.
       if (q && typeof q.add === 'function') {
-        const res = q.add(tracks);
+        try {
+          if (Array.isArray(tracks)) {
+            for (const t of tracks) {
+              try { q.add(t); } catch (e) { /* continue */ }
+            }
+          } else {
+            try { q.add(tracks); } catch (e) { /* continue */ }
+          }
+        } catch (e) {
+          // ignore and fall through to array push fallback
+        }
+      }
+
+      // Fallback: ensure tracks are appended into internal arrays when
+      // implementations don't populate them via `add`. Avoid pushing exact
+      // duplicates by checking a stable identifier.
+      const idFor = (t) => {
+        if (!t) return null;
+        const id = t?.info?.identifier || t?.identifier || t?.id || t?.uri || null;
+        if (id) return String(id);
+        const title = t?.info?.title || t?.title || '';
+        const dur = t?.info?.duration || t?.duration || 0;
+        if (title) return `title:${String(title).slice(0,200)}|dur:${dur}`;
+        return null;
+      };
+
+      // If q.tracks exists, push non-duplicates there
+      if (q && q.tracks && Array.isArray(q.tracks)) {
+        const present = new Set(q.tracks.map(idFor).filter(Boolean));
+        if (Array.isArray(tracks)) {
+          for (const t of tracks) {
+            const tid = idFor(t);
+            if (tid && present.has(tid)) continue;
+            q.tracks.push(t);
+            present.add(tid);
+          }
+        } else {
+          const tid = idFor(tracks);
+          if (!tid || !present.has(tid)) q.tracks.push(tracks);
+        }
+        // Mirror into items if present
         try {
           if (q.items && Array.isArray(q.items)) {
-            if (Array.isArray(tracks)) q.items.push(...tracks);
-            else q.items.push(tracks);
-          }
-          if (q.tracks && Array.isArray(q.tracks)) {
-            if (Array.isArray(tracks)) q.tracks.push(...tracks);
-            else q.tracks.push(tracks);
+            const presentItems = new Set(q.items.map(idFor).filter(Boolean));
+            if (Array.isArray(tracks)) {
+              for (const t of tracks) {
+                const tid = idFor(t);
+                if (tid && presentItems.has(tid)) continue;
+                q.items.push(t);
+                presentItems.add(tid);
+              }
+            } else {
+              const tid = idFor(tracks);
+              if (!tid || !presentItems.has(tid)) q.items.push(tracks);
+            }
           }
         } catch (e) {}
-        return res;
+        return true;
       }
 
       // If there's a tracks array (lavalink queue shape), push into it.

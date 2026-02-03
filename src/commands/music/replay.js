@@ -55,7 +55,7 @@ module.exports = {
          let thing = new EmbedBuilder()
 
            .setColor(message.client?.embedColor || '#ff0051')
-           .setDescription(`${ok} Restarting [${current?.title || current?.info?.title || 'Track'}](https://www.youtube.com/watch?v=dQw4w9WgXcQ)`);
+           .setDescription(`${ok} Restarting ${current?.title || current?.info?.title || 'Track'}`);
        return  await message.channel.send({embeds: [thing]});
 
        

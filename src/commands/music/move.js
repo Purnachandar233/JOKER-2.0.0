@@ -56,7 +56,7 @@ module.exports = {
           //send informational message
           const ifkf = new EmbedBuilder()
          .setColor(message.client?.embedColor || '#ff0051')
-          .setDescription(` ${ok} Moved the Song in the Queue from Position \`${args[0]}\` to Position: \`${args[1]}\`\n\n[${song?.info?.title || song?.title || 'Track'}](https://www.youtube.com/watch?v=dQw4w9WgXcQ) - \`${format(song?.info?.duration || song?.duration || 0)}\` `)
+          .setDescription(` ${ok} Moved the Song in the Queue from Position \`${args[0]}\` to Position: \`${args[1]}\`\n\n${song?.info?.title || song?.title || 'Track'} - \`${format(song?.info?.duration || song?.duration || 0)}\` `)
           return message.channel.send({embeds: [ifkf]});
         }
     }

@@ -12,7 +12,8 @@ module.exports = {
         new ButtonBuilder()
           .setLabel('Joker Music')
           .setStyle(5)
-          .setURL(`https://discord.com/oauth2/authorize?client_id=${client.user.id}&permissions=70510540062032&integration_type=0&scope=bot+applications.commands`)
+          .setURL(`https://discord.com/oauth2/authorize?client_id=${client.user.id}&permissions=70510540062032&integration_type=0&scope=bot+applications.commands`),
+         new ButtonBuilder()
           .setLabel('Support Server')
           .setStyle(5)
           .setURL('https://discord.gg/JQzBqgmwFm')

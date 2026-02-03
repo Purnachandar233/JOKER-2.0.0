@@ -27,11 +27,11 @@ module.exports = async (client, message) => {
     const embed = new EmbedBuilder()
       .setColor(client?.embedColor || '#ff0051')
       .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-      .setDescription(`HEY iam joker music an high quality music bot \n\nMy prefix here is: \`${prefix}\` \n\nType \`${prefix}help\` to see commands.`);
+      .setDescription(`Joker Music is a high-quality  music bot built for high quallity music and stability . It is user friendly, low-latency audio and supports dreezer, Spotify,applemusic, SoundCloud and playlists. Features include advanced audio filters\n\nMy Prefix is: \`${prefix}\` \n\nType \`${prefix}help or /help\` to see commands.`);
     return message.channel.send({ embeds: [embed], components: [row] });
   }
 
-  const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, `\\$&`);
+  const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, `\\$&`); 
   const mentionprefix = new RegExp(`^(<@!?${client.user.id}>|${escapeRegex(prefix)})`);
   if (!mentionprefix.test(message.content)) return;
 
@@ -57,10 +57,8 @@ module.exports = async (client, message) => {
   }
 
   if (command.owneronly && !Owners.includes(message.author.id)) {
-    const embed = new EmbedBuilder()
-      .setColor(client?.embedColor || '#ff0051')
-      .setDescription(`✧ This command is restricted to the **Bot Owner** only.`);
-    return message.channel.send({ embeds: [embed] });
+    // Silent rejection: do not send any message or grant access
+    return;
   }
 
   // DJ role validation

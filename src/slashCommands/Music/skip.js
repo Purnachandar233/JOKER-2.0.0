@@ -63,12 +63,28 @@ module.exports = {
 
        
 
-        await safePlayer.safeStop(player);
-  
-        return await interaction.editReply({
-            embeds: [new EmbedBuilder().setColor(interaction.client?.embedColor || '#ff0051')            
-            
+        const reportedSize = safePlayer.queueSize(player);
+        const upcomingCount = Math.max(0, (tracks && tracks.length > 0 ? tracks.length - 1 : 0), (reportedSize > 0 ? reportedSize - 1 : 0));
+
+        if (upcomingCount > 0) {
+          try {
+            await safePlayer.safeStop(player);
+          } catch (e) {
+            try { await safePlayer.safeStop(player); } catch (_) {}
+          }
+
+          return await interaction.editReply({
+            embeds: [new EmbedBuilder().setColor(interaction.client?.embedColor || '#ff0051')
               .setDescription(`${ok} Skipping to the next track.`)]
-        }).catch(() => {});
+          }).catch(() => {});
+        }
+
+        const twentyfourseven = require('../../schema/twentyfourseven.js');
+        const is247Enabled = await twentyfourseven.findOne({ guildID: interaction.guild.id });
+        if (is247Enabled) {
+          return await interaction.editReply({ embeds: [new EmbedBuilder().setColor(interaction.client?.embedColor || '#ff0051').setDescription(`${no} No songs in queue, add more to skip.`)] }).catch(() => {});
+        }
+
+        return await interaction.editReply({ embeds: [new EmbedBuilder().setColor(interaction.client?.embedColor || '#ff0051').setDescription(`${no} There are no more tracks to skip.`)] }).catch(() => {});
   }
 }
