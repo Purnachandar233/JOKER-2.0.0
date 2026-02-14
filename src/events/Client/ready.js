@@ -7,8 +7,12 @@ const LAVALINK_INIT_DELAY = 1;// 5 second delay for Lavalink to initialize
 module.exports = async (client) => {
     client.logger.log(`${client.user.username} online!`, "ready");
     client.user.setPresence({
-        activities: [{ name: `${client.prefix}help | Music`, type: ActivityType.Listening }],
-        status: 'online',
+        status: 'Streaming',
+        activities: [{
+            name: `STREAMING QUALITY MUSIC`, 
+            type: ActivityType.Streaming,
+            url: 'https://twitch.tv/musical'
+        }]
     });
 
     // Set up Top.gg API

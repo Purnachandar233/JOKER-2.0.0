@@ -1,6 +1,6 @@
 const { Client, CommandInteraction, EmbedBuilder } = require('discord.js');
 const legacy = require('../../commands/fun/actions/ship.js');
-const { safeReply } = require('../../utils/safeReply');
+const { safeReply, safeDeferReply } = require('../../utils/safeReply');
 
 module.exports = {
   name: 'ship',
@@ -10,7 +10,8 @@ module.exports = {
     { name: 'user2', description: 'Second user to ship', required: true, type: 9 }
   ],
   run: async (client, interaction) => {
-    await interaction.deferReply({ ephemeral: false }).catch(() => {});
+    const deferred = await safeDeferReply(interaction, { ephemeral: false });
+    if (!deferred) return safeReply(interaction, { content: 'Failed to defer reply.' });
     const user1 = interaction.options.getUser('user1');
     const user2 = interaction.options.getUser('user2');
     const args = [];

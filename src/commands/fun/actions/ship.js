@@ -1,23 +1,25 @@
 const { EmbedBuilder } = require("discord.js");
 
-// Valid anime love/ship GIF URLs from Tenor
+// Valid anime love/ship GIF URLs - Updated working sources
 const shipGifs = [
-    "https://media.tenor.com/8Hx0K5W9PnMAAAAC/ship-anime.gif",
-    "https://media.tenor.com/2LkM6N0Q6RwAAAAC/ship.gif",
-    "https://media.tenor.com/Z2pR9Y5T7KjAAAAC/anime-love.gif",
-    "https://media.tenor.com/D7sZ1K9L1QwAAAAC/ship-naruto.gif",
-    "https://media.tenor.com/G3tY0M7N4VpAAAAC/love-anime.gif"
+    "https://media1.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.gif",
+    "https://media2.giphy.com/media/l0MYt5j31ESjHf7bG/giphy.gif",
+    "https://media3.giphy.com/media/l0Iy1FZAt0oVHcsQw/giphy.gif",
+    "https://media4.giphy.com/media/l0IykYQh0u1QNxTHy/giphy.gif",
+    "https://media1.giphy.com/media/iKBAAfYNgnXSozLVyn/giphy.gif"
 ];
 
 module.exports = {
     name: "ship",
+    aliases: ["love", "relationship"],
     category: "fun",
     description: "Ship two users together!",
+    usage: "ship @user1 @user2",
     execute: async (message, args, client, prefix) => {
         const mentions = message.mentions.users;
         
         if (mentions.size < 2) {
-            return message.reply("Please mention two people to ship! 💕");
+            return message.channel.send("Please mention two people to ship! 💕");
         }
 
         const users = Array.from(mentions.values());
@@ -25,7 +27,7 @@ module.exports = {
         const user2 = users[1];
 
         if (user1.id === user2.id) {
-            return message.reply("You can't ship someone with themselves! 😅");
+            return message.channel.send("You can't ship someone with themselves! 😅");
         }
 
         const percentage = Math.floor(Math.random() * 100) + 1;
@@ -56,8 +58,7 @@ module.exports = {
                 { name: "Rating", value: rating, inline: true }
             )
             .setThumbnail(user1.displayAvatarURL({ dynamic: true }))
-            .setImage(randomGif)
-            .setFooter({ text: "Joker Music • Ship Command" });
+            .setImage(randomGif);
 
         message.channel.send({ embeds: [embed] });
     }

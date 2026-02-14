@@ -1,4 +1,5 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder } = require("discord.js");
+const { safeReply, safeDeferReply } = require('../../utils/safeReply');
 
 module.exports = {
     name: "about",
@@ -12,7 +13,10 @@ module.exports = {
      */
 
     run: async (client, interaction) => {
-        await interaction.deferReply({ ephemeral: false }).catch(() => {});
+        const deferred = await safeDeferReply(interaction, { ephemeral: false });
+        if (!deferred) {
+            return safeReply(interaction, { content: 'Failed to defer reply. Please try again.' });
+        }
         
         let ok = client.emoji.ok;
         let no = client.emoji.no;
@@ -55,6 +59,6 @@ Joker Music can be added to as many server as you want! [Click here to add it to
         
  
 .setColor(interaction.client?.embedColor || '#ff0051')
-        await interaction.editReply({embeds: [embed], components: [row]})
+        await safeReply(interaction, {embeds: [embed], components: [row]});
     }
 }

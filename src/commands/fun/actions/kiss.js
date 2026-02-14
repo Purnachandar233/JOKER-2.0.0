@@ -1,11 +1,11 @@
 const { EmbedBuilder } = require("discord.js");
 
-// Valid anime kiss GIF URLs from Tenor
+// Verified working anime romantic kiss GIFs
 const kissGifs = [
-    "https://media1.tenor.com/m/KE3VW3qP4RAAAAAC/kiss.gif",
-    "https://media1.tenor.com/m/LHZoG2CfdGoAAAAd/yosuga-no-sora.gif",
-    "https://media1.tenor.com/m/698PTTlZ0Q8AAAAd/bebou.gif",
-    "https://media1.tenor.com/m/KE3VW3qP4RAAAAAd/kiss.gif"
+    "https://media.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.gif",  // Romantic anime kiss
+    "https://media.giphy.com/media/v2LYL3dw3i3OwH94L5/giphy.gif", // Sweet kiss moment
+    "https://media.giphy.com/media/3o7TKU8gNS9TQfm8OI/giphy.gif",  // Passionate kiss
+    "https://media.giphy.com/media/iKBAAfYNgnXSozLVyn/giphy.gif"   // Tender kiss scene
 ];
 
 // Helper function to get first mentioned user from both Collection and Map
@@ -22,17 +22,19 @@ function getFirstMentionedUser(message, args, client) {
 
 module.exports = {
     name: "kiss",
+    aliases: ["smooch", "kisses","ummah"],  
     category: "fun",
     description: "Give someone a sweet kiss!",
+    usage: "kiss @user",
     execute: async (message, args, client, prefix) => {
         const user = getFirstMentionedUser(message, args, client);
         
         if (!user) {
-            return message.reply("Please mention someone to kiss! 😘");
+            return message.channel.send("Please mention someone to kiss! 😘");
         }
 
         if (user.id === message.author.id) {
-            return message.reply("You can't kiss yourself! 😳");
+            return message.channel.send("You can't kiss yourself! 😳");
         }
 
         const randomGif = kissGifs[Math.floor(Math.random() * kissGifs.length)];
@@ -41,9 +43,8 @@ module.exports = {
             .setColor("#ff1493")
             .setTitle(`${message.author.username} kisses ${user.username}`)
             .setDescription(`${message.author.username} gives ${user.username} a sweet kiss! 💋`)
-            .setImage(randomGif)
-            .setFooter({ text: "Joker Music • Action Command" });
-
+            .setImage(randomGif);
+            
         message.channel.send({ embeds: [embed] });
     }
 };

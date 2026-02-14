@@ -1,5 +1,6 @@
 const { CommandInteraction, Client, EmbedBuilder } = require("discord.js");
 const PrefixSchema = require('../../../src/schema/prefix.js');
+const { safeReply, safeDeferReply } = require('../../utils/safeReply');
 
 module.exports = {
   name: "setprefix",
@@ -21,7 +22,8 @@ module.exports = {
    * @param {CommandInteraction} interaction
    */
   run: async (client, interaction) => {
-    await interaction.deferReply({ ephemeral: false }).catch(() => {});
+    const deferred = await safeDeferReply(interaction, { ephemeral: false });
+    if (!deferred) return safeReply(interaction, { content: 'Failed to defer reply.' });
 
     // Require Manage Server or Administrator
     if (!interaction.member.permissions.has('MANAGE_GUILD') && !interaction.member.permissions.has('ADMINISTRATOR')) {

@@ -1,12 +1,12 @@
 const { EmbedBuilder } = require("discord.js");
 
-// Valid anime hug GIF URLs from Tenor
+// Verified working anime romantic hug GIFs
 const hugGifs = [
-    "https://media.tenor.com/4Hk8W2X6PmNAAAAC/hug-anime.gif",
-    "https://media.tenor.com/7LkM3N9Q5RwAAAAC/hug.gif",
-    "https://media.tenor.com/V8pR6Y2T4KjAAAAC/anime-hug.gif",
-    "https://media.tenor.com/Z3sX9K7L1QwAAAAC/hug-naruto.gif",
-    "https://media.tenor.com/C9tY8M5N2VpAAAAC/hug-sasuke.gif"
+    "https://media.giphy.com/media/v2LYL3dw3i3OwH94L5/giphy.gif",  // Romantic anime hug
+    "https://media.giphy.com/media/l0HlN9Q0kYWd74nAQ/giphy.gif",  // Emotional embrace
+    "https://media.giphy.com/media/3o7TKU8gNS9TQfm8OI/giphy.gif",  // Sweet hug
+    "https://media.giphy.com/media/iKBAAfYNgnXSozLVyn/giphy.gif", // Intimate moment
+    "https://media.giphy.com/media/L95W4z3PSpLT60Opie/giphy.gif"  // Close embrace
 ];
 
 // Helper function to get first mentioned user from both Collection and Map
@@ -23,17 +23,19 @@ function getFirstMentionedUser(message, args, client) {
 
 module.exports = {
     name: "hug",
+    aliases: ["embrace", "cuddle", "hugs"],
     category: "fun",
     description: "Give someone a warm hug!",
+    usage: "hug @user",
     execute: async (message, args, client, prefix) => {
         const user = getFirstMentionedUser(message, args, client);
         
         if (!user) {
-            return message.reply("Please mention someone to hug! ❤️");
+            return message.channel.send("Please mention someone to hug! ❤️");
         }
 
         if (user.id === message.author.id) {
-            return message.reply("You can't hug yourself! 😔");
+            return message.channel.send("You can't hug yourself! 😔");
         }
 
         const randomGif = hugGifs[Math.floor(Math.random() * hugGifs.length)];
@@ -42,8 +44,7 @@ module.exports = {
             .setColor("#ff66b2")
             .setTitle(`${message.author.username} hugs ${user.username}`)
             .setDescription(`${message.author.username} wraps their arms around ${user.username} with warmth and care! 💗`)
-            .setImage(randomGif)
-            .setFooter({ text: "Joker Music • Action Command" });
+            .setImage(randomGif);
 
         message.channel.send({ embeds: [embed] });
     }

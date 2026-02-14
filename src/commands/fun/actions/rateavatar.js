@@ -1,12 +1,12 @@
 const { EmbedBuilder } = require("discord.js");
 
-// Valid anime reaction GIF URLs from Tenor
+// Valid anime reaction GIF URLs - Updated working sources
 const reactionGifs = [
-    "https://media.tenor.com/7Hx9K4W8PnMAAAAC/reaction-anime.gif",
-    "https://media.tenor.com/1LkM5N0Q6RwAAAAC/reaction.gif",
-    "https://media.tenor.com/Y1pR8Y4T6KjAAAAC/anime-reaction.gif",
-    "https://media.tenor.com/C6sZ0K8L1QwAAAAC/reaction-naruto.gif",
-    "https://media.tenor.com/F2tY9M6N3VpAAAAC/reaction-shocked.gif"
+    "https://media1.giphy.com/media/l0HlQaQ5jcKxaiEPm/giphy.gif",
+    "https://media2.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.gif",
+    "https://media3.giphy.com/media/l0HlE7Q0oPSfyxjDO/giphy.gif",
+    "https://media4.giphy.com/media/l0IykYQh0u1QNxTHy/giphy.gif",
+    "https://media1.giphy.com/media/xT8qBgLKuNzGSpGIls/giphy.gif"
 ];
 
 // Helper function to get first mentioned user from both Collection and Map
@@ -23,13 +23,15 @@ function getFirstMentionedUser(message, args, client) {
 
 module.exports = {
     name: "rateavatar",
+    aliases: ["avatarrate", "avgr", "arate"],
     category: "fun",
     description: "Rate someone's avatar!",
+    usage: "rateavatar @user",
     execute: async (message, args, client, prefix) => {
         const user = await getFirstMentionedUser(message, args, client);
 
         if (!user) {
-            return message.reply("Please mention a valid user or provide their ID!");
+            return message.channel.send("Please mention a valid user or provide their ID!");
         }
 
         const rating = Math.floor(Math.random() * 41) + 60; // Rating between 60-100 for positivity
@@ -56,8 +58,7 @@ module.exports = {
                 { name: "Overall Rating", value: `**${rating}/100** ${"⭐".repeat(Math.floor(rating / 20))}`, inline: false }
             )
             .setThumbnail(avatarUrl)
-            .setImage(reactionGif)
-            .setFooter({ text: "Joker Music • Avatar Rating" });
+            .setImage(reactionGif);
 
         message.channel.send({ embeds: [embed] });
     }

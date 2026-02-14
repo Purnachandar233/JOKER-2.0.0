@@ -1,12 +1,12 @@
 const { EmbedBuilder } = require("discord.js");
 
-// Valid anime slap GIF URLs from Tenor
+// Valid anime slap GIF URLs - Updated working sources
 const slapGifs = [
-    "https://media.tenor.com/bQa4fYG_JlYAAAAC/slap-anime.gif",
-    "https://media.tenor.com/7xTkG5Z2tZMAAAAC/slap.gif",
-    "https://media.tenor.com/kVZ7YhT2QHsAAAAC/anime-slap.gif",
-    "https://media.tenor.com/P9kRZ5Y6xNcAAAAC/slap-kyouka.gif",
-    "https://media.tenor.com/x8vN9K3pLp0AAAAC/slap-madara.gif"
+    "https://media1.giphy.com/media/3o6Zt6KHxJTbXCnSvu/giphy.gif",
+    "https://media1.giphy.com/media/v2LYL3dw3i3OwH94L5/giphy.gif",
+    "https://media2.giphy.com/media/xTiTnkk3x12LvAjqPu/giphy.gif",
+    "https://media3.giphy.com/media/5xtDarE6XC3gN4bB4KU/giphy.gif",
+    "https://media4.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.gif"
 ];
 
 // Helper function to get first mentioned user from both Collection and Map

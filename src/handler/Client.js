@@ -308,7 +308,7 @@ readdirSync("./src/slashCommands/").forEach((dir) => {
         const startup = new StartupLogger();
         
         try {
-            startup.printBanner('JOKER MUSIC', 'v1.0.0');
+            startup.printBanner('JOKER MUSIC', 'v2.0.0');
             
             // Initialize Lavalink
             startup.sectionStart('LAVALINK SETUP');

@@ -53,14 +53,20 @@ async function safeReply(interaction, options = {}) {
 
 async function safeDeferReply(interaction, options = {}) {
   try {
-    if (!interaction || interaction.deferred || interaction.replied) {
-      return;
+    if (!interaction) {
+      console.error('safeDeferReply: interaction is null/undefined');
+      return false;
     }
-    await interaction.deferReply(options).catch(err => {
-      console.error('safeDeferReply error:', err && (err.message || err));
-    });
+    
+    if (interaction.deferred || interaction.replied) {
+      return true; // Already deferred or replied
+    }
+    
+    await interaction.deferReply(options);
+    return true;
   } catch (err) {
-    console.error('safeDeferReply unexpected error:', err && (err.message || err));
+    console.error('safeDeferReply error:', err && (err.message || err));
+    return false;
   }
 }
 

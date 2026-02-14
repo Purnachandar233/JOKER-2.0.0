@@ -2,6 +2,8 @@ const { CommandInteraction, Client, EmbedBuilder } = require("discord.js");
 const fetch = require('isomorphic-unfetch');
 const { getPreview, getTracks } = require('spotify-url-info')(fetch);
 const safePlayer = require('../../utils/safePlayer');
+const { safeReply, safeDeferReply } = require('../../utils/safeReply');
+
 module.exports = {
   name: "spotify",
   description: "plays some high quality music from spotify",
@@ -28,9 +30,8 @@ module.exports = {
    */
 
   run: async (client, interaction,) => {
-   await interaction.deferReply({
-            ephemeral: false
-        });
+    const deferred = await safeDeferReply(interaction, { ephemeral: false });
+    if (!deferred) return safeReply(interaction, { content: 'Failed to defer reply.' });
           
     let ok = client.emoji.ok;
     let no = client.emoji.no;

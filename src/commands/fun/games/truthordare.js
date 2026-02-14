@@ -1,4 +1,4 @@
-const { EmbedBuilder } = require("discord.js");
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
 
 module.exports = {
   name: "truthordare",
@@ -16,7 +16,9 @@ module.exports = {
       "Have you ever cheated on a test?",
       "What is the meanest thing you've ever said to someone?",
       "What is your biggest regret?",
-      "If you could be anyone else for a day, who would it be?"
+      "If you could be anyone else for a day, who would it be?",
+      "What's the worst mistake you've made?",
+      "What is the worst date you've ever been on?"
     ];
 
     const dares = [
@@ -29,35 +31,61 @@ module.exports = {
       "Post an embarrassing photo of yourself (if you're comfortable).",
       "Do your best impression of someone in the chat.",
       "Dance for 1 minute without music.",
-      "Send a message to your crush (if you dare!)."
+      "Send a message to your crush (if you dare!).",
+      "Write a love poem about Discord.",
+      "Speak in an accent for the next 5 messages."
     ];
 
-    const type = args[0]?.toLowerCase();
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('tod_truth')
+        .setLabel('Truth')
+        .setEmoji('🎤')
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId('tod_dare')
+        .setLabel('Dare')
+        .setEmoji('🎯')
+        .setStyle(ButtonStyle.Danger)
+    );
 
-    if (type === "truth") {
-      const truth = truths[Math.floor(Math.random() * truths.length)];
+    const startEmbed = new EmbedBuilder()
+      .setTitle("🎭 Truth or Dare")
+      .setDescription("Choose your challenge!")
+      .setColor(client.embedColor || '#e74c3c')
+      .setFooter({ text: `Game by ${message.author.username}` });
+    
+    const msg = await message.channel.send({ embeds: [startEmbed], components: [row] });
+
+    const filter = (i) => i.customId.startsWith('tod_') && i.user.id === message.author.id;
+    const collector = msg.createMessageComponentCollector({ filter, time: 20000, max: 1 });
+
+    collector.on('collect', async (interaction) => {
+      const choice = interaction.customId.split('_')[1];
+      let content = '';
+      let emoji = '';
+
+      if (choice === 'truth') {
+        content = truths[Math.floor(Math.random() * truths.length)];
+        emoji = '🎤';
+      } else {
+        content = dares[Math.floor(Math.random() * dares.length)];
+        emoji = '🎯';
+      }
+
       const embed = new EmbedBuilder()
-        .setTitle("Truth")
-        .setDescription(truth)
-        .setColor(message.client?.embedColor || '#ff0051')
-        .setFooter({ text: `Requested by ${message.author.tag}` });
-      return message.channel.send({ embeds: [embed] });
-    }
+        .setTitle(`${emoji} ${choice.charAt(0).toUpperCase() + choice.slice(1)}`)
+        .setDescription(content)
+        .setColor(choice === 'truth' ? '#3498db' : '#e74c3c')
+        .setFooter({ text: `Requested by ${interaction.user.username}` });
+      
+      await interaction.update({ embeds: [embed], components: [] });
+    });
 
-    if (type === "dare") {
-      const dare = dares[Math.floor(Math.random() * dares.length)];
-      const embed = new EmbedBuilder()
-        .setTitle("Dare")
-        .setDescription(dare)
-        .setColor(message.client?.embedColor || '#ff0051')
-        .setFooter({ text: `Requested by ${message.author.tag}` });
-      return message.channel.send({ embeds: [embed] });
-    }
-
-    const embed = new EmbedBuilder()
-      .setTitle("Truth or Dare")
-      .setDescription(`Please choose either **truth** or **dare**.\nExample: \`${prefix}tod truth\``)
-      .setColor(message.client?.embedColor || '#ff0051');
-    message.channel.send({ embeds: [embed] });
+    collector.on('end', (collected) => {
+      if (collected.size === 0) {
+        msg.edit({ content: 'Game cancelled due to inactivity.', components: [] }).catch(() => {});
+      }
+    });
   }
 };

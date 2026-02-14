@@ -1,4 +1,5 @@
 const { CommandInteraction, Client, EmbedBuilder } = require('discord.js');
+const { safeReply, safeDeferReply } = require('../../utils/safeReply');
 
 module.exports = {
   name: 'forceplayerdestroy',
@@ -7,7 +8,8 @@ module.exports = {
   djonly: true,
   wl: true,
   run: async (client, interaction) => {
-    await interaction.deferReply({ ephemeral: false }).catch(() => {});
+    const deferred = await safeDeferReply(interaction, { ephemeral: false });
+    if (!deferred) return safeReply(interaction, { content: 'Failed to defer reply.' });
 
     const ok = client.emoji?.ok;
     const no = client.emoji?.no;

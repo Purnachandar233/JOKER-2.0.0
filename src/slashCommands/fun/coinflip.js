@@ -3,12 +3,10 @@ const legacy = require('../../commands/fun/games/coinflip.js');
 
 module.exports = {
   name: 'coinflip',
-  description: legacy.description || 'Converted slash for coinflip',
-  options: [ { name: 'args', description: 'Arguments (space separated)', required: false, type: 3 } ],
+  description: legacy.description || 'Flip a coin and predict the outcome!',
+  options: [],
   run: async (client, interaction) => {
     await interaction.deferReply({ ephemeral: false }).catch(() => {});
-    const argstr = interaction.options.getString('args') || '';
-    const args = argstr.length ? argstr.trim().split(/ +/) : [];
 
     const replyFunc = async (payload) => {
       try {
@@ -29,7 +27,7 @@ module.exports = {
 
     try {
       if (typeof legacy.execute === 'function') {
-        await legacy.execute(message, args, client, client.prefix);
+        await legacy.execute(message, [], client, client.prefix);
       } else if (typeof legacy.run === 'function') {
         await legacy.run(client, interaction);
       } else {

@@ -1,13 +1,14 @@
 const { Client, CommandInteraction, EmbedBuilder } = require('discord.js');
 const legacy = require('../../commands/special/guild-validity.js');
-const { safeReply } = require('../../utils/safeReply');
+const { safeReply, safeDeferReply } = require('../../utils/safeReply');
 
 module.exports = {
   name: 'guild-validity',
   description: legacy.description || 'Converted slash for guild-validity',
   options: [ { name: 'args', description: 'Arguments (space separated)', required: false, type: 3 } ],
   run: async (client, interaction) => {
-    await interaction.deferReply({ ephemeral: false }).catch(() => {});
+    const deferred = await safeDeferReply(interaction, { ephemeral: false });
+    if (!deferred) return safeReply(interaction, { content: 'Failed to defer reply.' });
     const argstr = interaction.options.getString('args') || '';
     const args = argstr.length ? argstr.trim().split(/ +/) : [];
 

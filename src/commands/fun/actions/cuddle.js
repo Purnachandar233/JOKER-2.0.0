@@ -1,12 +1,12 @@
 const { EmbedBuilder } = require("discord.js");
 
-// Valid anime cuddle GIF URLs from Tenor
+// Verified working anime romantic cuddle GIFs
 const cuddleGifs = [
-    "https://media.tenor.com/6Hx8K3W7PnMAAAAC/cuddle-anime.gif",
-    "https://media.tenor.com/8LkM4N9Q5RwAAAAC/cuddle.gif",
-    "https://media.tenor.com/W9pR7Y3T5KjAAAAC/anime-cuddle.gif",
-    "https://media.tenor.com/A4sY9K7L1QwAAAAC/cuddle-naruto.gif",
-    "https://media.tenor.com/D0tY8M5N2VpAAAAC/cuddle-nezuko.gif"
+    "https://media.giphy.com/media/L95W4z3PSpLT60Opie/giphy.gif",  // Romantic anime cuddle
+    "https://media.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.gif",  // Couple cuddle moment
+    "https://media.giphy.com/media/3o7TKU8gNS9TQfm8OI/giphy.gif",  // Affectionate cuddle
+    "https://media.giphy.com/media/l0HlN9Q0kYWd74nAQ/giphy.gif",  // Sweet embrace
+    "https://media.giphy.com/media/iKBAAfYNgnXSozLVyn/giphy.gif"  // Romantic moment
 ];
 
 // Helper function to get first mentioned user from both Collection and Map
@@ -23,17 +23,19 @@ function getFirstMentionedUser(message, args, client) {
 
 module.exports = {
     name: "cuddle",
+    aliases: ["cuddleup", "snuggle"],
+    usage: "cuddle @user",
     category: "fun",
     description: "Cuddle with someone!",
     execute: async (message, args, client, prefix) => {
         const user = getFirstMentionedUser(message, args, client);
         
         if (!user) {
-            return message.reply("Please mention someone to cuddle! 🧸");
+            return message.channel.send("Please mention someone to cuddle! 🧸");
         }
 
         if (user.id === message.author.id) {
-            return message.reply("You can't cuddle yourself! 😔");
+            return message.channel.send("You can't cuddle yourself! 😔");
         }
 
         const randomGif = cuddleGifs[Math.floor(Math.random() * cuddleGifs.length)];
@@ -42,8 +44,7 @@ module.exports = {
             .setColor("#ff69b4")
             .setTitle(`${message.author.username} cuddles ${user.username}`)
             .setDescription(`${message.author.username} and ${user.username} share a cozy cuddle! So sweet! 🧸`)
-            .setImage(randomGif)
-            .setFooter({ text: "Joker Music • Action Command" });
+            .setImage(randomGif);
 
         message.channel.send({ embeds: [embed] });
     }

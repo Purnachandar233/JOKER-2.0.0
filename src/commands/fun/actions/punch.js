@@ -1,12 +1,12 @@
 const { EmbedBuilder } = require("discord.js");
 
-// Valid anime punch GIF URLs from Tenor
+// Valid anime punch GIF URLs - Updated working sources
 const punchGifs = [
-    "https://media.tenor.com/3Rk6W1F6xNsAAAAC/punch-anime.gif",
-    "https://media.tenor.com/8XqG2K5Y7ZoAAAAC/punch.gif",
-    "https://media.tenor.com/M6vP9L4kKjIAAAAC/anime-punch.gif",
-    "https://media.tenor.com/Q1nR8Y7tL0pAAAAC/punch-rock-lee.gif",
-    "https://media.tenor.com/T5wE9X2mN8rAAAAC/punch-naruto.gif"
+    "https://media1.giphy.com/media/l0CYfENvjZpIeO6IM/giphy.gif",
+    "https://media2.giphy.com/media/l3q2K5jinAlZ19ySm/giphy.gif",
+    "https://media3.giphy.com/media/l0HlE7Q0oPSfyxjDO/giphy.gif",
+    "https://media4.giphy.com/media/l0HlDtKPoZ2QW0lh6/giphy.gif",
+    "https://media2.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.gif"
 ];
 
 // Helper function to get first mentioned user from both Collection and Map
@@ -23,17 +23,19 @@ function getFirstMentionedUser(message, args, client) {
 
 module.exports = {
     name: "punch",
+    aliases: ["hit", "slap"],
     category: "fun",
     description: "Punch someone playfully!",
+    usage: "punch @user",
     execute: async (message, args, client, prefix) => {
         const user = getFirstMentionedUser(message, args, client);
         
         if (!user) {
-            return message.reply("Please mention someone to punch! 👊");
+            return message.channel.send("Please mention someone to punch! 👊");
         }
 
         if (user.id === message.author.id) {
-            return message.reply("You can't punch yourself! 😅");
+            return message.channel.send("You can't punch yourself! 😅");
         }
 
         const randomGif = punchGifs[Math.floor(Math.random() * punchGifs.length)];
@@ -42,8 +44,7 @@ module.exports = {
             .setColor("#ff4500")
             .setTitle(`${message.author.username} punches ${user.username}`)
             .setDescription(`${message.author.username} throws a powerful punch at ${user.username}! POW! 👊`)
-            .setImage(randomGif)
-            .setFooter({ text: "Joker Music • Action Command" });
+            .setImage(randomGif);
 
         message.channel.send({ embeds: [embed] });
     }

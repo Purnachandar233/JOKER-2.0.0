@@ -1,12 +1,12 @@
 const { EmbedBuilder } = require("discord.js");
 
-// Valid anime highfive GIF URLs from Tenor
+// Verified working anime highfive GIFs
 const highfiveGifs = [
-    "https://media.tenor.com/2Fk8W5X7nLsAAAAC/highfive-anime.gif",
-    "https://media.tenor.com/9LmN3K6P8QrAAAAC/highfive.gif",
-    "https://media.tenor.com/H7jR2Y9T4XsAAAAC/anime-highfive.gif",
-    "https://media.tenor.com/K3pQ6W8V1YzAAAAC/highfive-naruto.gif",
-    "https://media.tenor.com/O8vT4X2M9LkAAAAC/highfive-hinata.gif"
+    "https://media.giphy.com/media/3o7TKU8gNS9TQfm8OI/giphy.gif",  // Anime highfive celebration
+    "https://media.giphy.com/media/l0HlN9Q0kYWd74nAQ/giphy.gif",   // Happy highfive
+    "https://media.giphy.com/media/v2LYL3dw3i3OwH94L5/giphy.gif",  // Enthusiastic highfive
+    "https://media.giphy.com/media/iKBAAfYNgnXSozLVyn/giphy.gif",   // Victory highfive
+    "https://media.giphy.com/media/L95W4z3PSpLT60Opie/giphy.gif"   // Success highfive
 ];
 
 // Helper function to get first mentioned user from both Collection and Map
@@ -23,27 +23,28 @@ function getFirstMentionedUser(message, args, client) {
 
 module.exports = {
     name: "highfive",
+    aliases: ["hf", "high5"],
     category: "fun",
     description: "Give someone a high five!",
+    usage: "highfive @user",
     execute: async (message, args, client, prefix) => {
         const user = getFirstMentionedUser(message, args, client);
         
         if (!user) {
-            return message.reply("Please mention someone to high five! ✋");
+            return message.channel.send("Please mention someone to high five! ✋");
         }
 
         if (user.id === message.author.id) {
-            return message.reply("You can't high five yourself! 😄");
+            return message.channel.send("You can't high five yourself! 😄");
         }
 
         const randomGif = highfiveGifs[Math.floor(Math.random() * highfiveGifs.length)];
 
         const embed = new EmbedBuilder()
-            .setColor("#32cd32")
+            .setColor(client?.embedColor || '#ff0051')
             .setTitle(`${message.author.username} high fives ${user.username}`)
             .setDescription(`${message.author.username} and ${user.username} high five! That's awesome! ✋`)
-            .setImage(randomGif)
-            .setFooter({ text: "Joker Music • Action Command" });
+            .setImage(randomGif);
 
         message.channel.send({ embeds: [embed] });
     }

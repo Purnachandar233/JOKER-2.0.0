@@ -1,13 +1,12 @@
 const { Client, CommandInteraction, EmbedBuilder } = require('discord.js');
-const legacy = require('../../commands/fun/games/wouldyourather.js');const { safeReply } = require('../../utils/safeReply');
+const legacy = require('../../commands/fun/games/wouldyourather.js');const { safeReply, safeDeferReply } = require('../../utils/safeReply');
 module.exports = {
   name: 'wouldyourather',
-  description: legacy.description || 'Converted slash for wouldyourather',
-  options: [ { name: 'args', description: 'Arguments (space separated)', required: false, type: 3 } ],
+  description: legacy.description || 'Play a game of Would You Rather!',
+  options: [],
   run: async (client, interaction) => {
-    await interaction.deferReply({ ephemeral: false }).catch(() => {});
-    const argstr = interaction.options.getString('args') || '';
-    const args = argstr.length ? argstr.trim().split(/ +/) : [];
+    const deferred = await safeDeferReply(interaction, { ephemeral: false });
+    if (!deferred) return safeReply(interaction, { content: 'Failed to defer reply.' });
 
     const replyFunc = async (payload) => {
       try {
@@ -27,7 +26,7 @@ module.exports = {
 
     try {
       if (typeof legacy.execute === 'function') {
-        await legacy.execute(message, args, client, client.prefix);
+        await legacy.execute(message, [], client, client.prefix);
       } else if (typeof legacy.run === 'function') {
         await legacy.run(client, interaction);
       } else {

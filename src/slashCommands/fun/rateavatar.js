@@ -1,13 +1,14 @@
 const { Client, CommandInteraction, EmbedBuilder } = require('discord.js');
 const legacy = require('../../commands/fun/actions/rateavatar.js');
-const { safeReply } = require('../../utils/safeReply');
+const { safeReply, safeDeferReply } = require('../../utils/safeReply');
 
 module.exports = {
   name: 'rateavatar',
   description: legacy.description || 'Rate someone\'s avatar!',
   options: [ { name: 'user', description: 'User to rate (optional, defaults to you)', required: false, type: 9 } ],
   run: async (client, interaction) => {
-    await interaction.deferReply({ ephemeral: false }).catch(() => {});
+    const deferred = await safeDeferReply(interaction, { ephemeral: false });
+    if (!deferred) return safeReply(interaction, { content: 'Failed to defer reply.' });
     const user = interaction.options.getUser('user') || interaction.user;
     const args = [user.id];
 

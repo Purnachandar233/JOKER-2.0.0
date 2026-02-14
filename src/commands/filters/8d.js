@@ -5,7 +5,7 @@ module.exports = {
   category: 'filters',
   description: 'Enables or disables the 8d',
   args: false,
-  usage: '',
+  usage: '8d',
   djonly: false,
   votelock: true,
   wl: true,

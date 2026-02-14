@@ -1,5 +1,6 @@
 const { EmbedBuilder, PermissionFlagsBits, ApplicationCommandOptionType } = require('discord.js');
 const Schema = require('../../schema/welcome');
+const { safeReply, safeDeferReply } = require('../../utils/safeReply');
 
 module.exports = {
     name: 'welcome',
@@ -70,7 +71,8 @@ module.exports = {
     ],
 
     run: async (client, interaction) => {
-        await interaction.deferReply({ ephemeral: false }).catch(() => {});
+        const deferred = await safeDeferReply(interaction, { ephemeral: false });
+        if (!deferred) return safeReply(interaction, { content: 'Failed to defer reply.' });
         
         const sub = interaction.options.getSubcommand();
         const { guildId, guild } = interaction;

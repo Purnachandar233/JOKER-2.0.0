@@ -1,12 +1,12 @@
 const { EmbedBuilder } = require("discord.js");
 
-// Valid anime pat GIF URLs from Tenor
+// Verified working anime romantic pat/headpat GIFs
 const patGifs = [
-    "https://media.tenor.com/5Hx9K2W7PnMAAAAC/pat-anime.gif",
-    "https://media.tenor.com/1LkM4N8Q3RwAAAAC/pat.gif",
-    "https://media.tenor.com/V7pR5Y2T9KjAAAAC/anime-pat.gif",
-    "https://media.tenor.com/Z3sX8K6L1QwAAAAC/pat-sasuke.gif",
-    "https://media.tenor.com/C9tY7M4N2VpAAAAC/pat-nezuko.gif"
+    "https://media.giphy.com/media/l0HlQaQ5jcKxaiEPm/giphy.gif",  // Cute romantic headpat
+    "https://media.giphy.com/media/xTiTnkk3x12LvAjqPu/giphy.gif",  // Affectionate pat
+    "https://media.giphy.com/media/v2LYL3dw3i3OwH94L5/giphy.gif",  // Tender moment
+    "https://media.giphy.com/media/3o7TKU8gNS9TQfm8OI/giphy.gif",  // Romantic pat
+    "https://media.giphy.com/media/iKBAAfYNgnXSozLVyn/giphy.gif"  // Sweet headpat
 ];
 
 // Helper function to get first mentioned user from both Collection and Map
@@ -23,17 +23,19 @@ function getFirstMentionedUser(message, args, client) {
 
 module.exports = {
     name: "pat",
+    aliases: ["headpat", "pats"],
     category: "fun",
     description: "Give someone a gentle pat!",
+    usage: "pat @user",
     execute: async (message, args, client, prefix) => {
         const user = getFirstMentionedUser(message, args, client);
         
         if (!user) {
-            return message.reply("Please mention someone to pat! 🤗");
+            return message.channel.send("Please mention someone to pat! 🤗");
         }
 
         if (user.id === message.author.id) {
-            return message.reply("You can't pat yourself! 😄");
+            return message.channel.send("You can't pat yourself! 😄");
         }
 
         const randomGif = patGifs[Math.floor(Math.random() * patGifs.length)];
@@ -42,8 +44,7 @@ module.exports = {
             .setColor("#ffd700")
             .setTitle(`${message.author.username} pats ${user.username}`)
             .setDescription(`${message.author.username} gently pats ${user.username} on the head! 🥰`)
-            .setImage(randomGif)
-            .setFooter({ text: "Joker Music • Action Command" });
+            .setImage(randomGif);
 
         message.channel.send({ embeds: [embed] });
     }

@@ -1,4 +1,5 @@
 const { CommandInteraction, Client, EmbedBuilder, ChannelType } = require('discord.js');
+const { safeReply, safeDeferReply } = require('../../utils/safeReply');
 
 module.exports = {
   name: 'movebot',
@@ -6,7 +7,8 @@ module.exports = {
   owner: false,
   wl: true,
   run: async (client, interaction) => {
-    await interaction.deferReply({ ephemeral: false }).catch(() => {});
+    const deferred = await safeDeferReply(interaction, { ephemeral: false });
+    if (!deferred) return safeReply(interaction, { content: 'Failed to defer reply.' });
 
     const channel = interaction.member.voice.channel;
     if (!channel) {

@@ -1,18 +1,57 @@
-const { EmbedBuilder } = require("discord.js");
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
 
 module.exports = {
     name: "coinflip",
     category: "fun",
-    description: "Flip a coin!",
+    aliases: ["flip", "coin"],
+    description: "Flip a coin and predict the outcome!",
     execute: async (message, args, client, prefix) => {
-        const result = Math.random() < 0.5 ? "Heads" : "Tails";
-        
-        const embed = new EmbedBuilder()
-            .setColor(message.client?.embedColor || '#ff0051')
-            .setTitle("Coin Flip")
-            .setDescription(`The coin landed on **${result}**!`)
-            .setFooter({ text: "Joker Music Fun Games" });
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId('coinflip_heads')
+                .setLabel('Heads')
+                .setEmoji('🪙')
+                .setStyle(ButtonStyle.Primary),
+            new ButtonBuilder()
+                .setCustomId('coinflip_tails')
+                .setLabel('Tails')
+                .setEmoji('🪙')
+                .setStyle(ButtonStyle.Primary)
+        );
 
-        message.channel.send({ embeds: [embed] });
+        const startEmbed = new EmbedBuilder()
+            .setColor(client.embedColor || '#3498db')
+            .setTitle("🪙 Coin Flip Game")
+            .setDescription("Choose your prediction before the coin is flipped!")
+            .setFooter({ text: "Click Heads or Tails" });
+
+        const msg = await message.channel.send({ embeds: [startEmbed], components: [row] });
+
+        const filter = (i) => i.customId.startsWith('coinflip_') && i.user.id === message.author.id;
+        const collector = msg.createMessageComponentCollector({ filter, time: 20000, max: 1 });
+
+        collector.on('collect', async (interaction) => {
+            const prediction = interaction.customId.split('_')[1];
+            const result = Math.random() < 0.5 ? 'heads' : 'tails';
+            const won = prediction === result;
+
+            const resultEmbed = new EmbedBuilder()
+                .setColor(won ? '#2ecc71' : '#e74c3c')
+                .setTitle("🪙 Coin Flip Result")
+                .addFields(
+                    { name: "Your Prediction", value: `**${prediction.charAt(0).toUpperCase() + prediction.slice(1)}**`, inline: true },
+                    { name: "Result", value: `**${result.charAt(0).toUpperCase() + result.slice(1)}**`, inline: true },
+                    { name: "Outcome", value: won ? "✅ You Win!" : "❌ You Lose!", inline: false }
+                )
+                .setFooter({ text: `${message.author.username}` });
+
+            await interaction.update({ embeds: [resultEmbed], components: [] });
+        });
+
+        collector.on('end', (collected) => {
+            if (collected.size === 0) {
+                msg.edit({ content: 'Coin flip cancelled due to inactivity.', components: [] }).catch(() => {});
+            }
+        });
     }
 };

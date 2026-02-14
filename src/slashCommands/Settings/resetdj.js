@@ -1,5 +1,6 @@
 const { CommandInteraction, Client, EmbedBuilder } = require("discord.js");
 const dSchema = require('../../../src/schema/djroleSchema.js');
+const { safeReply, safeDeferReply } = require('../../utils/safeReply');
 
 module.exports = {
   name: "resetdj",
@@ -14,7 +15,8 @@ module.exports = {
    * @param {CommandInteraction} interaction
    */
   run: async (client, interaction) => {
-    await interaction.deferReply({ ephemeral: false }).catch(() => {});
+    const deferred = await safeDeferReply(interaction, { ephemeral: false });
+    if (!deferred) return safeReply(interaction, { content: 'Failed to defer reply.' });
 
     if (!interaction.member.permissions.has('MANAGE_ROLES') && !interaction.member.permissions.has('ADMINISTRATOR')) {
       const noperms = new EmbedBuilder()
