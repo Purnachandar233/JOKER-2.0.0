@@ -29,21 +29,20 @@ module.exports = {
       const emojiaddsong = client.emoji.addsong;
       const emojiplaylist = client.emoji.playlist;
 
-    if (!interaction.replied) await interaction.deferReply().catch(() => {});
       const { channel } = interaction.member.voice;
       if (!channel) {
                       const noperms = new EmbedBuilder()
                 
            .setColor(interaction.client?.embedColor || '#ff0051')
              .setDescription(`${no} You must be connected to a voice channel to use this command.`)
-          return await interaction.followUp({embeds: [noperms]});
+          return await interaction.editReply({embeds: [noperms]});
       }
       if(interaction.member.voice.selfDeaf) {	
         let thing = new EmbedBuilder()
          .setColor(interaction.client?.embedColor || '#ff0051')
 
        .setDescription(`${no} <@${interaction.member.id}> You cannot run this command while deafened.`)
-         return await interaction.followUp({embeds: [thing]});
+         return await interaction.editReply({embeds: [thing]});
        }
 
     let player = client.lavalink.players.get(interaction.guildId);
@@ -51,7 +50,7 @@ module.exports = {
       const noperms = new EmbedBuilder()
           .setColor(interaction.client?.embedColor || '#ff0051')
 .setDescription(`${no} You must be connected to the same voice channel as me.`)
-return await interaction.followUp({embeds: [noperms]});
+return await interaction.editReply({embeds: [noperms]});
 }
 
     if (!player) player = client.lavalink.createPlayer({
@@ -67,7 +66,7 @@ return await interaction.followUp({embeds: [noperms]});
         const noperms = new EmbedBuilder()
           .setColor(interaction.client?.embedColor || '#ff0051')
           .setDescription(`No previous songs found`)
-        return await interaction.followUp({embeds: [noperms]});
+        return await interaction.editReply({embeds: [noperms]});
     }
 
     const s = await player.search(last.uri, interaction.user);

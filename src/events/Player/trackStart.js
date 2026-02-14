@@ -52,18 +52,31 @@ module.exports = async (client, player, track, res) => {
             try {
                 if (typeof player.set === 'function') player.set('lastTrack', player.get && player.get('lastTrack') ? player.get('lastTrack') : track);
             } catch (qerr) {
-                // ignore
+                // ignore metadata set failure
             }
 
             const oldMsg = player.get(`playingsongmsg`);
-            if (oldMsg) await oldMsg.delete().catch(() => {});
-        } catch (e) {}
+            if (oldMsg) {
+              await oldMsg.delete().catch(err => {
+                try {
+                  console.warn('Failed to delete old track start message:', err?.message);
+                } catch (e) {}
+              });
+            }
+        } catch (e) {
+          try {
+            console.warn('trackStart message cleanup error:', e?.message);
+          } catch (logErr) {}
+        }
 
         const msg = await channel.send({ embeds: [thing], components: [row] }).catch(async (error) => {
             client.logger?.log(`Failed to send track start embed in guild ${player.guildId}: ${error.message}`, 'error');
             // Try sending a simple text message as fallback
             try {
-                const simpleMsg = await channel.send(`🎵 Now Playing: ${title}`).catch(() => null);
+                const simpleMsg = await channel.send(`🎵 Now Playing: ${title}`).catch(err => {
+                  console.warn('Failed to send simple fallback message:', err?.message);
+                  return null;
+                });
                 if (simpleMsg) {
                     player.set(`playingsongmsg`, simpleMsg);
                     // Sent fallback simple track start message

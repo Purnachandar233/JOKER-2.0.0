@@ -35,14 +35,14 @@ module.exports = {
                      
            .setColor(interaction.client?.embedColor || '#ff0051')
              .setDescription(`${no} You must be connected to a voice channel to use this command.`)
-          return await interaction.followUp({embeds: [noperms]});
+          return await interaction.editReply({embeds: [noperms]});
       }
       if(interaction.member.voice.selfDeaf) {	
         let thing = new EmbedBuilder()
          .setColor(interaction.client?.embedColor || '#ff0051')
 
        .setDescription(`${no} <@${interaction.member.id}> You cannot run this command while deafened.`)
-         return await interaction.followUp({embeds: [thing]});
+         return await interaction.editReply({embeds: [thing]});
        }
             const safePlayer = require('../../utils/safePlayer');
             const { getQueueArray } = require('../../utils/queue.js');
@@ -55,7 +55,7 @@ module.exports = {
                                   const noperms = new EmbedBuilder()
              .setColor(interaction.client?.embedColor || '#ff0051')
           .setDescription(`${no} You must be connected to the same voice channel as me.`)
-          return await interaction.followUp({embeds: [noperms]});
+          return await interaction.editReply({embeds: [noperms]});
       }
 		
     
@@ -95,7 +95,7 @@ module.exports = {
             const noperms = new EmbedBuilder()
               .setColor(interaction.client?.embedColor || '#ff0051')
               .setDescription(`${no} There is nothing playing in this server.`)
-            return await interaction.followUp({embeds: [noperms]});
+            return await interaction.editReply({embeds: [noperms]});
           }
 
           // Ensure player exists (create if missing) so we can set metadata and queue

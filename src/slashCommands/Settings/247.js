@@ -28,7 +28,7 @@ module.exports = {
           const noperms = new EmbedBuilder()
          .setColor(interaction.client?.embedColor || '#ff0051')
          .setDescription(`${no} You need this required Permissions: \`MANAGE_CHANNELS\` to run this command.`)
-    return await interaction.followUp({embeds: [noperms]});
+    return await interaction.editReply({embeds: [noperms]});
       }
       const { channel } = interaction.member.voice;
       if (!channel) {
@@ -36,7 +36,7 @@ module.exports = {
                      
            .setColor(interaction.client?.embedColor || '#ff0051')
              .setDescription(`${no} You must be connected to a voice channel to use this command.`)
-          return await interaction.followUp({embeds: [noperms]});
+          return await interaction.editReply({embeds: [noperms]});
       }
      
 		

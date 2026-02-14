@@ -3,6 +3,7 @@ const track = require('../../schema/trackinfoSchema.js');
 // Use spotify-url-info (no axios dependency)
 const fetch = require('isomorphic-unfetch');
 const { getPreview, getTracks } = require('spotify-url-info')(fetch);
+const { withTimeout } = require('../../utils/promiseHandler.js');
 
 // Common URL shorteners that may redirect to YouTube
 const URL_SHORTENERS = /bit\.ly|tinyurl\.com|ow\.ly|short\.link|youtu\.be|buff\.ly|tiny\.cc|goo\.gl|t\.co/i;
@@ -55,13 +56,11 @@ module.exports = {
     // Connection will be attempted inside `attemptPlay` when needed.
 
     let s;
-    // Helper: robustly start playback. Waits briefly for the queue to populate,
-    // retries, and falls back to calling play with the first track if the
-    // queue never becomes populated.
-    const attemptPlay = async (player, s, preferTrack) => {
+    // Helper: robustly start playback with atomic queue operations.
+    // Avoids race conditions by using the track data directly instead of polling
+    const attemptPlay = async (player, searchResult, preferTrack) => {
       try {
-        // Ensure player is connected right before trying to play so the
-        // voice connection is established at track start time.
+        // Ensure player is connected right before trying to play
         if (player.state !== "CONNECTED") {
           try {
             await safePlayer.safeCall(player, 'connect');
@@ -71,26 +70,37 @@ module.exports = {
             return false;
           }
         }
-        const maxAttempts = 5;
-        for (let i = 0; i < maxAttempts; i++) {
-          try {
-            if (safePlayer.queueSize(player) > 0) {
-              return await safePlayer.safeCall(player, 'play');
-            }
-          } catch (e) {}
-          await new Promise(r => setTimeout(r, 200));
+
+        // Use direct track data instead of polling queue (atomic operation)
+        // This prevents race conditions where queue changes between check and play
+        const trackToPlay = preferTrack || (searchResult?.tracks?.[0]);
+        
+        if (!trackToPlay) {
+          // No preferred track - try queue polling as fallback (slower but safer)
+          for (let i = 0; i < 3; i++) {
+            try {
+              if (safePlayer.queueSize(player) > 0) {
+                return await safePlayer.safeCall(player, 'play');
+              }
+            } catch (e) {}
+            await new Promise(r => setTimeout(r, 150));
+          }
+          return false;
         }
-        // Fallback: try to call play with the first available track string
-        const candidate = preferTrack || (s && s.tracks && s.tracks[0]);
-        if (!candidate) return false;
-        const trackStr = candidate.track || candidate.encoded || candidate?.info?.identifier || candidate?.id || candidate?.uri || candidate;
+
+        // Use direct track encoding/URI to avoid queue race condition
+        const trackStr = trackToPlay.track || trackToPlay.encoded || 
+                         trackToPlay?.info?.identifier || trackToPlay?.id || 
+                         trackToPlay?.uri || trackToPlay;
+        
         try {
           return await safePlayer.safeCall(player, 'play', trackStr);
         } catch (e) {
-          client.logger?.log && client.logger.log(`attemptPlay fallback failed: ${e && (e.message || e)}`,'warn');
+          client.logger?.log && client.logger.log(`attemptPlay play call failed: ${e && (e.message || e)}`,'warn');
           return false;
         }
       } catch (err) {
+        client.logger?.log && client.logger.log(`attemptPlay error: ${err && (err.message || err)}`,'error');
         return false;
       }
     };
@@ -98,10 +108,7 @@ module.exports = {
       // Try direct URL loading first (works for playlists and tracks)
       try {
         const directLoadPromise = player.search(query, message.member.user);
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Direct Spotify load timeout')), 10000)
-        );
-        s = await Promise.race([directLoadPromise, timeoutPromise]);
+        s = await withTimeout(directLoadPromise, 10000, 'Direct Spotify load timeout');
       } catch (directErr) {
         client.logger?.log(`Direct Spotify URL load failed: ${directErr.message}, trying search...`, 'warn');
         // Fallback: try to get playlist tracks via getTracks(), then search each track.
@@ -117,14 +124,14 @@ module.exports = {
                 for (const source of sources) {
                   try {
                     const p = player.search({ query: q, source }, message.member.user);
-                    const res = await Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('track search timeout')), 8000))]);
+                    const res = await withTimeout(p, 8000, 'track search timeout');
                     if (res && res.tracks && res.tracks.length) return res.tracks[0];
                   } catch (e) { continue; }
                 }
                 // final attempt without specifying source
                 try {
                   const p = player.search({ query: q }, message.member.user);
-                  const res = await Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('track search timeout')), 8000))]);
+                  const res = await withTimeout(p, 8000, 'track search timeout');
                   if (res && res.tracks && res.tracks.length) return res.tracks[0];
                 } catch (e) {}
                 return null;
@@ -154,10 +161,7 @@ module.exports = {
               if (data) {
                 searchQuery = `${data.title} ${data.artist}`;
                 const searchPromise = player.search({ query: searchQuery, source: 'spotify' }, message.member.user);
-                const searchTimeoutPromise = new Promise((_, reject) =>
-                  setTimeout(() => reject(new Error('Spotify search timeout')), 10000)
-                );
-                s = await Promise.race([searchPromise, searchTimeoutPromise]);
+                s = await withTimeout(searchPromise, 10000, 'Spotify search timeout');
               }
             } catch (searchErr) {
               client.logger?.log(`Spotify URL search error: ${searchErr.message}`, 'error');
@@ -172,10 +176,7 @@ module.exports = {
               for (const source of sources) {
                 try {
                   const fallbackSearchPromise = player.search({ query: fallbackQuery, source }, message.member.user);
-                  const fallbackTimeoutPromise = new Promise((_, reject) =>
-                    setTimeout(() => reject(new Error(`${source} fallback search timeout`)), 8000)
-                  );
-                  s = await Promise.race([fallbackSearchPromise, fallbackTimeoutPromise]);
+                  s = await withTimeout(fallbackSearchPromise, 8000, `${source} fallback search timeout`);
                   if (s && s.tracks && s.tracks.length > 0) break;
                 } catch (fallbackErr) {
                   client.logger?.log(`Fallback search failed for ${source}: ${fallbackErr.message}`, 'warn');
@@ -201,10 +202,7 @@ module.exports = {
       for (const source of sources) {
         try {
           const searchPromise = player.search({ query, source }, message.member.user);
-          const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error(`${source} search timeout`)), 8000)
-          );
-          s = await Promise.race([searchPromise, timeoutPromise]);
+          s = await withTimeout(searchPromise, 8000, `${source} search timeout`);
           if (s && s.tracks && s.tracks.length > 0) break;
         } catch (err) {
           client.logger?.log(`Search failed for ${source}: ${err.message}`, 'warn');

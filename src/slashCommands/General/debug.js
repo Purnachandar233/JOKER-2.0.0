@@ -33,6 +33,6 @@ module.exports = {
             { name: "Players", value: `\`\`\`js\n${client.lavalink.nodeManager.nodes.values().next().value.stats.playingPlayers}/${client.lavalink.nodeManager.nodes.values().next().value.stats.players}\`\`\``, inline: true }
          ])
              .setColor(interaction.client?.embedColor || '#ff0051')
-        await interaction.followUp({embeds: [embed]})
+        await interaction.editReply({embeds: [embed]})
     }
 }

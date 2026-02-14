@@ -1,5 +1,5 @@
 const { Client, EmbedBuilder, ActionRowBuilder, ButtonBuilder } = require("discord.js");
-const { readdirSync } = require("fs");
+const { readdirSync, statSync } = require("fs");
 const path = require("path");
 
 module.exports = {
@@ -13,22 +13,37 @@ module.exports = {
       let categories = [];
       const commandsDir = path.join(__dirname, "../../commands");
       
+      // Recursive function to get all .js files
+      const getAllCommandFiles = (dir) => {
+        let files = [];
+        const items = readdirSync(dir);
+        for (const item of items) {
+          const filePath = path.join(dir, item);
+          const stat = statSync(filePath);
+          if (stat.isDirectory()) {
+            files = files.concat(getAllCommandFiles(filePath));
+          } else if (item.endsWith('.js')) {
+            files.push(filePath);
+          }
+        }
+        return files;
+      };
+      
       readdirSync(commandsDir).forEach((dir) => {
         const dirPath = path.join(commandsDir, dir);
         try {
-          const stats = require("fs").statSync(dirPath);
+          const stats = statSync(dirPath);
           if (!stats.isDirectory()) return;
         } catch (e) { return; }
 
-        const commands = readdirSync(dirPath).filter((file) =>
-          file.endsWith(".js")
-        );
-        
         if (dir === "owner") return;
         
-        const cmds = commands.map((command) => {
+        // Get all command files recursively
+        const allFiles = getAllCommandFiles(dirPath);
+        
+        const cmds = allFiles.map((filePath) => {
           try {
-            const file = require(path.join(dirPath, command));
+            const file = require(filePath);
             if (!file.name) return null;
             return `\`${file.name.toLowerCase()}\``;
           } catch (e) {

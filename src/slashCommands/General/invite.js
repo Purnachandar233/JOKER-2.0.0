@@ -36,6 +36,6 @@ module.exports = {
                
                `)
                     .setColor(interaction.client?.embedColor || '#ff0051')
-        await interaction.followUp({embeds: [embed], components: [row]})
+        await interaction.editReply({embeds: [embed], components: [row]})
     }
 }

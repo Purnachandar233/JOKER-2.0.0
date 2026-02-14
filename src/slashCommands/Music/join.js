@@ -1,14 +1,17 @@
-const { EmbedBuilder, CommandInteraction, Client } = require("discord.js")
+const { EmbedBuilder, CommandInteraction, Client } = require("discord.js");
+const safeReply = require('../../utils/safeReply');
+const musicChecks = require('../../utils/musicChecks');
+const safePlayer = require('../../utils/safePlayer');
+
 module.exports = {
   name: "join",
-  
   description: "Join voice channel",
   owner: false,
   player: false,
-  djonly :true,
+  djonly: true,
   inVoiceChannel: true,
   sameVoiceChannel: true,
-  wl : true,
+  wl: true,
 
   /**
    * 
@@ -17,63 +20,64 @@ module.exports = {
    */
 
   run: async (client, interaction) => {
-    await interaction.deferReply({
-      ephemeral: false
-    });
+    return await client.errorHandler.executeWithErrorHandling(interaction, async (interaction) => {
+      await safeReply.safeDeferReply(interaction);
       
-    let ok = client.emoji.ok;
-    let no = client.emoji.no;
-    
+      let ok = client.emoji.ok;
+      let no = client.emoji.no;
 
-    const { channel } = interaction.member.voice;
-    if (!channel) {
-                    const noperms = new EmbedBuilder()
-         .setColor(interaction.client?.embedColor || '#ff0051')
-           .setDescription(`${no} You must be connected to a voice channel to use this command.`)
-        return await interaction.followUp({embeds: [noperms]});
-    }
-    if(interaction.member.voice.selfDeaf) {	
-      let thing = new EmbedBuilder()
-       .setColor(interaction.client?.embedColor || '#ff0051')
-     .setDescription(`${no} <@${interaction.member.id}> You cannot run this command while deafened.`)
-       return await interaction.followUp({embeds: [thing]});
-     }
+      const { channel } = interaction.member.voice;
+      if (!channel) {
+        const embed = new EmbedBuilder()
+          .setColor(interaction.client?.embedColor || '#ff0051')
+          .setDescription(`${no} You must be connected to a voice channel to use this command.`);
+        return await safeReply.safeReply(interaction, { embeds: [embed] });
+      }
 
+      if (interaction.member.voice.selfDeaf) {
+        const embed = new EmbedBuilder()
+          .setColor(interaction.client?.embedColor || '#ff0051')
+          .setDescription(`${no} <@${interaction.member.id}> You cannot run this command while deafened.`);
+        return await safeReply.safeReply(interaction, { embeds: [embed] });
+      }
 
-     const player = client.lavalink.players.get(interaction.guild.id);
-     if(!player) {
+      try {
+        let player = client.lavalink.players.get(interaction.guild.id);
 
-         const player = client.lavalink.createPlayer({
-             guildId: interaction.guild.id,
-             voiceChannelId: channel.id,
-             textChannelId: interaction.channel.id,
-             selfDeafen: true,
-         });
+        if (!player) {
+          // Create new player
+          player = client.lavalink.createPlayer({
+            guildId: interaction.guild.id,
+            voiceChannelId: channel.id,
+            textChannelId: interaction.channel.id,
+            selfDeafen: true,
+          });
 
-         const safePlayer = require('../../utils/safePlayer');
-         await safePlayer.safeCall(player, 'connect');
+          await safePlayer.safeCall(player, 'connect');
 
-         let thing = new EmbedBuilder()
-             .setColor(interaction.client?.embedColor || '#ff0051')
-                         .setDescription( `${ok} Connected to \`${channel.name}\``)
-                         return await interaction.followUp({embeds: [thing]});
-
-     } else if (interaction.guild.me.voice.channel !== channel) {
-
-         let thing = new EmbedBuilder()
- 
-               .setColor(interaction.client?.embedColor || '#ff0051')
-             .setDescription(`${no} You must be in the same channel as me.`);
-             return await interaction.followUp({embeds: [thing]});
-     }
-     
-     else if(player){
-         const noperms = new EmbedBuilder()
-   
-         .setColor(interaction.client?.embedColor || '#ff0051')
-         .setDescription(`${no} I am already connected to a voice channel.`)
-         return await interaction.followUp({embeds: [noperms]});
-     }
-
+          const embed = new EmbedBuilder()
+            .setColor(interaction.client?.embedColor || '#ff0051')
+            .setDescription(`${ok} Connected to \`${channel.name}\``);
+          return await safeReply.safeReply(interaction, { embeds: [embed] });
+        }
+        else if (interaction.guild.me.voice.channel !== channel) {
+          const embed = new EmbedBuilder()
+            .setColor(interaction.client?.embedColor || '#ff0051')
+            .setDescription(`${no} You must be in the same channel as me.`);
+          return await safeReply.safeReply(interaction, { embeds: [embed] });
+        }
+        else {
+          const embed = new EmbedBuilder()
+            .setColor(interaction.client?.embedColor || '#ff0051')
+            .setDescription(`${no} I am already connected to a voice channel.`);
+          return await safeReply.safeReply(interaction, { embeds: [embed] });
+        }
+      } catch (err) {
+        const embed = new EmbedBuilder()
+          .setColor(interaction.client?.embedColor || '#ff0051')
+          .setDescription(`${no} Failed to join voice channel: ${err && (err.message || err)}`);
+        return await safeReply.safeReply(interaction, { embeds: [embed] });
+      }
+    });
   }
 };

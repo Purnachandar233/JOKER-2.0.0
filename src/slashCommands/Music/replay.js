@@ -1,6 +1,6 @@
 const { CommandInteraction, Client, EmbedBuilder } = require("discord.js");
-const { convertTime } = require('../../utils/convert.js')
-const ms = require('ms');
+const safeReply = require('../../utils/safeReply');
+const musicChecks = require('../../utils/musicChecks');
 const safePlayer = require('../../utils/safePlayer');
 
 module.exports = {
@@ -8,71 +8,70 @@ module.exports = {
     description: "restart the currently playing song",
     owner: false,
     player: true,
-    djonly :true,
+    djonly: true,
     inVoiceChannel: true,
     sameVoiceChannel: true,
-    wl : true,
-
+    wl: true,
 
     /**
      * @param {Client} client
      * @param {CommandInteraction} interaction
      */
 
-    run: async (client, interaction, prefix ) => {
-        await interaction.deferReply({
-          ephemeral: false
-        });  
+    run: async (client, interaction) => {
+      return await client.errorHandler.executeWithErrorHandling(interaction, async (interaction) => {
+        await safeReply.safeDeferReply(interaction);
+        
         let ok = client.emoji.ok;
         let no = client.emoji.no;
-        
-        
-   
-     //
-        const { channel } = interaction.member.voice;
-        if (!channel) {
-                        const noperms = new EmbedBuilder()
-                
-             .setColor(interaction.client?.embedColor || '#ff0051')
-               .setDescription(`${no} You must be connected to a voice channel to use this command.`)
-            return await interaction.followUp({embeds: [noperms]});
-        }
-        if(interaction.member.voice.selfDeaf) {	
-          let thing = new EmbedBuilder()
-           .setColor(interaction.client?.embedColor || '#ff0051')
-      
-         .setDescription(`${no} <@${interaction.member.id}> You cannot run this command while deafened.`)
-           return await interaction.followUp({embeds: [thing]});
-         }
-            const player = client.lavalink.players.get(interaction.guild.id);
-            const { getQueueArray } = require('../../utils/queue.js');
-            const tracks = getQueueArray(player);
-            if(!player || !tracks || tracks.length === 0) {
-                        const noperms = new EmbedBuilder()
 
-             .setColor(interaction.client?.embedColor || '#ff0051')
-             .setDescription(`${no} There is nothing playing in this server.`)
-            return await interaction.followUp({embeds: [noperms]});
-        }
-        if(player && channel.id !== player.voiceChannelId) {
-                                    const noperms = new EmbedBuilder()
-           .setColor(interaction.client?.embedColor || '#ff0051')
-            .setDescription(`${no} You must be connected to the same voice channel as me.`)
-            return await interaction.followUp({embeds: [noperms]});
+        // Check cooldown
+        const cooldown = client.cooldownManager.check("replay", interaction.user.id);
+        if (cooldown.onCooldown) {
+          const embed = new EmbedBuilder()
+            .setColor(interaction.client?.embedColor || '#ff0051')
+            .setDescription(`${no} Cooldown active. Try again in ${cooldown.remaining()}ms`);
+          return await safeReply.safeReply(interaction, { embeds: [embed] });
         }
 
+        // Run music checks
+        const check = await musicChecks.runMusicChecks(client, interaction, {
+          inVoiceChannel: true,
+          botInVoiceChannel: true,
+          sameChannel: true,
+          requirePlayer: true,
+          requireQueue: true
+        });
 
-        await safePlayer.safeCall(player, 'seek', 0);
-               
-        const current = tracks[0];
-        let thing = new EmbedBuilder()
+        if (!check.valid) {
+          return await safeReply.safeReply(interaction, { embeds: [check.embed] });
+        }
 
-          .setColor(interaction.client?.embedColor || '#ff0051')
-          .setDescription(`${ok} Restarting ${current?.title || current?.info?.title || 'Track'}`);
-        return  await interaction.editReply({embeds: [thing]});
+        const player = check.player;
+        const tracks = safePlayer.getQueueArray(player);
 
-        
-	
+        try {
+          await safePlayer.safeCall(player, 'seek', 0);
+          
+          const current = tracks[0];
+          const embed = new EmbedBuilder()
+            .setColor(interaction.client?.embedColor || '#ff0051')
+            .setDescription(`${ok} Restarting ${current?.title || current?.info?.title || 'Track'}`);
+          
+          await safeReply.safeReply(interaction, { embeds: [embed] });
+
+          // Set cooldown after success
+          client.cooldownManager.set("replay", interaction.user.id, 1000);
+
+          // Log the command
+          client.logger.logCommand('replay', interaction.user.id, interaction.guildId, Date.now() - interaction.createdTimestamp, true);
+        } catch (err) {
+          const embed = new EmbedBuilder()
+            .setColor(interaction.client?.embedColor || '#ff0051')
+            .setDescription(`${no} Failed to replay track: ${err && (err.message || err)}`);
+          return await safeReply.safeReply(interaction, { embeds: [embed] });
+        }
+      });
     }
 };
 

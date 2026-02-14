@@ -1,105 +1,121 @@
 const { CommandInteraction, Client, EmbedBuilder } = require("discord.js");
-const {
-    format,
-    arrayMove
-  } = require(`../../functions.js`);
+const { arrayMove } = require(`../../functions.js`);
+const safeReply = require('../../utils/safeReply');
+const musicChecks = require('../../utils/musicChecks');
 const safePlayer = require('../../utils/safePlayer');
+
 module.exports = {
     name: "move",
     description: "Change the position of a track in the queue.",
     owner: false,
     player: true,
     inVoiceChannel: true,
-    djonly :true,
+    djonly: true,
     sameVoiceChannel: true,
-    djonly :true,
-    wl : true,
+    wl: true,
     options: [
       {
         name: "from",
         description: "the position",
         required: true,
         type: 4
-		},
-        {
-            name: "to",
-            description: "the new position",
-            required: true,
-            type: 4
-            },
-	],
+      },
+      {
+        name: "to",
+        description: "the new position",
+        required: true,
+        type: 4
+      }
+    ],
 
     /**
      * @param {Client} client
      * @param {CommandInteraction} interaction
      */
 
-    run: async (client, interaction, prefix ) => {
-        await interaction.deferReply({
-          ephemeral: false
+    run: async (client, interaction) => {
+      return await client.errorHandler.executeWithErrorHandling(interaction, async (interaction) => {
+        await safeReply.safeDeferReply(interaction);
+
+        let ok = client.emoji.ok;
+        let no = client.emoji.no;
+
+        // Check cooldown
+        const cooldown = client.cooldownManager.check("move", interaction.user.id);
+        if (cooldown.onCooldown) {
+          const embed = new EmbedBuilder()
+            .setColor(interaction.client?.embedColor || '#ff0051')
+            .setDescription(`${no} Cooldown active. Try again in ${cooldown.remaining()}ms`);
+          return await safeReply.safeReply(interaction, { embeds: [embed] });
+        }
+
+        const from = interaction.options.getNumber("from");
+        const to = interaction.options.getNumber("to");
+
+        // Run music checks
+        const check = await musicChecks.runMusicChecks(client, interaction, {
+          inVoiceChannel: true,
+          botInVoiceChannel: true,
+          sameChannel: true,
+          requirePlayer: true,
+          requireQueue: true
         });
+
+        if (!check.valid) {
+          return await safeReply.safeReply(interaction, { embeds: [check.embed] });
+        }
+
+        const player = check.player;
+        const tracks = safePlayer.getQueueArray(player);
+        const qSize = safePlayer.queueSize(player);
+
+        // Validate positions
+        if (from <= 1 || from > qSize) {
+          const embed = new EmbedBuilder()
+            .setColor(interaction.client?.embedColor || '#ff0051')
+            .setDescription(`${no} From position must be a number greater than \`1\` and smaller than \`${qSize}\``);
+          return await safeReply.safeReply(interaction, { embeds: [embed] });
+        }
+
+        if (to <= 1 || to > qSize) {
+          const embed = new EmbedBuilder()
+            .setColor(interaction.client?.embedColor || '#ff0051')
+            .setDescription(`${no} To position must be a number greater than \`1\` and smaller than \`${qSize}\``);
+          return await safeReply.safeReply(interaction, { embeds: [embed] });
+        }
+
+        try {
+          // Convert 1-based positions to 0-based indices
+          const fromIndex = Math.max(0, Math.min(tracks.length - 1, from - 1));
+          const toIndex = Math.max(0, Math.min(tracks.length - 1, to - 1));
           
-    let ok = client.emoji.ok;
-    let no = client.emoji.no;
-    
-      const from = interaction.options.getNumber("from");
-      const to = interaction.options.getNumber("to");
-   //
- 
-   //
-      const { channel } = interaction.member.voice;
-      if (!channel) {
-                      const noperms = new EmbedBuilder()
-                     
-           .setColor(interaction.client?.embedColor || '#ff0051')
-             .setDescription(`${no} You must be connected to a voice channel to use this command.`)
-          return await interaction.followUp({embeds: [noperms]});
-      }
-      if(interaction.member.voice.selfDeaf) {	
-        let thing = new EmbedBuilder()
-         .setColor(interaction.client?.embedColor || '#ff0051')
+          // Move track in queue
+          const newQueue = arrayMove(tracks, fromIndex, toIndex);
+          
+          // Clear and re-add with new order
+          await safePlayer.queueClear(player);
+          safePlayer.queueAdd(player, newQueue);
 
-       .setDescription(`${no} <@${interaction.member.id}> You cannot run this command while deafened.`)
-         return await interaction.followUp({embeds: [thing]});
-       }
-            const player = client.lavalink.players.get(interaction.guild.id);
-          const { getQueueArray } = require('../../utils/queue.js');
-          const tracks = getQueueArray(player);
-          if(!player || !tracks || tracks.length === 0) {
-                      const noperms = new EmbedBuilder()
+          const embed = new EmbedBuilder()
+            .setColor(interaction.client?.embedColor || '#ff0051')
+            .setDescription(`${ok} Moved track from position \`${from}\` to position \`${to}\``);
 
-           .setColor(interaction.client?.embedColor || '#ff0051')
-           .setDescription(`${no} There is nothing playing in this server.`)
-          return await interaction.followUp({embeds: [noperms]});
-      }
-      if(player && channel.id !== player.voiceChannelId) {
-                                  const noperms = new EmbedBuilder()
-             .setColor(interaction.client?.embedColor || '#ff0051')
-          .setDescription(`${no} You must be connected to the same voice channel as me.`)
-          return await interaction.followUp({embeds: [noperms]});
-      }
-		
-      const qSize = safePlayer.queueSize(player);
-      if (from <= 1 || from > qSize) {
-        const eoer = new EmbedBuilder()
-        .setColor(interaction.client?.embedColor || '#ff0051')
-        .setDescription(`${no} Your input must be a number greater then \`1\` and smaller than \`${qSize}\``)
-        return await interaction.editReply({embeds: [eoer]})
-      }
-        const arr = tracks;
-        // convert 1-based positions to 0-based indices
-        const fromIndex = Math.max(0, Math.min(arr.length - 1, from - 1));
-        const toIndex = Math.max(0, Math.min(arr.length - 1, to - 1));
-        const QueueArray = arrayMove(arr, fromIndex, toIndex);
-        await safePlayer.queueClear(player);
-        safePlayer.queueAdd(player, QueueArray);
-    let thing = new EmbedBuilder()
-      .setColor(interaction.client?.embedColor || '#ff0051')
-      .setDescription(`${ok} Moved the track in the queue from position \`${from}\` to position \`${to}\``)    
-      return await interaction.editReply({ embeds: [thing] });
-     
-       }
-     };
+          await safeReply.safeReply(interaction, { embeds: [embed] });
+
+          // Set cooldown after success
+          client.cooldownManager.set("move", interaction.user.id, 1000);
+
+          // Log the command
+          client.logger.logCommand('move', interaction.user.id, interaction.guildId, Date.now() - interaction.createdTimestamp, true);
+        } catch (err) {
+          const embed = new EmbedBuilder()
+            .setColor(interaction.client?.embedColor || '#ff0051')
+            .setDescription(`${no} Failed to move track: ${err && (err.message || err)}`);
+          return await safeReply.safeReply(interaction, { embeds: [embed] });
+        }
+      });
+    }
+};
 
 
 

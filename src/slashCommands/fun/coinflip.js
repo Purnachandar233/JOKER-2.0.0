@@ -1,5 +1,5 @@
 const { Client, CommandInteraction, EmbedBuilder } = require('discord.js');
-const legacy = require('../../commands/fun/coinflip.js');
+const legacy = require('../../commands/fun/games/coinflip.js');
 
 module.exports = {
   name: 'coinflip',

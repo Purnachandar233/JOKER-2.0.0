@@ -1,5 +1,6 @@
 const { CommandInteraction, Client, EmbedBuilder } = require("discord.js");
-const { convertHmsToMs } = require("../../utils/convert");
+const safeReply = require('../../utils/safeReply');
+const musicChecks = require('../../utils/musicChecks');
 
 module.exports = {
     name: "loop",
@@ -28,87 +29,84 @@ module.exports = {
             ],
         },
     ],
-    djonly :true,
-        
+    djonly: true,
 
     /**
      * @param {Client} client
      * @param {CommandInteraction} interaction
      */
 
-    run: async (client, interaction ) => {
-        await interaction.deferReply({
-          ephemeral: false
+    run: async (client, interaction) => {
+      return await client.errorHandler.executeWithErrorHandling(interaction, async (interaction) => {
+        await safeReply.safeDeferReply(interaction);
+
+        let ok = client.emoji.ok;
+        let no = client.emoji.no;
+
+        // Check cooldown
+        const cooldown = client.cooldownManager.check("loop", interaction.user.id);
+        if (cooldown.onCooldown) {
+          const embed = new EmbedBuilder()
+            .setColor(interaction.client?.embedColor || '#ff0051')
+            .setDescription(`${no} Cooldown active. Try again in ${cooldown.remaining()}ms`);
+          return await safeReply.safeReply(interaction, { embeds: [embed] });
+        }
+
+        // Run music checks
+        const check = await musicChecks.runMusicChecks(client, interaction, {
+          inVoiceChannel: true,
+          botInVoiceChannel: true,
+          sameChannel: true,
+          requirePlayer: true,
+          requireQueue: true
         });
 
-          
-    let ok = client.emoji.ok;
-    let no = client.emoji.no;
-    
-   //
- 
-   //
-      const { channel } = interaction.member.voice;
-      if (!channel) {
-                      const noperms = new EmbedBuilder()
-                     
-           .setColor(interaction.client?.embedColor || '#ff0051')
-             .setDescription(`${no} You must be connected to a voice channel to use this command.`)
-          return await interaction.followUp({embeds: [noperms]});
-      }
-      if(interaction.member.voice.selfDeaf) {	
-        let thing = new EmbedBuilder()
-         .setColor(interaction.client?.embedColor || '#ff0051')
+        if (!check.valid) {
+          return await safeReply.safeReply(interaction, { embeds: [check.embed] });
+        }
 
-       .setDescription(`${no} <@${interaction.member.id}> You cannot run this command while deafened.`)
-         return await interaction.followUp({embeds: [thing]});
-       }
-            const player = client.lavalink.players.get(interaction.guild.id);
-        const { getQueueArray } = require('../../utils/queue.js');
-        const tracks = getQueueArray(player);
-        if(!player || !tracks || tracks.length === 0) {
-                      const noperms = new EmbedBuilder()
+        const player = check.player;
+        const mode = interaction.options.getString("mode");
 
-           .setColor(interaction.client?.embedColor || '#ff0051')
-           .setDescription(`${no} There is nothing playing in this server.`)
-          return await interaction.followUp({embeds: [noperms]});
-      }
-      if(player && channel.id !== player.voiceChannelId) {
-                                  const noperms = new EmbedBuilder()
-             .setColor(interaction.client?.embedColor || '#ff0051')
-          .setDescription(`${no} You must be connected to the same voice channel as me.`)
-          return await interaction.followUp({embeds: [noperms]});
-      }
-		
-      const chosenString = interaction.options.getString("mode")
-if(chosenString === 'track'){
-    player.setRepeatMode(player.repeatMode === 'track' ? 'off' : 'track');
-    const trackRepeat = player.repeatMode === 'track' ? "enabled" : "disabled";
-    let thing = new EmbedBuilder()
-    .setColor(interaction.client.embedColor)
-    .setDescription(`${ok} Looping the track is now \`${trackRepeat}\``)
-    return await interaction.followUp({embeds: [thing]});
+        try {
+          if (mode === 'track') {
+            player.setRepeatMode(player.repeatMode === 'track' ? 'off' : 'track');
+            const trackRepeat = player.repeatMode === 'track' ? "enabled" : "disabled";
+            const embed = new EmbedBuilder()
+              .setColor(interaction.client.embedColor)
+              .setDescription(`${ok} Looping the track is now \`${trackRepeat}\``);
+            await safeReply.safeReply(interaction, { embeds: [embed] });
+          }
+          else if (mode === 'queue') {
+            player.setRepeatMode(player.repeatMode === 'queue' ? 'off' : 'queue');
+            const queueRepeat = player.repeatMode === 'queue' ? "enabled" : "disabled";
+            const embed = new EmbedBuilder()
+              .setColor(interaction.client.embedColor)
+              .setDescription(`${ok} Looping the queue is now \`${queueRepeat}\``);
+            await safeReply.safeReply(interaction, { embeds: [embed] });
+          }
+          else if (mode === 'disabled') {
+            player.setRepeatMode('off');
+            const embed = new EmbedBuilder()
+              .setColor(interaction.client.embedColor)
+              .setDescription(`${ok} Disabled all looping options.`);
+            await safeReply.safeReply(interaction, { embeds: [embed] });
+          }
 
-}
-if(chosenString === 'queue'){
-    player.setRepeatMode(player.repeatMode === 'queue' ? 'off' : 'queue');
-    const queueRepeat = player.repeatMode === 'queue' ? "enabled" : "disabled";
-    let thing = new EmbedBuilder()
-    .setColor(interaction.client.embedColor)
-    .setDescription(`${ok} Looping the queue is now \`${queueRepeat}\``)
-    return await interaction.followUp({embeds: [thing]});
+          // Set cooldown after success
+          client.cooldownManager.set("loop", interaction.user.id, 1000);
 
-}
-if(chosenString === 'disabled'){
-    player.setRepeatMode('off');
-    let thing = new EmbedBuilder()
-    .setColor(interaction.client.embedColor)
-    .setDescription(`${ok} Disabled all looping options.`)
-    return await interaction.followUp({embeds: [thing]});
-
-}
-       }
-     };
+          // Log the command
+          client.logger.logCommand('loop', interaction.user.id, interaction.guildId, Date.now() - interaction.createdTimestamp, true);
+        } catch (err) {
+          const embed = new EmbedBuilder()
+            .setColor(interaction.client?.embedColor || '#ff0051')
+            .setDescription(`${no} Failed to set loop mode: ${err && (err.message || err)}`);
+          return await safeReply.safeReply(interaction, { embeds: [embed] });
+        }
+      });
+    }
+};
 
 
 

@@ -1,4 +1,6 @@
 const { CommandInteraction, Client, EmbedBuilder } = require("discord.js");
+const safeReply = require('../../utils/safeReply');
+const musicChecks = require('../../utils/musicChecks');
 
 module.exports = {
         name: "skip",
@@ -8,7 +10,6 @@ module.exports = {
         inVoiceChannel: true,
         sameVoiceChannel: true,
         wl : true,
-    
 
     /**
      * 
@@ -18,73 +19,55 @@ module.exports = {
      */
 
   run: async (client, interaction) => {
-    await interaction.deferReply({
-            ephemeral: false
-        });
-        
-          //  
-    let ok = client.emoji.ok;
-    let no = client.emoji.no;
-    
-    
-     //
-        const { channel } = interaction.member.voice;
-        if (!channel) {
-                        const noperms = new EmbedBuilder()
-              
-             .setColor(interaction.client?.embedColor || '#ff0051')
-               .setDescription(`${no} You must be connected to a voice channel to use this command.`)
-            return await interaction.followUp({embeds: [noperms]});
-        }
-        if(interaction.member.voice.selfDeaf) { 
-          let thing = new EmbedBuilder()
-           .setColor(interaction.client?.embedColor || '#ff0051')
-    
-         .setDescription(`${no} <@${interaction.user.id}> You cannot run this command while deafened.`)
-           return await interaction.followUp({embeds: [thing]});
-         }
-                const player = client.lavalink.players.get(interaction.guild.id);
-              const safePlayer = require('../../utils/safePlayer');
-        const { getQueueArray } = require('../../utils/queue.js');
-        const tracks = getQueueArray(player);
-        if(!player || !tracks || tracks.length === 0) {
-                        const noperms = new EmbedBuilder()
-            
-             .setColor(interaction.client?.embedColor || '#ff0051')
-             .setDescription(`${no} There is nothing playing in this server.`)
-            return await interaction.followUp({embeds: [noperms]});
-        }
-        if(player && channel.id !== player.voiceChannelId) {
-                                    const noperms = new EmbedBuilder()
-              .setColor(interaction.client?.embedColor || '#ff0051')
-            .setDescription(`${no} You must be connected to the same voice channel as me.`)
-            return await interaction.followUp({embeds: [noperms]});
-        }
+    return await client.errorHandler.executeWithErrorHandling(interaction, async (interaction) => {
+      await safeReply.safeDeferReply(interaction);
+      
+      let ok = client.emoji.ok;
+      let no = client.emoji.no;
 
-       
+      // Check cooldown
+      const cooldown = client.cooldownManager.check("skip", interaction.user.id);
+      if (cooldown.onCooldown) {
+        const embed = new EmbedBuilder()
+          .setColor(interaction.client?.embedColor || '#ff0051')
+          .setDescription(`${no} Cooldown active. Try again in ${cooldown.remaining()}ms`);
+        return await safeReply.safeReply(interaction, { embeds: [embed] });
+      }
 
-        const reportedSize = safePlayer.queueSize(player);
-        const upcomingCount = Math.max(0, (tracks && tracks.length > 0 ? tracks.length - 1 : 0), (reportedSize > 0 ? reportedSize - 1 : 0));
+      // Run music checks
+      const check = await musicChecks.runMusicChecks(client, interaction, {
+        inVoiceChannel: true,
+        botInVoiceChannel: true,
+        sameChannel: true,
+        requirePlayer: true,
+        requireQueue: true
+      });
 
-        if (upcomingCount > 0) {
-          try {
-            await safePlayer.safeStop(player);
-          } catch (e) {
-            try { await safePlayer.safeStop(player); } catch (_) {}
-          }
+      if (!check.valid) {
+        return await safeReply.safeReply(interaction, { embeds: [check.embed] });
+      }
 
-          return await interaction.editReply({
-            embeds: [new EmbedBuilder().setColor(interaction.client?.embedColor || '#ff0051')
-              .setDescription(`${ok} Skipping to the next track.`)]
-          }).catch(() => {});
-        }
+      // Skip to next track using thread-safe controller
+      const result = await client.playerController.skip(interaction.guildId);
+      
+      if (!result.success) {
+        const embed = new EmbedBuilder()
+          .setColor(interaction.client?.embedColor || '#ff0051')
+          .setDescription(`${no} ${result.error || 'Failed to skip track'}`);
+        return await safeReply.safeReply(interaction, { embeds: [embed] });
+      }
 
-        const twentyfourseven = require('../../schema/twentyfourseven.js');
-        const is247Enabled = await twentyfourseven.findOne({ guildID: interaction.guild.id });
-        if (is247Enabled) {
-          return await interaction.editReply({ embeds: [new EmbedBuilder().setColor(interaction.client?.embedColor || '#ff0051').setDescription(`${no} No songs in queue, add more to skip.`)] }).catch(() => {});
-        }
+      const embed = new EmbedBuilder()
+        .setColor(interaction.client?.embedColor || '#ff0051')
+        .setDescription(`${ok} Skipping to the next track.`);
+      
+      await safeReply.safeReply(interaction, { embeds: [embed] });
 
-        return await interaction.editReply({ embeds: [new EmbedBuilder().setColor(interaction.client?.embedColor || '#ff0051').setDescription(`${no} There are no more tracks to skip.`)] }).catch(() => {});
+      // Set cooldown after success
+      client.cooldownManager.set("skip", interaction.user.id, 1000);
+
+      // Log the command
+      client.logger.logCommand('skip', interaction.user.id, interaction.guildId, Date.now() - interaction.createdTimestamp, true);
+    });
   }
-}
+};

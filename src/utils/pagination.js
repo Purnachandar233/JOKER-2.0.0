@@ -11,9 +11,11 @@ const { ActionRowBuilder, EmbedBuilder, ButtonBuilder, ComponentType } = require
  * @returns
  */
 const messagepaginationEmbed = async (message, pages, buttonList, author, timeout) => {
+    if (!Array.isArray(buttonList) || buttonList.length < 4) throw new Error('Pagination requires at least 4 buttons');
     for (let button of buttonList) {
         if (button.data.style === 5) throw new Error('Link isnt supported.');
     }
+    if (!Array.isArray(pages) || pages.length === 0) throw new Error('Pagination requires at least 1 page');
     let page = 0;
     const row = new ActionRowBuilder().addComponents(buttonList);
     const currentPage = await message.reply({ 
@@ -51,24 +53,34 @@ const messagepaginationEmbed = async (message, pages, buttonList, author, timeou
     });
 
     collector.on('end', () => {
-        const disabledRow = new ActionRowBuilder().addComponents(
-            buttonList[0].setDisabled(true), 
-            buttonList[1].setDisabled(true), 
-            buttonList[2].setDisabled(true), 
-            buttonList[3].setDisabled(true)
-        );
-        currentPage.edit({ 
-            embeds: [pages[page].setFooter({ text: `Page ${page + 1}/${pages.length}` })], 
-            components: [disabledRow] 
-        }).catch(() => {});
+        try {
+            const disabledRow = new ActionRowBuilder().addComponents(
+                buttonList[0].setDisabled(true), 
+                buttonList[1].setDisabled(true), 
+                buttonList[2].setDisabled(true), 
+                buttonList[3].setDisabled(true)
+            );
+            currentPage.edit({ 
+                embeds: [pages[page].setFooter({ text: `Page ${page + 1}/${pages.length}` })], 
+                components: [disabledRow] 
+            }).catch(err => {
+              try {
+                console.warn('Pagination disable buttons error:', err?.message);
+              } catch (e) {}
+            });
+        } catch (err) {
+            console.error('messagepaginationEmbed end handler error:', err && (err.message || err));
+        }
     });
     return currentPage;
 };
 
 const intpaginationEmbed = async (interaction, pages, buttonList, author, timeout) => {
+    if (!Array.isArray(buttonList) || buttonList.length < 4) throw new Error('Pagination requires at least 4 buttons');
     for (let button of buttonList) {
         if (button.data.style === 5) throw new Error('Link isnt supported');
     }
+    if (!Array.isArray(pages) || pages.length === 0) throw new Error('Pagination requires at least 1 page');
     let page = 0;
     const row = new ActionRowBuilder().addComponents(buttonList);
     const replyMethod = interaction.deferred ? 'editReply' : 'reply';
@@ -107,16 +119,24 @@ const intpaginationEmbed = async (interaction, pages, buttonList, author, timeou
     });
 
     collector.on('end', () => {
-        const disabledRow = new ActionRowBuilder().addComponents(
-            buttonList[0].setDisabled(true), 
-            buttonList[1].setDisabled(true), 
-            buttonList[2].setDisabled(true), 
-            buttonList[3].setDisabled(true)
-        );
-        interaction.editReply({ 
-            embeds: [pages[page].setFooter({ text: `Page ${page + 1}/${pages.length}` })], 
-            components: [disabledRow] 
-        }).catch(() => {});
+        try {
+            const disabledRow = new ActionRowBuilder().addComponents(
+                buttonList[0].setDisabled(true), 
+                buttonList[1].setDisabled(true), 
+                buttonList[2].setDisabled(true), 
+                buttonList[3].setDisabled(true)
+            );
+            currentPage.edit({ 
+                embeds: [pages[page].setFooter({ text: `Page ${page + 1}/${pages.length}` })], 
+                components: [disabledRow] 
+            }).catch(err => {
+              try {
+                console.warn('Pagination interaction disable buttons error:', err?.message);
+              } catch (e) {}
+            });
+        } catch (err) {
+            console.error('intpaginationEmbed end handler error:', err && (err.message || err));
+        }
     });
     return currentPage;
 };
@@ -176,19 +196,27 @@ const queuepaginationEmbed = async (interaction, pages, buttonList, author, time
     });
 
     collector.on('end', () => {
-        const disabledRow = new ActionRowBuilder().addComponents(
-            buttonList[0].setDisabled(true), 
-            buttonList[1].setDisabled(true), 
-            buttonList[2].setDisabled(true), 
-            buttonList[3].setDisabled(true)
-        );
-        if (!pages[page] || typeof pages[page].setFooter !== 'function') {
-            pages[page] = new EmbedBuilder().setColor((typeof interaction !== 'undefined' && interaction?.client?.embedColor) ? interaction.client.embedColor : '#ff0051').setDescription(String(pages[page] || '*No content*'));
+        try {
+            const disabledRow = new ActionRowBuilder().addComponents(
+                buttonList[0].setDisabled(true), 
+                buttonList[1].setDisabled(true), 
+                buttonList[2].setDisabled(true), 
+                buttonList[3].setDisabled(true)
+            );
+            if (!pages[page] || typeof pages[page].setFooter !== 'function') {
+                pages[page] = new EmbedBuilder().setColor((typeof interaction !== 'undefined' && interaction?.client?.embedColor) ? interaction.client.embedColor : '#ff0051').setDescription(String(pages[page] || '*No content*'));
+            }
+            interaction.editReply({ 
+                embeds: [pages[page].setFooter({ text: `Page ${page + 1}/${pages.length}` })], 
+                components: [disabledRow] 
+            }).catch(err => {
+              try {
+                console.warn('Queue pagination disable buttons error:', err?.message);
+              } catch (e) {}
+            });
+        } catch (err) {
+            console.error('queuepaginationEmbed end handler error:', err && (err.message || err));
         }
-        interaction.editReply({ 
-            embeds: [pages[page].setFooter({ text: `Page ${page + 1}/${pages.length}` })], 
-            components: [disabledRow] 
-        }).catch(() => {});
     });
     return currentPage;
 };

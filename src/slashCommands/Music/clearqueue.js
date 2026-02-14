@@ -1,4 +1,6 @@
-const { EmbedBuilder, CommandInteraction, Client } = require("discord.js")
+const { EmbedBuilder, CommandInteraction, Client } = require("discord.js");
+const safeReply = require('../../utils/safeReply');
+const musicChecks = require('../../utils/musicChecks');
 
 module.exports = {
     name: "clearqueue",
@@ -17,54 +19,56 @@ module.exports = {
      */
 
     run: async (client, interaction) => {
-      let ok = client.emoji.ok;
-      let no = client.emoji.no;
-      
-  
-        
-    
-     //
-      const { channel } = interaction.member.voice;
-      if (!channel) {
-                      const noperms = new EmbedBuilder()
-          
-           .setColor(interaction.client?.embedColor || '#ff0051')
-             .setDescription(`${no} You must be connected to a voice channel to use this command.`)
-          return await interaction.reply({embeds: [noperms]});
-      }
-      if(interaction.member.voice.selfDeaf) {	
-        let thing = new EmbedBuilder()
-         .setColor(interaction.client?.embedColor || '#ff0051')
+      return await client.errorHandler.executeWithErrorHandling(interaction, async (interaction) => {
+        await safeReply.safeDeferReply(interaction);
 
-       .setDescription(`${no} <@${interaction.member.id}> You cannot run this command while deafened.`)
-         return await interaction.reply({embeds: [thing]});
-       }
-            const player = client.lavalink.players.get(interaction.guild.id);
-          const { getQueueArray } = require('../../utils/queue.js');
-          const tracks = getQueueArray(player);
-          if(!player || !tracks || tracks.length === 0) {
-                      const noperms = new EmbedBuilder()
-  
-           .setColor(interaction.client?.embedColor || '#ff0051')
-           .setDescription(`${no} There is nothing playing in this server.`)
-          return await interaction.reply({embeds: [noperms]});
-      }
-      if(player && channel.id !== player.voiceChannelId) {
-                                  const noperms = new EmbedBuilder()
+        let ok = client.emoji.ok;
+        let no = client.emoji.no;
+
+        // Check cooldown
+        const cooldown = client.cooldownManager.check("clearqueue", interaction.user.id);
+        if (cooldown.onCooldown) {
+          const embed = new EmbedBuilder()
+            .setColor(interaction.client?.embedColor || '#ff0051')
+            .setDescription(`${no} Cooldown active. Try again in ${cooldown.remaining()}ms`);
+          return await safeReply.safeReply(interaction, { embeds: [embed] });
+        }
+
+        // Run music checks
+        const check = await musicChecks.runMusicChecks(client, interaction, {
+          inVoiceChannel: true,
+          botInVoiceChannel: true,
+          sameChannel: true,
+          requirePlayer: true,
+          requireQueue: true
+        });
+
+        if (!check.valid) {
+          return await safeReply.safeReply(interaction, { embeds: [check.embed] });
+        }
+
+        // Clear queue using thread-safe controller
+        const result = await client.playerController.clearQueue(interaction.guildId);
+
+        if (!result.success) {
+          const embed = new EmbedBuilder()
+            .setColor(interaction.client?.embedColor || '#ff0051')
+            .setDescription(`${no} ${result.error || 'Failed to clear queue'}`);
+          return await safeReply.safeReply(interaction, { embeds: [embed] });
+        }
+
+        const embed = new EmbedBuilder()
           .setColor(interaction.client?.embedColor || '#ff0051')
-          .setDescription(`${no} You must be connected to the same voice channel as me.`)
-          return await interaction.reply({embeds: [noperms]});
-      }
-        
-     		const safePlayer = require('../../utils/safePlayer');
-     		await safePlayer.queueClear(player);
+          .setDescription(`${ok} The queue has been cleared.`);
 
+        await safeReply.safeReply(interaction, { embeds: [embed] });
 
-		  let thing = new EmbedBuilder()
-      .setColor(interaction.client?.embedColor || '#ff0051')
-         .setDescription(`${ok} The queue has been cleared.`)
-         return interaction.reply({embeds: [thing]});
-	
+        // Set cooldown after success
+        client.cooldownManager.set("clearqueue", interaction.user.id, 1000);
+
+        // Log the command
+        client.logger.logCommand('clearqueue', interaction.user.id, interaction.guildId, Date.now() - interaction.createdTimestamp, true);
+      });
     }
 };
 

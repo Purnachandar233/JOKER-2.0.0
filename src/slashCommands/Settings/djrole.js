@@ -37,14 +37,14 @@ module.exports = {
             const noperms = new EmbedBuilder()
            .setColor(interaction.client?.embedColor || '#ff0051')
            .setDescription(`You need this required Permissions: \`MANAGE_ROLES\` to run this command.`)
-           return await interaction.followUp({embeds: [noperms]});
+           return await interaction.editReply({embeds: [noperms]});
         }
         const role = interaction.options.getRole("role");
         if (!role) {
             const noperms = new EmbedBuilder()
            .setColor(interaction.client?.embedColor || '#ff0051')
            .setDescription(`Please provide a valid role.`)
-           return await interaction.followUp({embeds: [noperms]});
+           return await interaction.editReply({embeds: [noperms]});
         }
         const dSchema = require('../../schema/djroleSchema.js');
         try {

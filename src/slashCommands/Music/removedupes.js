@@ -1,4 +1,7 @@
 const { CommandInteraction, Client, EmbedBuilder } = require("discord.js");
+const safeReply = require('../../utils/safeReply');
+const musicChecks = require('../../utils/musicChecks');
+const safePlayer = require('../../utils/safePlayer');
 
 module.exports = {
     name: "removedupes",
@@ -8,76 +11,83 @@ module.exports = {
     inVoiceChannel: true,
     sameVoiceChannel: true,
     votelock: true,
-    djonly :true,
-    wl : true,
+    djonly: true,
+    wl: true,
 
     /**
      * @param {Client} client
      * @param {CommandInteraction} interaction
      */
 
-    run: async (client, interaction, prefix ) => {
-        await interaction.deferReply({
-          ephemeral: false
-        });
-   //  
-    let ok = client.emoji.ok;
-    let no = client.emoji.no;
-    
-   
-      const { channel } = interaction.member.voice;
-      if (!channel) {
-                      const noperms = new EmbedBuilder()
-                     
-           .setColor(interaction.client?.embedColor || '#ff0051')
-             .setDescription(`${no} You must be connected to a voice channel to use this command.`)
-          return await interaction.followUp({embeds: [noperms]});
-      }
-      if(interaction.member.voice.selfDeaf) {	
-        let thing = new EmbedBuilder()
-         .setColor(interaction.client?.embedColor || '#ff0051')
+    run: async (client, interaction) => {
+      return await client.errorHandler.executeWithErrorHandling(interaction, async (interaction) => {
+        await safeReply.safeDeferReply(interaction);
 
-       .setDescription(`${no} <@${interaction.member.id}> You cannot run this command while deafened.`)
-         return await interaction.followUp({embeds: [thing]});
-       }
-            const player = client.lavalink.players.get(interaction.guild.id);
-            const { getQueueArray } = require('../../utils/queue.js');
-          const tracks = getQueueArray(player);
-      if(!player || !tracks || tracks.length === 0) {
-                      const noperms = new EmbedBuilder()
+        let ok = client.emoji.ok;
+        let no = client.emoji.no;
 
-           .setColor(interaction.client?.embedColor || '#ff0051')
-           .setDescription(`${no} There is nothing playing in this server.`)
-          return await interaction.followUp({embeds: [noperms]});
-      }
-      if(player && channel.id !== player.voiceChannelId) {
-                                  const noperms = new EmbedBuilder()
-             .setColor(interaction.client?.embedColor || '#ff0051')
-          .setDescription(`${no} You must be connected to the same voice channel as me.`)
-          return await interaction.followUp({embeds: [noperms]});
-      }
-		
-      // build unique tracks preserving order
-      const unique = [];
-      const seen = new Set();
-      for (const t of tracks) {
-        const id = t?.info?.identifier || t?.identifier || t?.uri || t?.id || null;
-        if (!id) continue;
-        if (!seen.has(id)) {
-          seen.add(id);
-          unique.push(t);
+        // Check cooldown
+        const cooldown = client.cooldownManager.check("removedupes", interaction.user.id);
+        if (cooldown.onCooldown) {
+          const embed = new EmbedBuilder()
+            .setColor(interaction.client?.embedColor || '#ff0051')
+            .setDescription(`${no} Cooldown active. Try again in ${cooldown.remaining()}ms`);
+          return await safeReply.safeReply(interaction, { embeds: [embed] });
         }
-      }
-      // clear the Queue and re-add unique tracks
-      await require('../../utils/safePlayer').queueClear(player);
-      require('../../utils/safePlayer').queueAdd(player, unique);
-      //Send Success Message
-       return await interaction.followUp({ embeds : [new EmbedBuilder().setDescription(`${ok} Removed all the duplicates songs from the queue.`)
-      .setColor(interaction.client?.embedColor || '#ff0051')
-]})
-     
-       }
-     };
+
+        // Run music checks
+        const check = await musicChecks.runMusicChecks(client, interaction, {
+          inVoiceChannel: true,
+          botInVoiceChannel: true,
+          sameChannel: true,
+          requirePlayer: true,
+          requireQueue: true
+        });
+
+        if (!check.valid) {
+          return await safeReply.safeReply(interaction, { embeds: [check.embed] });
+        }
+
+        const player = check.player;
+        const tracks = safePlayer.getQueueArray(player);
+
+        try {
+          // Build unique tracks preserving order
+          const unique = [];
+          const seen = new Set();
+          for (const t of tracks) {
+            const id = t?.info?.identifier || t?.identifier || t?.uri || t?.id || null;
+            if (!id) continue;
+            if (!seen.has(id)) {
+              seen.add(id);
+              unique.push(t);
+            }
+          }
+
+          // Clear the queue and re-add unique tracks
+          await safePlayer.queueClear(player);
+          safePlayer.queueAdd(player, unique);
+
+          const embed = new EmbedBuilder()
+            .setDescription(`${ok} Removed all duplicate songs from the queue.`)
+            .setColor(interaction.client?.embedColor || '#ff0051');
+
+          await safeReply.safeReply(interaction, { embeds: [embed] });
+
+          // Set cooldown after success
+          client.cooldownManager.set("removedupes", interaction.user.id, 1000);
+
+          // Log the command
+          client.logger.logCommand('removedupes', interaction.user.id, interaction.guildId, Date.now() - interaction.createdTimestamp, true);
+        } catch (err) {
+          const embed = new EmbedBuilder()
+            .setColor(interaction.client?.embedColor || '#ff0051')
+            .setDescription(`${no} Failed to remove duplicates: ${err && (err.message || err)}`);
+          return await safeReply.safeReply(interaction, { embeds: [embed] });
+        }
+      });
+    }
+};
 
 
 

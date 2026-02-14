@@ -34,14 +34,14 @@ module.exports = {
             const noperms = new EmbedBuilder()
            .setColor(interaction.client?.embedColor || '#ff0051')
            .setDescription(`You need this required Permissions: \`MANAGE_CHANNELS\` to run this command.`)
-           return await interaction.followUp({embeds: [noperms]});
+           return await interaction.editReply({embeds: [noperms]});
         }
     const volume = interaction.options.getInteger("volume");
       if(volume > 150 ) {
         let thing = new EmbedBuilder()
                      .setColor(interaction.client?.embedColor || '#ff0051')
                    .setDescription(`${no} You cannot set the default volume over \`150\``);
-                   return await interaction.followUp({embeds: [thing]});
+                   return await interaction.editReply({embeds: [thing]});
    }
      
 

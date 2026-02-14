@@ -4,6 +4,7 @@ const blacklist = require("../../schema/blacklistSchema.js");
 const Premium = require("../../schema/Premium.js");
 let chunk = require('chunk');
 const safePlayer = require('../../utils/safePlayer');
+const { promiseHandler } = require('../../utils/promiseHandler.js');
 
 module.exports = async (client, interaction) => {
     const ownerids = [client.config.ownerId];
@@ -14,18 +15,29 @@ module.exports = async (client, interaction) => {
         const SlashCommands = client.sls.get(interaction.commandName);
         if (!SlashCommands) return;
 
-        // Commands handle deferring/replying themselves to avoid double-reply errors.
+        // Defer interaction up front to avoid "already replied" errors
+        try {
+            if (!interaction.deferred && !interaction.replied) {
+                await interaction.deferReply({ ephemeral: SlashCommands.ephemeral || false }).catch(err => {
+                    client.logger?.log?.(`Failed to defer reply: ${err?.message}`, 'warn');
+                });
+            }
+        } catch (err) {
+            client.logger?.log?.(`Defer error: ${err?.message}`, 'error');
+        }
 
         if (SlashCommands.djonly) {
             const djSchema = require('../../schema/djroleSchema');
             try {
                 let djdata = await djSchema.findOne({ guildID: interaction.guild.id }).catch(() => null);
                 if (djdata && djdata.Roleid) {
-                    if (!interaction.member.roles.cache.has(djdata.Roleid)) {
+                    if (!interaction.member?.roles?.cache?.has(djdata.Roleid)) {
                         const embed = new EmbedBuilder()
                             .setColor(client?.embedColor || '#ff0051')
                             .setDescription(`<@${interaction.member.id}> This command requires you to have the DJ role.`);
-                        return await interaction.editReply({ embeds: [embed] }).catch(() => {});
+                        return await interaction.editReply({ embeds: [embed] }).catch(err => {
+                            client.logger?.log?.(`Failed to send DJ check reply: ${err?.message}`, 'warn');
+                        });
                     }
                 } else {
                     // No DJ role configured, only allow owner
@@ -33,25 +45,31 @@ module.exports = async (client, interaction) => {
                         const embed = new EmbedBuilder()
                             .setColor(client?.embedColor || '#ff0051')
                             .setDescription(`<@${interaction.member.id}> No DJ role configured. Contact server owner.`);
-                        return await interaction.editReply({ embeds: [embed] }).catch(() => {});
+                        return await interaction.editReply({ embeds: [embed] }).catch(err => {
+                            client.logger?.log?.(`Failed to send no DJ role reply: ${err?.message}`, 'warn');
+                        });
                     }
                 }
             } catch (err) {
-                client.logger?.log(`DJ role check error: ${err.message}`, 'error');
+                client.logger?.log?.(`DJ role check error: ${err.message}`, 'error');
                 const embed = new EmbedBuilder()
                     .setColor(client?.embedColor || '#ff0051')
                     .setDescription(`Error checking DJ permissions. Please try again.`);
-                return await interaction.editReply({ embeds: [embed] }).catch(() => {});
+                return await interaction.editReply({ embeds: [embed] }).catch(err => {
+                    client.logger?.log?.(`Failed to send DJ error reply: ${err?.message}`, 'warn');
+                });
             }
         }
 
         if (SlashCommands.wl) {
-            const nooo = await blacklist.findOne({ UserID: interaction.member.id });
-            if (nooo && !ownerids.includes(interaction.member.id)) {
+            const nooo = await blacklist.findOne({ UserID: interaction.member?.id }).catch(() => null);
+            if (nooo && !ownerids.includes(interaction.member?.id)) {
                 const embed = new EmbedBuilder()
                     .setColor(client?.embedColor || '#ff0051')
                     .setDescription(`<@${interaction.member.id}> You are blacklisted from using the bot!`);
-                return await interaction.editReply({ embeds: [embed] }).catch(() => {});
+                return await interaction.editReply({ embeds: [embed] }).catch(err => {
+                    client.logger?.log?.(`Failed to send blacklist reply: ${err?.message}`, 'warn');
+                });
             }
         }
 
@@ -59,7 +77,9 @@ module.exports = async (client, interaction) => {
             const embed = new EmbedBuilder()
                 .setColor(client?.embedColor || '#ff0051')
                 .setDescription(`✧ This command is restricted to the **Bot Owner** only.`);
-            return await interaction.editReply({ embeds: [embed] }).catch(() => {});
+            return await interaction.editReply({ embeds: [embed] }).catch(err => {
+                client.logger?.log?.(`Failed to send owner-only reply: ${err?.message}`, 'warn');
+            });
         }
 
         const isVoted = client.topgg && typeof client.topgg.hasVoted === 'function' ? 
@@ -139,13 +159,22 @@ module.exports = async (client, interaction) => {
     }
 
     if (interaction.type === InteractionType.MessageComponent) {
+        // Defer immediately to prevent "Unknown interaction" errors
+        try {
+            if (!interaction.deferred && !interaction.replied) {
+                await interaction.deferReply({ ephemeral: true }).catch(() => {});
+            }
+        } catch (err) {
+            client.logger?.log?.(`Defer error: ${err?.message}`, 'warn');
+        }
+
         const player = client.lavalink.players.get(interaction.guild.id);
-        if (!player) return interaction.reply({ content: `${no} No player found.`, flags: [64] });
+        if (!player) return await interaction.editReply({ content: `${no} No player found.` }).catch(() => {});
 
         const { channel } = interaction.member.voice;
-        if (!channel) return interaction.reply({ content: `${no} You must be in a voice channel.`, flags: [64] });
-        if (player && channel.id !== player.voiceChannelId) return interaction.reply({ content: `${no} You must be in the same voice channel as me.`, flags: [64] });
-        if (interaction.member.voice.selfDeaf) return interaction.reply({ content: `${no} You cannot use this while deafened.`, flags: [64] });
+        if (!channel) return await interaction.editReply({ content: `${no} You must be in a voice channel.` }).catch(() => {});
+        if (player && channel.id !== player.voiceChannelId) return await interaction.editReply({ content: `${no} You must be in the same voice channel as me.` }).catch(() => {});
+        if (interaction.member.voice.selfDeaf) return await interaction.editReply({ content: `${no} You cannot use this while deafened.` }).catch(() => {});
 
         switch (interaction.customId) {
             case 'prtrack':
@@ -200,13 +229,13 @@ module.exports = async (client, interaction) => {
                     // prtrack result (diagnostics suppressed)
 
                     if (isPaused !== finalPaused) {
-                        interaction.reply({ content: finalPaused ? `${ok} Paused the player.` : `${ok} Resumed the player.`, flags: [64] });
+                        await interaction.editReply({ content: finalPaused ? `${ok} Paused the player.` : `${ok} Resumed the player.` }).catch(() => {});
                     } else {
-                        interaction.reply({ content: `${no} Requested toggle sent but the player state did not change yet. It may be delayed.`, flags: [64] });
+                        await interaction.editReply({ content: `${no} Requested toggle sent but the player state did not change yet. It may be delayed.` }).catch(() => {});
                     }
                 } catch (e) {
                     client.logger?.log(`Pause/Resume error: ${e && (e.stack || e.toString())}`, 'error');
-                    interaction.reply({ content: `${no} Failed to toggle pause.`, flags: [64] });
+                    await interaction.editReply({ content: `${no} Failed to toggle pause.` }).catch(() => {});
                 }
                 break;
             case 'skiptrack':
@@ -232,20 +261,20 @@ module.exports = async (client, interaction) => {
                         } catch (e) {
                             try { await safePlayer.safeStop(player); } catch (_) {}
                         }
-                        return interaction.reply({ content: `${ok} Skipped to the next track.`, flags: [64] });
+                        return await interaction.editReply({ content: `${ok} Skipped to the next track.` }).catch(() => {});
                     }
 
                     // No upcoming tracks — do not destroy the player, just inform the user.
                     const twentyfourseven = require('../../schema/twentyfourseven.js');
                     const is247Enabled = await twentyfourseven.findOne({ guildID: interaction.guild.id });
                     if (is247Enabled) {
-                        return interaction.reply({ content: `${no} No songs in queue, add more to skip.`, flags: [64] });
+                        return await interaction.editReply({ content: `${no} No songs in queue, add more to skip.` }).catch(() => {});
                     }
 
-                    return interaction.reply({ content: `${no} There are no more tracks to skip.`, flags: [64] });
+                    return await interaction.editReply({ content: `${no} There are no more tracks to skip.` }).catch(() => {});
                 } catch (error) {
                     client.logger?.log(`Skip error: ${error?.message || error}`, 'error');
-                    return interaction.reply({ content: `${no} Failed to skip track.`, flags: [64] });
+                    return await interaction.editReply({ content: `${no} Failed to skip track.` }).catch(() => {});
                 }
                 break;
             case 'looptrack':
@@ -253,14 +282,14 @@ module.exports = async (client, interaction) => {
                     const currentMode = player.repeatMode || 'off';
                     if (currentMode === 'track') {
                         player.setRepeatMode('off');
-                        interaction.reply({ content: `${ok} Loop disabled.`, flags: [64] });
+                        await interaction.editReply({ content: `${ok} Loop disabled.` }).catch(() => {});
                     } else {
                         player.setRepeatMode('track');
-                        interaction.reply({ content: `${ok} Looping current track.`, flags: [64] });
+                        await interaction.editReply({ content: `${ok} Looping current track.` }).catch(() => {});
                     }
                 } catch (error) {
                     client.logger?.log(`Loop toggle error: ${error.message}`, 'error');
-                    interaction.reply({ content: `${no} Failed to toggle loop.`, flags: [64] });
+                    await interaction.editReply({ content: `${no} Failed to toggle loop.` }).catch(() => {});
                 }
                 break;
             case 'showqueue':
@@ -271,12 +300,12 @@ module.exports = async (client, interaction) => {
                 } catch (e) {
                     // showqueue pressed (diagnostics suppressed)
                 }
-                if (safePlayer.queueSize(player) === 0) {
-                    interaction.reply({ content: `${no} Queue is empty.`, flags: [64] });
+                const { getQueueArray } = require('../../utils/queue.js');
+                const tracks = getQueueArray(player) || [];
+                if (!tracks || tracks.length === 0) {
+                    await interaction.editReply({ content: `${no} Queue is empty.` }).catch(() => {});
                 } else {
                     try {
-                        const { getQueueArray } = require('../../utils/queue.js');
-                        const tracks = getQueueArray(player) || [];
                         const current = tracks[0] || null;
                         const upcoming = tracks.slice(1);
 
@@ -312,7 +341,7 @@ module.exports = async (client, interaction) => {
                         }
 
                         if (embeds.length === 1) {
-                            interaction.reply({ embeds: [embeds[0]], flags: [64] });
+                            await interaction.editReply({ embeds: [embeds[0]] }).catch(() => {});
                         } else {
                             const buttonList = [
                                 new ButtonBuilder().setCustomId('first').setLabel('First').setStyle(2),
@@ -324,7 +353,7 @@ module.exports = async (client, interaction) => {
                         }
                     } catch (error) {
                         client.logger?.log(`Queue display error: ${error.message}`, 'error');
-                        interaction.reply({ content: `${no} Failed to display queue.`, flags: [64] });
+                        await interaction.editReply({ content: `${no} Failed to display queue.` }).catch(() => {});
                     }
                 }
                 break;
@@ -345,10 +374,10 @@ module.exports = async (client, interaction) => {
 
                     try { await safePlayer.queueClear(player); } catch (e) {}
 
-                    interaction.reply({ content: `${ok} Stopped the player and cleared the queue.`, flags: [64] });
+                    await interaction.editReply({ content: `${ok} Stopped the player and cleared the queue.` }).catch(() => {});
                 } catch (error) {
                     client.logger?.log(`Stop error: ${error.message}`, 'error');
-                    interaction.reply({ content: `${no} Failed to stop the player.`, flags: [64] });
+                    await interaction.editReply({ content: `${no} Failed to stop the player.` }).catch(() => {});
                 }
                 break;
         }

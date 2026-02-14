@@ -12,6 +12,8 @@ module.exports = {
      */
 
     run: async (client, interaction) => {
+        await interaction.deferReply({ ephemeral: false }).catch(() => {});
+        
         let ok = client.emoji.ok;
         let no = client.emoji.no;
     
@@ -53,6 +55,6 @@ Joker Music can be added to as many server as you want! [Click here to add it to
         
  
 .setColor(interaction.client?.embedColor || '#ff0051')
-        await interaction.reply({embeds: [embed], components: [row]})
+        await interaction.editReply({embeds: [embed], components: [row]})
     }
 }

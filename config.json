@@ -1,20 +1,31 @@
 {
-  "token": "DISCORD_BOT_TOKEN",
-  "mongourl": "MONGODB_URL",
+  "token": "PLACEHOLDER_USE_TOKEN_ENV_VAR",
+  "mongourl": "PLACEHOLDER_USE_MONGODB_URL_ENV_VAR",
   "ownerId": "721629553134403591",
   "embedColor": "#ff0051",
   "prefix": "=",
   "webhooks": {
-    "guildLogs": "",
-    "ownerCmds": "",
-    "errorLogs": ""
+    "guildLogs": "PLACEHOLDER_USE_GUILD_WEBHOOK_URL_ENV_VAR",
+    "ownerCmds": "PLACEHOLDER_USE_OWNER_CMDS_ENV_VAR",
+    "errorLogs": "PLACEHOLDER_USE_ERROR_WEBHOOK_URL_ENV_VAR"
   },
-  "nodes": [
-    {
+  "nodes":  [
+      {
+      "id": "node4",
+      "host": "lavalink.serenetia.com",
+      "port": 443,
+      "authorization": "https://dsc.gg/ajidevserver",
+      "secure": true
+      },
+  
+      {
+       "id": "node3",
       "host": "lavalink.jirayu.net",
       "port": 13592,
       "authorization": "youshallnotpass",
       "secure": false
-    }
-  ]
+      }
+
+  ],
+  "_comment": "All secrets should be provided via environment variables (.env file). See .env.example for required variables."
 }

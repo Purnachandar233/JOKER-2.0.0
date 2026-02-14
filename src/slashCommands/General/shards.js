@@ -11,6 +11,8 @@ module.exports = {
     wl: true,
    
     run: async (client, interaction) => {
+        await interaction.deferReply({ ephemeral: false }).catch(() => {});
+        
         let ok = client.emoji.ok;
         let no = client.emoji.no;
           
@@ -49,6 +51,6 @@ module.exports = {
           const totalMemoryStr = bytes(bytes(usedMemMb + "MB"));
           emee.addFields({ name: '<:idle:968819647170347048> Total', value: `\`\`\`ml\nTotalServers: ${totalServers}\nTotalMembers: ${totalMembers}\nTotalPlayers: ${playerCount}\nTotalMemory : ${totalMemoryStr}\nPing        : ${Math.round(media)}\`\`\`` });
 
-          return interaction.reply({ embeds: [emee] });
+          return interaction.editReply({ embeds: [emee] });
     }
 };

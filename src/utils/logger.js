@@ -36,7 +36,11 @@ module.exports = class Logger {
 		}
 
 		// Sanitize message and other content to avoid leaking tokens/credentials
-		try { message = sanitize(String(message)); } catch (e) {}
+    try { 
+      message = sanitize(String(message)); 
+    } catch (e) {
+      console.error('logger sanitize error:', e && (e.message || e));
+    }
 
 		switch (type) {
 
@@ -49,7 +53,9 @@ module.exports = class Logger {
  				if (url) {
  					const web = new WebhookClient({ url });
 					const embed = new EmbedBuilder().setTitle('Log').setDescription(String(sanitize(message)).slice(0, 1900)).setColor(config.embedColor || '#000000').setTimestamp();
- 					web.send({ embeds: [embed] }).catch(() => {});
+ 					web.send({ embeds: [embed] }).catch(err => {
+            try { console.warn('Log webhook error:', err?.message); } catch (e) {}
+          });
  				}
  			} catch (e) {}
  			return out;
@@ -62,7 +68,9 @@ module.exports = class Logger {
  				if (url) {
  					const web = new WebhookClient({ url });
 					const embed = new EmbedBuilder().setTitle('Warning').setDescription(String(sanitize(message)).slice(0, 1900)).setColor(config.embedColor || '#000000').setTimestamp();
- 					web.send({ embeds: [embed] }).catch(() => {});
+ 					web.send({ embeds: [embed] }).catch(err => {
+            try { console.warn('Warn webhook error:', err?.message); } catch (e) {}
+          });
  				}
  			} catch (e) {}
  			return out;
@@ -85,7 +93,9 @@ module.exports = class Logger {
 											.setColor(config.embedColor || '#000000')
 											.addFields({ name: 'Stack', value: (content && content.stack) ? String(sanitize(content.stack)).slice(0, 1024) : 'N/A' })
 											.setTimestamp();
- 					web.send({ embeds: [embed] }).catch(() => {});
+ 					web.send({ embeds: [embed] }).catch(err => {
+            try { console.warn('Error webhook error:', err?.message); } catch (e) {}
+          });
  				}
  			} catch (e) {}
  			return out;

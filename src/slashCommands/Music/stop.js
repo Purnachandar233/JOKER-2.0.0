@@ -1,4 +1,6 @@
-const { EmbedBuilder, CommandInteraction, Client } = require("discord.js")
+const { EmbedBuilder, CommandInteraction, Client } = require("discord.js");
+const safeReply = require('../../utils/safeReply');
+const musicChecks = require('../../utils/musicChecks');
 
 module.exports = {
     name: "stop",
@@ -17,63 +19,57 @@ module.exports = {
      */
 
     run: async (client, interaction) => {
-        await interaction.deferReply({
-          ephemeral: false
-        });  
+      return await client.errorHandler.executeWithErrorHandling(interaction, async (interaction) => {
+        await safeReply.safeDeferReply(interaction);
+
         let ok = client.emoji.ok;
         let no = client.emoji.no;
-        
-        
-         //
-    
-        const { channel } = interaction.member.voice;
-        if (!channel) {
-                        const noperms = new EmbedBuilder()
-                       
-             .setColor(interaction.client?.embedColor || '#ff0051')
-               .setDescription(`${no} You must be connected to a voice channel to use this command.`)
-            return await interaction.followUp({embeds: [noperms]});
-        }
-        if(interaction.member.voice.selfDeaf) {	
-          let thing = new EmbedBuilder()
-           .setColor(interaction.client?.embedColor || '#ff0051')
-     
-         .setDescription(`${no} <@${interaction.member.id}> You cannot run this command while deafened.`)
-           return await interaction.followUp({embeds: [thing]});
-         }
-            const player = client.lavalink.players.get(interaction.guild.id);
-          const safePlayer = require('../../utils/safePlayer');
-        const { getQueueArray } = require('../../utils/queue.js');
-        const tracks = getQueueArray(player);
-        if(!player || !tracks || tracks.length === 0) {
-                        const noperms = new EmbedBuilder()
-       
-             .setColor(interaction.client?.embedColor || '#ff0051')
-             .setDescription(`${no} There is nothing playing in this server.`)
-            return await interaction.followUp({embeds: [noperms]});
-        }
-        if(player && channel.id !== player.voiceChannelId) {
-                                    const noperms = new EmbedBuilder()
-                .setColor(interaction.client?.embedColor || '#ff0051')
-            .setDescription(`${no} You must be connected to the same voice channel as me.`)
-            return await interaction.followUp({embeds: [noperms]});
-        }
-        const autoplay = player.get("autoplay")
-        if (autoplay === true) {
-            player.set("autoplay", false);
+
+        // Check cooldown
+        const cooldown = client.cooldownManager.check("stop", interaction.user.id);
+        if (cooldown.onCooldown) {
+          const embed = new EmbedBuilder()
+            .setColor(interaction.client?.embedColor || '#ff0051')
+            .setDescription(`${no} Cooldown active. Try again in ${cooldown.remaining()}ms`);
+          return await safeReply.safeReply(interaction, { embeds: [embed] });
         }
 
-        await safePlayer.safeDestroy(player);
-        await safePlayer.queueClear(player);
-  
-        const emojistop = client.emoji.stop;
+        // Run music checks
+        const check = await musicChecks.runMusicChecks(client, interaction, {
+          inVoiceChannel: true,
+          botInVoiceChannel: true,
+          sameChannel: true,
+          requirePlayer: true,
+          requireQueue: true
+        });
 
-		let thing = new EmbedBuilder()
-        .setColor(interaction.client?.embedColor || '#ff0051')
-        .setDescription(`${ok} **Stopped the player and cleared the queue!**`)
-        return interaction.editReply({embeds: [thing]});
-	
-  	}
+        if (!check.valid) {
+          return await safeReply.safeReply(interaction, { embeds: [check.embed] });
+        }
+
+        // Stop using thread-safe controller
+        const result = await client.playerController.stop(interaction.guildId);
+
+        if (!result.success) {
+          const embed = new EmbedBuilder()
+            .setColor(interaction.client?.embedColor || '#ff0051')
+            .setDescription(`${no} ${result.error || 'Failed to stop player'}`);
+          return await safeReply.safeReply(interaction, { embeds: [embed] });
+        }
+
+        const embed = new EmbedBuilder()
+          .setColor(interaction.client?.embedColor || '#ff0051')
+          .setDescription(`${ok} **Stopped the player and cleared the queue!**`);
+        
+        await safeReply.safeReply(interaction, { embeds: [embed] });
+
+        // Set cooldown after success
+        client.cooldownManager.set("stop", interaction.user.id, 1000);
+
+        // Log the command
+        client.logger.logCommand('stop', interaction.user.id, interaction.guildId, Date.now() - interaction.createdTimestamp, true);
+      });
+    }
 };
 
 

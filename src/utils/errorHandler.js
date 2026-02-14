@@ -14,9 +14,13 @@ async function replyError(interaction, message, client) {
 
   try {
     if (interaction.deferred || interaction.replied) {
-      await interaction.editReply({ embeds: [embed] }).catch(() => {});
+      await interaction.editReply({ embeds: [embed] }).catch(err => {
+        client?.logger?.log?.(`Failed to edit error reply: ${err?.message}`, 'warn');
+      });
     } else {
-      await interaction.reply({ embeds: [embed], flags: [64] }).catch(() => {});
+      await interaction.reply({ embeds: [embed], flags: [64] }).catch(err => {
+        client?.logger?.log?.(`Failed to send error reply: ${err?.message}`, 'warn');
+      });
     }
   } catch (err) {
     client?.logger?.log(`Error replying to interaction: ${err.message}`, 'error');
@@ -32,7 +36,9 @@ async function replyMessageError(message, error, client) {
     .setDescription(error);
 
   try {
-    await message.reply({ embeds: [embed] }).catch(() => {});
+    await message.reply({ embeds: [embed] }).catch(err => {
+      client?.logger?.log?.(`Failed to send message reply: ${err?.message}`, 'warn');
+    });
   } catch (err) {
     client?.logger?.log(`Error replying to message: ${err.message}`, 'error');
   }

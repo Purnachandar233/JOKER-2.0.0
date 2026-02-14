@@ -69,7 +69,7 @@ module.exports = {
           .setDescription(`${no} Please use a number between \`0\` - \`100\``)
           return await message.channel.send({ embeds: [ething] });
       }
-      await safePlayer.safeCall(player, 'setVolume', Number(volume));
+      await safePlayer.safeSetVolume(player, Number(volume));
   
     let thing = new EmbedBuilder()
       .setColor(message.client?.embedColor || '#ff0051')

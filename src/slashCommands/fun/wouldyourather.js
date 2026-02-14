@@ -1,6 +1,5 @@
 const { Client, CommandInteraction, EmbedBuilder } = require('discord.js');
-const legacy = require('../../commands/fun/wouldyourather.js');
-
+const legacy = require('../../commands/fun/games/wouldyourather.js');const { safeReply } = require('../../utils/safeReply');
 module.exports = {
   name: 'wouldyourather',
   description: legacy.description || 'Converted slash for wouldyourather',
@@ -12,9 +11,8 @@ module.exports = {
 
     const replyFunc = async (payload) => {
       try {
-        if (interaction.replied || interaction.deferred) return interaction.followUp(payload).catch(() => {});
-        return interaction.editReply(payload).catch(() => interaction.followUp(payload).catch(() => {}));
-      } catch(e) {}
+        return await safeReply(interaction, typeof payload === 'string' ? { content: payload } : payload);
+      } catch (e) { return null; }
     };
 
     const message = {

@@ -1,4 +1,7 @@
 const { CommandInteraction, Client, EmbedBuilder } = require("discord.js");
+const safeReply = require('../../utils/safeReply');
+const musicChecks = require('../../utils/musicChecks');
+const safePlayer = require('../../utils/safePlayer');
 
 module.exports = {
     name: "remove",
@@ -7,89 +10,96 @@ module.exports = {
     player: true,
     inVoiceChannel: true,
     sameVoiceChannel: true,
-    djonly :true,
-    wl : true,
+    djonly: true,
+    wl: true,
     options: [
       {
         name: "number",
         description: "Number of the song in queue",
         required: true,
         type: 10
-		}
-	],
+      }
+    ],
 
     /**
      * @param {Client} client
      * @param {CommandInteraction} interaction
      */
 
-    run: async (client, interaction, prefix ) => {
-        await interaction.deferReply({
-          ephemeral: false
+    run: async (client, interaction) => {
+      return await client.errorHandler.executeWithErrorHandling(interaction, async (interaction) => {
+        await safeReply.safeDeferReply(interaction);
+
+        let ok = client.emoji.ok;
+        let no = client.emoji.no;
+
+        // Check cooldown
+        const cooldown = client.cooldownManager.check("remove", interaction.user.id);
+        if (cooldown.onCooldown) {
+          const embed = new EmbedBuilder()
+            .setColor(interaction.client?.embedColor || '#ff0051')
+            .setDescription(`${no} Cooldown active. Try again in ${cooldown.remaining()}ms`);
+          return await safeReply.safeReply(interaction, { embeds: [embed] });
+        }
+
+        const position = interaction.options.getNumber("number");
+
+        // Validate position
+        if (!Number.isFinite(position) || position < 1) {
+          const embed = new EmbedBuilder()
+            .setColor(interaction.client?.embedColor || '#ff0051')
+            .setDescription(`${no} Invalid track number.`);
+          return await safeReply.safeReply(interaction, { embeds: [embed] });
+        }
+
+        // Run music checks
+        const check = await musicChecks.runMusicChecks(client, interaction, {
+          inVoiceChannel: true,
+          botInVoiceChannel: true,
+          sameChannel: true,
+          requirePlayer: true,
+          requireQueue: true
         });
-          
-    let ok = client.emoji.ok;
-    let no = client.emoji.no;
-    
-      const args = interaction.options.getNumber("number");
-   //
 
-   //
-      const { channel } = interaction.member.voice;
-      if (!channel) {
-                      const noperms = new EmbedBuilder()
-                     
-           .setColor(interaction.client?.embedColor || '#ff0051')
-             .setDescription(`${no} You must be connected to a voice channel to use this command.`)
-          return await interaction.followUp({embeds: [noperms]});
-      }
-      if(interaction.member.voice.selfDeaf) {	
-        let thing = new EmbedBuilder()
-         .setColor(interaction.client?.embedColor || '#ff0051')
+        if (!check.valid) {
+          return await safeReply.safeReply(interaction, { embeds: [check.embed] });
+        }
 
-       .setDescription(`${no} <@${interaction.member.id}> You cannot run this command while deafened.`)
-         return await interaction.followUp({embeds: [thing]});
-       }
-            const player = client.lavalink.players.get(interaction.guild.id);
-          const { getQueueArray } = require('../../utils/queue.js');
-          const tracks = getQueueArray(player);
-          if(!player || !tracks || tracks.length === 0) {
-                      const noperms = new EmbedBuilder()
+        const player = check.player;
+        const tracks = safePlayer.getQueueArray(player);
 
-           .setColor(interaction.client?.embedColor || '#ff0051')
-           .setDescription(`${no} There is nothing playing in this server.`)
-          return await interaction.followUp({embeds: [noperms]});
-      }
-      if(player && channel.id !== player.voiceChannelId) {
-                                  const noperms = new EmbedBuilder()
-             .setColor(interaction.client?.embedColor || '#ff0051')
-          .setDescription(`${no} You must be connected to the same voice channel as me.`)
-          return await interaction.followUp({embeds: [noperms]});
-      }
+        // Validate position within queue bounds
+        if (position > tracks.length) {
+          const embed = new EmbedBuilder()
+            .setColor(interaction.client?.embedColor || '#ff0051')
+            .setDescription(`${no} No songs at number \`${position}\`. Total songs: \`${tracks.length}\``);
+          return await safeReply.safeReply(interaction, { embeds: [embed] });
+        }
 
-      const pos = Number(args);
-       if (!Number.isFinite(pos) || pos < 1) {
-         return await interaction.editReply({ embeds: [new EmbedBuilder().setColor(interaction.client?.embedColor || '#ff0051').setDescription(`${no} Invalid track number.`)] });
-       }
-      const safePlayer = require('../../utils/safePlayer');
-      const arr = tracks;
-      if (pos > arr.length) {
-         return await interaction.editReply({ embeds: [new EmbedBuilder().setColor(interaction.client?.embedColor || '#ff0051').setDescription(`${no} No songs at number \`${pos}\`. Total songs: \`${arr.length}\``)] });
-      }
+        try {
+          const song = tracks[position - 1];
+          safePlayer.queueRemove(player, position - 1);
 
-    const song = arr[pos - 1];
-    safePlayer.queueRemove(player, pos - 1);
+          const embed = new EmbedBuilder()
+            .setColor(interaction.client?.embedColor || '#ff0051')
+            .setDescription(`${ok} **Removed song from the queue**`);
 
-    const emojieject = client.emoji.remove;
-  
-    let thing = new EmbedBuilder()
-      .setColor(interaction.client?.embedColor || '#ff0051')
+          await safeReply.safeReply(interaction, { embeds: [embed] });
 
-      .setDescription(`${ok} **Removed that song from Queue**`)
-    return await interaction.editReply({ embeds: [thing] });
-     
-       }
-     };
+          // Set cooldown after success
+          client.cooldownManager.set("remove", interaction.user.id, 1000);
+
+          // Log the command
+          client.logger.logCommand('remove', interaction.user.id, interaction.guildId, Date.now() - interaction.createdTimestamp, true);
+        } catch (err) {
+          const embed = new EmbedBuilder()
+            .setColor(interaction.client?.embedColor || '#ff0051')
+            .setDescription(`${no} Failed to remove track: ${err && (err.message || err)}`);
+          return await safeReply.safeReply(interaction, { embeds: [embed] });
+        }
+      });
+    }
+};
 
 
 

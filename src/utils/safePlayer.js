@@ -27,9 +27,15 @@ module.exports = {
         throw err;
       });
 
-      // Use a longer timeout for operations that commonly hit network/undici delays
-      const longOps = ['setVolume', 'destroy', 'updatePlayer', 'play', 'connect'];
-      const timeoutMs = longOps.includes(method) ? 5000 : 3000;
+      // Use longer timeouts for network-heavy operations
+      // setVolume is particularly important as it's called frequently
+      let timeoutMs = 3000;
+      if (method === 'setVolume') {
+        timeoutMs = 10000; // Extra long timeout for volume operations
+      } else if (['destroy', 'updatePlayer', 'play', 'connect'].includes(method)) {
+        timeoutMs = 8000; // Long timeout for critical operations
+      }
+
       let res;
       try {
         res = await Promise.race([
@@ -46,7 +52,7 @@ module.exports = {
         if (/already paused|not able to pause|already destroyed/i.test(msg)) {
           try { console.warn(`safePlayer.${method} warning:`, msg); } catch (e) {}
         } else if (/timeout/i.test(msg) || msg.includes('TimeoutError') || msg.includes('safeCall: timeout')) {
-          try { console.warn(`safePlayer.${method} timeout after ${timeoutMs}ms:`, err && (err.stack || msg)); } catch (e) {}
+          try { console.warn(`safePlayer.${method} timeout after ${timeoutMs}ms (Lavalink node may be slow):`, msg); } catch (e) {}
         } else {
           try { console.error(`safePlayer.${method} error:`, err); } catch (e) {}
         }
@@ -57,10 +63,12 @@ module.exports = {
       return false;
     }
   },
-  queueAdd(player, tracks) {
+  async queueAdd(player, tracks) {
     try {
       if (!player) return false;
       const q = getQueueObj(player);
+      if (!q) return false;
+      if (!q) return false;
 
       // If the underlying queue object exposes an add method, prefer it.
       if (q && typeof q.add === 'function') {
@@ -80,6 +88,7 @@ module.exports = {
       // Fallback: ensure tracks are appended into internal arrays when
       // implementations don't populate them via `add`. Avoid pushing exact
       // duplicates by checking a stable identifier.
+      if (!Array.isArray(q.tracks)) q.tracks = [];
       const idFor = (t) => {
         if (!t) return null;
         const id = t?.info?.identifier || t?.identifier || t?.id || t?.uri || null;
@@ -106,6 +115,7 @@ module.exports = {
         }
         // Mirror into items if present
         try {
+          if (q.items && !Array.isArray(q.items)) q.items = [];
           if (q.items && Array.isArray(q.items)) {
             const presentItems = new Set(q.items.map(idFor).filter(Boolean));
             if (Array.isArray(tracks)) {
@@ -120,7 +130,9 @@ module.exports = {
               if (!tid || !presentItems.has(tid)) q.items.push(tracks);
             }
           }
-        } catch (e) {}
+        } catch (e) {
+          console.error('safePlayer.queueAdd items fallback error:', e && (e.message || e));
+        }
         return true;
       }
 
@@ -142,11 +154,10 @@ module.exports = {
 
       return false;
     } catch (err) {
-      try { console.error('safePlayer.queueAdd error:', err); } catch (e) {}
+      console.error('safePlayer.queueAdd error:', err && (err.stack || err.message || err));
       return false;
     }
-  }
-  ,
+  },
   queueRemove(player, start, end) {
     try {
       const q = getQueueObj(player);
@@ -157,7 +168,7 @@ module.exports = {
       if (Array.isArray(q.items)) return q.items.splice(start, (end - start) + 1);
       return false;
     } catch (err) {
-      try { console.error('safePlayer.queueRemove error:', err); } catch (e) {}
+      console.error('safePlayer.queueRemove error:', err && (err.stack || err.message || err));
       return false;
     }
   },
@@ -176,7 +187,7 @@ module.exports = {
       }
       return false;
     } catch (err) {
-      try { console.error('safePlayer.queueShuffle error:', err); } catch (e) {}
+      console.error('safePlayer.queueShuffle error:', err && (err.stack || err.message || err));
       return false;
     }
   },
@@ -190,7 +201,7 @@ module.exports = {
       if (Array.isArray(q.previous)) { q.previous.length = 0; }
       return true;
     } catch (err) {
-      try { console.error('safePlayer.queueClear error:', err); } catch (e) {}
+      console.error('safePlayer.queueClear error:', err && (err.stack || err.message || err));
       return false;
     }
   },
@@ -245,7 +256,9 @@ module.exports = {
       }
       if (result.length) return result;
       if (typeof q.values === 'function') {
-        try { return Array.from(q.values()).filter(Boolean); } catch (e) {}
+        try { return Array.from(q.values()).filter(Boolean); } catch (e) {
+        console.error('safePlayer.getQueueArray Array.from error:', e && (e.message || e));
+      }
       }
       const numericKeys = Object.keys(q).filter(k => /^[0-9]+$/.test(k)).sort((a,b)=>a-b);
       if (numericKeys.length) return numericKeys.map(k => q[k]).filter(Boolean);
@@ -259,12 +272,16 @@ module.exports = {
       // Call destroy but don't wait indefinitely — race with a timeout.
       const destroyPromise = Promise.resolve(this.safeCall(player, 'destroy'))
         .catch(err => {
-          try { console.error('safePlayer.destroy internal error:', err); } catch (e) {}
+      try { console.error('safePlayer.destroy internal error:', err); } catch (e) {}
           return false;
         });
 
-      // Attach a catcher to prevent unhandled rejections if we time out.
-      destroyPromise.catch(() => {});
+      // Attach a catcher to log any unhandled rejections if we time out
+      destroyPromise.catch(err => {
+        try {
+          console.warn('safePlayer.destroy promise error:', err && (err.stack || err.message || err));
+        } catch (e) {}
+      });
 
       const timeoutMs = 5000;
       const res = await Promise.race([
@@ -277,7 +294,7 @@ module.exports = {
       }
       return res;
     } catch (err) {
-      try { console.error('safePlayer.safeDestroy unexpected error:', err); } catch (e) {}
+      console.error('safePlayer.safeDestroy error:', err && (err.stack || err.message || err));
       return false;
     }
   },
@@ -285,11 +302,40 @@ module.exports = {
     try {
       const stopped = await this.safeCall(player, 'stop');
       if (stopped) return true;
-      const skipped = await this.safeCall(player, 'skip');
-      if (skipped) return true;
+      
+      // Only attempt to skip if there are tracks in queue
+      const queueSize = this.queueSize(player);
+      if (queueSize > 0) {
+        const skipped = await this.safeCall(player, 'skip');
+        if (skipped) return true;
+      }
+      
       return await this.safeDestroy(player);
     } catch (err) {
       try { console.error('safePlayer.safeStop error:', err); } catch (e) {}
+      return false;
+    }
+  },
+  async safeSetVolume(player, volume) {
+    try {
+      if (!player || typeof volume !== 'number') return false;
+      
+      // Try setvolume with retry logic
+      let result = await this.safeCall(player, 'setVolume', volume);
+      
+      // If first attempt timed out, wait a moment and retry
+      if (!result) {
+        try {
+          await new Promise(resolve => setTimeout(resolve, 500));
+          result = await this.safeCall(player, 'setVolume', volume);
+        } catch (e) {
+          console.warn('safePlayer.safeSetVolume retry failed:', e?.message);
+        }
+      }
+      
+      return result || false;
+    } catch (err) {
+      console.error('safePlayer.safeSetVolume error:', err);
       return false;
     }
   }

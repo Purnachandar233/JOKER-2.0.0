@@ -4,6 +4,15 @@ const mongoose = require('mongoose');
 const { LavalinkManager, Node } = require("lavalink-client");
 const { readdirSync } = require("fs");
 const safePlayer = require('../utils/safePlayer');
+const StartupLogger = require('../utils/StartupLogger');
+
+// Import all services
+const Logger = require('../services/Logger');
+const CommandErrorHandler = require('../services/CommandErrorHandler');
+const PermissionService = require('../services/PermissionService');
+const PlayerController = require('../services/PlayerController');
+const FilterManager = require('../services/FilterManager');
+const cooldownManager = require('../utils/cooldownManager');
 
 
 /**
@@ -46,16 +55,43 @@ module.exports = async (client) => {
     const mongoUrl = process.env.MONGODB_URL || process.env.MONGOURI || client.config.mongourl;
    
     if (mongoUrl && typeof mongoUrl === 'string' && mongoUrl.startsWith('mongodb')) {
-            // Connect to MongoDB but do not block startup on slow DBs — log result asynchronously.
-            try {
-                mongoose.connect(mongoUrl, dbOptions).then(() => {
-                    safeLog('Connected to MongoDB', 'info');
-                }).catch((err) => {
-                    safeLog(`[ERROR] MongoDB connection failed: ${err && (err.message || err)}`, 'error');
+            // Connect to MongoDB with improved error handling
+            const attemptConnect = async (retries = 3, delay = 1000) => {
+                for (let i = 0; i < retries; i++) {
+                    try {
+                        await mongoose.connect(mongoUrl, dbOptions);
+                        safeLog('Connected to MongoDB successfully', 'info');
+                        
+                        // Verify connection is working
+                        await mongoose.connection.db.admin().ping();
+                        safeLog('MongoDB connection verified and healthy', 'info');
+                        return true;
+                    } catch (err) {
+                        if (i < retries - 1) {
+                            safeLog(`[RETRY] MongoDB connection attempt ${i + 1} failed: ${err && err.message}. Retrying in ${delay}ms...`, 'warn');
+                            await new Promise(r => setTimeout(r, delay));
+                            delay *= 2; // exponential backoff
+                        } else {
+                            safeLog(`[ERROR] MongoDB connection failed after ${retries} attempts: ${err && (err.message || err)}. Database features may be unavailable.`, 'error');
+                            return false;
+                        }
+                    }
+                }
+                return true;
+            };
+            
+            // Start connection in background but log when ready
+            attemptConnect()
+                .then(success => {
+                    if (success) {
+                        safeLog('Database initialization complete', 'info');
+                    } else {
+                        safeLog('Database unavailable - bot will proceed with limited functionality', 'warn');
+                    }
+                })
+                .catch(err => {
+                    safeLog(`[ERROR] Database connection error: ${err && (err.message || err)}`, 'error');
                 });
-            } catch (err) {
-                safeLog(`[ERROR] MongoDB connect thrown error: ${err && (err.message || err)}`, 'error');
-            }
     } else {
         safeLog('[WARN] No valid MongoDB URL provided. Database features will be unavailable.', 'warn');
     }
@@ -208,7 +244,9 @@ readdirSync("./src/slashCommands/").forEach((dir) => {
                  safeLog(`LAVALINK => [PLAYER] ${player.guildId} encountered an error: ${error && error.message}`, 'error');
                  // Optionally destroy the player on error
                  if (player) {
-                     safePlayer.safeDestroy(player);
+                     safePlayer.safeDestroy(player).catch(err => {
+                         safeLog(`safeDestroy error after playerError: ${err && (err.message || err)}`, 'error');
+                     });
                  }
              });
              client.lavalink.nodeManager.on("reconnect", (node) => {
@@ -236,39 +274,129 @@ readdirSync("./src/slashCommands/").forEach((dir) => {
     };
 
     client.once("ready", async () => {
-        safeLog(`Discord client ready: ${client.user && client.user.tag ? client.user.tag : client.user}`, 'info');
+        const startup = new StartupLogger();
+        
+        startup.sectionStart('CLIENT CONNECTION');
+        startup.success(`Discord Connected: ${client.user && client.user.tag ? client.user.tag : client.user}`);
+        startup.sectionEnd();
+        
         // Register global slash commands on ready (independent of Lavalink)
         try {
             if (Array.isArray(data) && data.length > 0) {
                 if (client.application && client.application.commands && typeof client.application.commands.set === 'function') {
+                    startup.sectionStart('SLASH COMMANDS');
                     // Register slash commands in background to avoid blocking ready.
                     client.application.commands.set(data).then(() => {
-                        safeLog(`Registered ${data.length} global slash commands.`, 'info');
+                        startup.success(`Registered ${data.length} global commands`);
                     }).catch((e) => {
-                        safeLog(`Failed to register global slash commands: ${e && (e.stack || e.toString())}`, 'error');
+                        startup.error(`Failed to register commands: ${e && (e.message || e.toString())}`);
                     });
                 } else {
-                    safeLog('client.application.commands not available to register slash commands yet', 'warn');
+                    startup.warn('client.application.commands not available yet');
                 }
             } else {
-                safeLog('No slash command data to register', 'info');
+                startup.info('No slash commands to register');
             }
         } catch (e) {
-            safeLog(`Failed to schedule global slash commands registration: ${e && (e.stack || e.toString())}`, 'error');
+            startup.error(`Command registration error: ${e && (e.message || e.toString())}`);
         }
         // Note: Lavalink setup is performed on the `clientReady` event to
         // avoid duplicate initialization. `ready` still registers slash
         // commands and logs client readiness.
     });
     client.once("clientReady", async () => {
-        safeLog('clientReady event fired', 'info');
+        const startup = new StartupLogger();
+        
         try {
+            startup.printBanner('JOKER MUSIC', 'v1.0.0');
+            
+            // Initialize Lavalink
+            startup.sectionStart('LAVALINK SETUP');
             await setupLavalink();
+            startup.success('Lavalink nodes initialized');
+            startup.sectionEnd();
+
+            // Initialize Services
+            startup.sectionStart('SERVICE INITIALIZATION');
+            
+            // 1. Initialize Logger (critical for all other services)
+            client.logger = new Logger(client);
+            startup.success('Logger', 'Ready for structured logging');
+            
+            // 2. Initialize CommandErrorHandler
+            client.errorHandler = new CommandErrorHandler(client);
+            startup.success('CommandErrorHandler', 'Error handling enabled');
+            
+            // 3. Initialize PermissionService
+            client.permissionService = new PermissionService(client);
+            startup.success('PermissionService', 'Permission checks enabled');
+            
+            // 4. Initialize PlayerController (critical for music commands)
+            client.playerController = new PlayerController(client);
+            startup.success('PlayerController', 'Player management ready');
+            
+            // 5. Initialize FilterManager
+            client.filterManager = new FilterManager(client);
+            startup.success('FilterManager', 'Audio filters available');
+            
+            // 6. Attach cooldownManager (singleton pattern, no .start() needed)
+            client.cooldownManager = cooldownManager;
+            startup.success('CooldownManager', 'Command cooldowns enabled');
+            
+            startup.success('All 7 services initialized', 'COMPLETE');
+            startup.sectionEnd();
+            
+            // Start maintenance tasks
+            startup.sectionStart('MAINTENANCE TASKS');
+            
+            // Logger cleanup every 72 hours
+            setInterval(async () => {
+                try {
+                    if (client.logger) {
+                        client.logger.cleanupOldLogs(14);
+                    }
+                } catch (err) {
+                    safeLog(`Logger cleanup error: ${err && (err.message || err)}`, 'warn');
+                }
+            }, 72 * 60 * 60 * 1000);
+            startup.info('Log cleanup scheduled', '72h interval');
+            
+            // Permission cache cleanup every hour
+            setInterval(() => {
+                try {
+                    if (client.permissionService) {
+                        client.permissionService.cleanCache();
+                    }
+                } catch (err) {
+                    safeLog(`Cache cleanup error: ${err && (err.message || err)}`, 'warn');
+                }
+            }, 60 * 60 * 1000);
+            startup.info('Cache cleanup scheduled', '1h interval');
+            
+            startup.sectionEnd();
+            
+            startup.complete('All systems initialized and ready');
+            
         } catch (e) {
+            const startup = new StartupLogger();
+            startup.criticalError(`Initialization failed: ${e && (e.message || e.toString())}`);
             safeLog(e && (e.stack || e.toString()), 'error');
         }
     });
 
-  
+    // Graceful shutdown
+    process.on('SIGINT', async () => {
+        try {
+            safeLog('[SHUTDOWN] Flushing logs...', 'info');
+            if (client.logger) {
+                client.logger.stop(); // Flush buffer
+            }
+            safeLog('[SHUTDOWN] Bot shutting down.', 'info');
+            process.exit(0);
+        } catch (err) {
+            console.error('[SHUTDOWN] Error during shutdown:', err && (err.message || err));
+            process.exit(1);
+        }
+    });
 
 }

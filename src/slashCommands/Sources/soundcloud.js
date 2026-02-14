@@ -36,7 +36,6 @@ module.exports = {
       const emojiaddsong = client.emoji.addsong;
       const emojiplaylist = client.emoji.playlist;
 
-    if (!interaction.replied) await interaction.deferReply().catch(() => {});
     const query = interaction.options.getString("query");
     if (!query) return await interaction.editReply({ flags: [64], embeds: [new EmbedBuilder().setColor(interaction.client?.embedColor || '#ff0051')                     
       .setDescription(`${no}Please provide a search input to search.`)]
@@ -47,14 +46,14 @@ module.exports = {
                 
            .setColor(interaction.client?.embedColor || '#ff0051')
              .setDescription(`${no} You must be connected to a voice channel to use this command.`)
-          return await interaction.followUp({embeds: [noperms]});
+          return await interaction.editReply({embeds: [noperms]});
       }
       if(interaction.member.voice.selfDeaf) {	
         let thing = new EmbedBuilder()
          .setColor(interaction.client?.embedColor || '#ff0051')
 
        .setDescription(`${no} <@${interaction.member.id}> You cannot run this command while deafened.`)
-         return await interaction.followUp({embeds: [thing]});
+         return await interaction.editReply({embeds: [thing]});
        }
 
     let player = client.lavalink.players.get(interaction.guildId);

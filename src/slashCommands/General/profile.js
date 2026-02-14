@@ -8,6 +8,7 @@ module.exports = {
     description: "Shows your profile",
     wl : true,
     run: async (client, interaction) => {
+        await interaction.deferReply({ ephemeral: false }).catch(() => {});
         await interaction.deferReply({ ephemeral: false });
         let owner = client.emoji.owner
         let dev = client.emoji.developer
@@ -70,6 +71,6 @@ module.exports = {
                 { name: "Premium Status", value: cache1.join("\n") },
                 { name: "Has Voted?", value: cache2.join("\n") }
             );
-        await interaction.followUp({embeds: [profile]})
+        await interaction.editReply({embeds: [profile]})
     }
 }

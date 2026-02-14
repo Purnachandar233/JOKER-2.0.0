@@ -45,11 +45,11 @@ module.exports = {
       const rrr = new EmbedBuilder()
         .setColor(interaction.client?.embedColor || '#ff0051')
         .setDescription('Successfully continued queue!');
-      return await interaction.followUp({ embeds: [rrr] }).catch(() => {});
+      return await interaction.editReply({ embeds: [rrr] }).catch(() => {});
     } catch (err) {
       client.logger?.log(`movebot slash error: ${err && (err.stack || err.toString())}`, 'error');
       const embed = new EmbedBuilder().setColor(interaction.client?.embedColor || '#ff0051').setDescription('Failed to move the bot.');
-      return await interaction.followUp({ embeds: [embed] }).catch(() => {});
+      return await interaction.editReply({ embeds: [embed] }).catch(() => {});
     }
   },
 };

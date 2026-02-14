@@ -16,7 +16,9 @@ module.exports = {
     const aaa = new EmbedBuilder()
         .setDescription(`Please Provide A Valid User ID`)
         .setColor(message.client?.embedColor || '#ff0051')
-        if (!args[0]) return message.reply({ embeds: [aa] })
+        if (!args || args.length < 1) {
+            return message.reply({ embeds: [aa] });
+        }
         if (!client.users.cache.has(args[0])) return message.reply({ embeds: [aaa] });
 
     

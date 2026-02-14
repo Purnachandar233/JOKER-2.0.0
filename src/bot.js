@@ -48,8 +48,9 @@ client.emoji = require("./utils/emoji.json");
 
 
 require("./handler/Client")(client);
-require('events').EventEmitter.defaultMaxListeners = 1000;
-process.setMaxListeners(1000);
+// NOTE: Global listener limits removed. If you see "MaxListenersExceededWarning",
+// investigate and fix listener leaks instead of increasing this limit.
+// See: https://nodejs.org/en/docs/guides/nodejs-performance-measurements/
 
 const token = process.env.TOKEN || client.config.token;
 if (!token || token === "DISCORD_BOT_TOKEN") {
@@ -60,16 +61,33 @@ if (!token || token === "DISCORD_BOT_TOKEN") {
 client.login(token);
 
 process.on('unhandledRejection', (error) => {
- client.logger?.log(error, 'error');
- if (client.config.webhooks?.errorLogs) {
+  try {
+    if (client.logger && typeof client.logger.log === 'function') {
+      client.logger.log(error, 'error');
+    } else {
+      console.error('[ERROR] Unhandled Rejection:', error);
+    }
+  } catch (e) {
+    console.error('[FALLBACK ERROR]', error);
+  }
+  if (client.config.webhooks?.errorLogs) {
     const { logError } = require('./utils/errorHandler');
     logError(client, error, { source: 'Unhandled Rejection' }).catch(() => {});
- }
+  }
 });
+
 process.on("uncaughtException", (err, origin) => {
- client.logger?.log(err, 'error');
- if (client.config.webhooks?.errorLogs) {
+  try {
+    if (client.logger && typeof client.logger.log === 'function') {
+      client.logger.log(err, 'error');
+    } else {
+      console.error('[ERROR] Uncaught Exception:', err);
+    }
+  } catch (e) {
+    console.error('[FALLBACK ERROR]', err);
+  }
+  if (client.config.webhooks?.errorLogs) {
     const { logError } = require('./utils/errorHandler');
     logError(client, err, { source: 'Uncaught Exception', origin }).catch(() => {});
- }
+  }
 });

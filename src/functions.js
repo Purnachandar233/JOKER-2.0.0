@@ -37,8 +37,8 @@ function createBar(player) {
     const leftside = Math.round(size * ratio);
     const rightside = size - leftside;
     const bar = `${empty_begining}${filled.repeat(leftside)}${emptyframe.repeat(rightside)}${emptyend}`;
-    const curStr = new Date(current).toISOString().substr(11, 8);
-    const totStr = new Date(total).toISOString().substr(11, 8);
+    const curStr = new Date(current).toISOString().slice(11, 19);
+    const totStr = new Date(total).toISOString().slice(11, 19);
     return `**${bar}**\n**${curStr} / ${totStr}**`;
   } catch (e) {
     console.error(e.stack || e);

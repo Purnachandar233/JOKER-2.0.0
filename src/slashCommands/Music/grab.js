@@ -1,5 +1,8 @@
-const { EmbedBuilder, Message } = require("discord.js");
-const { createBar } = require('../../functions.js')
+const { EmbedBuilder } = require("discord.js");
+const { createBar } = require('../../functions.js');
+const safeReply = require('../../utils/safeReply');
+const musicChecks = require('../../utils/musicChecks');
+const safePlayer = require('../../utils/safePlayer');
 
 module.exports = {
 	name: "grab",
@@ -8,8 +11,8 @@ module.exports = {
     player: true,
     inVoiceChannel: true,
     sameVoiceChannel: true,
-    votelock : true,
-    wl : true,
+    votelock: true,
+    wl: true,
 	
     /**
      * 
@@ -18,73 +21,58 @@ module.exports = {
      */
 
     run: async (client, interaction) => {
-        await interaction.deferReply({
-            flags: [64]
+      return await client.errorHandler.executeWithErrorHandling(interaction, async (interaction) => {
+        await safeReply.safeDeferReply(interaction);
+        
+        let ok = client.emoji.ok;
+        let no = client.emoji.no;
+
+        // Run music checks
+        const check = await musicChecks.runMusicChecks(client, interaction, {
+          inVoiceChannel: true,
+          botInVoiceChannel: true,
+          sameChannel: true,
+          requirePlayer: true,
+          requireQueue: true
+        });
+
+        if (!check.valid) {
+          return await safeReply.safeReply(interaction, { embeds: [check.embed] });
+        }
+
+        const player = check.player;
+        const tracks = safePlayer.getQueueArray(player);
+        const song = tracks[0];
+
+        try {
+          let embed = new EmbedBuilder()
+            .setTitle("Now playing")
+            .addFields([
+              { name: 'Song', value: `[${song.info?.title || song.title}](https://discord.gg/pCj2UBbwST)` },
+              { name: 'Song By', value: `[${song.info?.author || song.author}]` },
+              { name: 'Duration', value: !song.isStream ? `\`${new Date(song.duration).toISOString().slice(11, 19)}\`` : `\`◉ LIVE\`` },
+              { name: `Queue length: `, value: `${tracks.length} Songs` },
+              { name: `Progress: `, value: createBar(player) }
+            ])
+            .setColor(interaction.client?.embedColor || '#ff0051');
+
+          await interaction.member.send({ embeds: [embed] }).catch(e => {
+            return safeReply.safeReply(interaction, {
+              content: `Couldn't send you a DM\n\nPossible reasons:\n- Your DM's are disabled\n- You have me blocked\n\nNone of these helped? Join our [**Support Server**](https://discord.gg/pCj2UBbwST) for more help.`
+            });
           });
-            
-    let ok = client.emoji.ok;
-    let no = client.emoji.no;
-    
 
-          const { channel } = interaction.member.voice;
-          if (!channel) {
-                          const noperms = new EmbedBuilder()
-           
-               .setColor(interaction.client?.embedColor || '#ff0051')
-                 .setDescription(`${no} You must be connected to a voice channel to use this command.`)
-              return await interaction.followUp({embeds: [noperms]});
-          }
-          if(interaction.member.voice.selfDeaf) {	
-            let thing = new EmbedBuilder()
-             .setColor(interaction.client?.embedColor || '#ff0051')
+          await safeReply.safeReply(interaction, { content: "**📪 Check your DM's.**" });
 
-           .setDescription(`${no} <@${interaction.member.id}> You cannot run this command while deafened.`)
-             return await interaction.followUp({embeds: [thing]});
-           }
-              const player = client.lavalink.players.get(interaction.guild.id);
-              const { getQueueArray } = require('../../utils/queue.js');
-              const tracks = getQueueArray(player);
-              if(!player || !tracks || tracks.length === 0) {
-                          const noperms = new EmbedBuilder()
-             
-               .setColor(interaction.client?.embedColor || '#ff0051')
-               .setDescription(`${no} There is nothing playing in this server.`)
-              return await interaction.followUp({embeds: [noperms]});
-          }
-          if(player && channel.id !== player.voiceChannelId) {
-                                      const noperms = new EmbedBuilder()
-                .setColor(interaction.client?.embedColor || '#ff0051')
-              .setDescription(`${no} You must be connected to the same voice channel as me.`)
-              return await interaction.followUp({embeds: [noperms]});
-          }
-
-        const song = tracks[0]
-
-
-      
-  let embed = new EmbedBuilder()
-  .setTitle("Now playing")
-  .addFields([
-    { name: 'Song', value: `[${song.info?.title || song.title}](https://discord.gg/pCj2UBbwST)` },
-    { name: 'Song By', value: `[ ${song.info?.author || song.author} ]` },
-    { name: 'Duration', value: !song.isStream ? `\`${new Date(song.duration).toISOString().slice(11, 19)}\`` : `\`◉ LIVE\`` },
-    { name: `Queue length: `, value: `${tracks.length} Songs` },
-    { name: `Progress: `, value: createBar(player) }
-  ])
-  .setColor(interaction.client?.embedColor || '#ff0051')
-            
-            interaction.member.send({embeds: [embed]}).catch(e=>{
-            return interaction.editReply({ content : `Couldn't send you a dm 
-            
-            Possible reasons:
-          - Your Dm's are disabled
-          - You have me blocked
-          None of these helped? Join our [**Support Server**](https://discord.gg/pCj2UBbwST) for more help.`})
-          })  
-          return interaction.editReply({ content : "**📪 Check your DM's.**" })
-       
-         
-            
+          // Log the command
+          client.logger.logCommand('grab', interaction.user.id, interaction.guildId, Date.now() - interaction.createdTimestamp, true);
+        } catch (err) {
+          const embed = new EmbedBuilder()
+            .setColor(interaction.client?.embedColor || '#ff0051')
+            .setDescription(`${no} Failed to grab song: ${err && (err.message || err)}`);
+          return await safeReply.safeReply(interaction, { embeds: [embed] });
+        }
+      });
     }
 };
 

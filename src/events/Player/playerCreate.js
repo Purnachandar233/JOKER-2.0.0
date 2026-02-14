@@ -14,9 +14,9 @@ module.exports = async (client, player) => {
 		
 		if (volumedata) {
 			const volumetoset = volumedata.Volume || 100;
-			await safePlayer.safeCall(player, 'setVolume', volumetoset);
+			await safePlayer.safeSetVolume(player, volumetoset);
 		} else {
-			await safePlayer.safeCall(player, 'setVolume', 100);
+			await safePlayer.safeSetVolume(player, 100);
 		}
 
 		// Rehydrate autoplay/player settings from DB so they survive restarts
