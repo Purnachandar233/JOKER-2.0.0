@@ -1,4 +1,12 @@
-# Logs
+node_modules/
+logs/
+data/queues/
+.env
+.env.local
+/.vscode/
+/.idea/
+npm-debug.log
+yarn-error.log# Logs
 logs
 *.log
 npm-debug.log*
@@ -55,6 +63,10 @@ web_modules/
 .eslintcache
 
 # Optional stylelint cache
+
+# Ignore all Markdown files except the main README
+*.md
+!README.MD
 .stylelintcache
 
 # Microbundle cache
