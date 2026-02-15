@@ -51,6 +51,7 @@ module.exports = {
             .setColor(message.client?.embedColor || '#ff0051')
             .addFields(
                 { name: "Active Premium Guilds", value: guildList.length > 1024 ? guildList.substring(0, 1021) + "..." : guildList, inline: false },
+                { name: "Active players", value: `${client.voice?.connections.size || 0}`, inline: true },
                 { name: "Active Premium Users", value: userList.length > 1024 ? userList.substring(0, 1021) + "..." : userList, inline: false },
                 { name: "Active Codes", value: codeList.length > 1024 ? codeList.substring(0, 1021) + "..." : codeList, inline: false }
             )

@@ -75,10 +75,10 @@ module.exports = {
       );
 
       const embed = new EmbedBuilder()
-        .setTitle(`Joker Music Command Menu`)
+        .setTitle(`Joker Command Menu`)
         .addFields(categories)
         .setFooter({ text: "Joker Music Team", iconURL: client.user.displayAvatarURL() })
-        .setAuthor({ name: `Command Palette`, iconURL: client.user.displayAvatarURL({ forceStatic: false }) })
+        .setAuthor({ name: `Command menu`, iconURL: client.user.displayAvatarURL({ forceStatic: false }) })
         .setDescription(`*Explore the symphony of commands. Type \`${prefix}help <command>\` for details.*`)
         .setColor(message.client?.embedColor || '#ff0051');
 

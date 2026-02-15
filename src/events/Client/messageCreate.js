@@ -27,7 +27,7 @@ module.exports = async (client, message) => {
     const embed = new EmbedBuilder()
       .setColor(client?.embedColor || '#ff0051')
       .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-      .setDescription(`Joker Music is a high-quality  music bot built for high quallity music and stability . It is user friendly, low-latency audio and supports dreezer, Spotify,applemusic, SoundCloud and playlists. Features include advanced audio filters\n\nMy Prefix is: \`${prefix}\` \n\nType \`${prefix}help or /help\` to see commands.`);
+      .setDescription(`Joker  is a high-quality  music bot built for high quallity music and stability . It is user friendly, low-latency audio and supports dreezer, Spotify,applemusic, SoundCloud and playlists. Features include advanced audio filters\n\nMy Prefix is: \`${prefix}\` \n\nType \`${prefix}help or /help\` to see commands.`);
     return message.channel.send({ embeds: [embed], components: [row] });
   }
 
