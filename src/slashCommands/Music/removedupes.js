@@ -3,6 +3,7 @@ const safeReply = require('../../utils/safeReply');
 const musicChecks = require('../../utils/musicChecks');
 const safePlayer = require('../../utils/safePlayer');
 
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
     name: "removedupes",
     description: "removes all duplicated tracks in the queue.",
@@ -23,8 +24,8 @@ module.exports = {
       return await client.errorHandler.executeWithErrorHandling(interaction, async (interaction) => {
         await safeReply.safeDeferReply(interaction);
 
-        let ok = client.emoji.ok;
-        let no = client.emoji.no;
+        let ok = EMOJIS.ok;
+        let no = EMOJIS.no;
 
         // Check cooldown
         const cooldown = client.cooldownManager.check("removedupes", interaction.user.id);
@@ -88,7 +89,4 @@ module.exports = {
       });
     }
 };
-
-
-
 

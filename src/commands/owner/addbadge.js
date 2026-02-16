@@ -1,5 +1,6 @@
 const User = require("../../schema/User.js")
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder } = require("discord.js");
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
     name: "addbadge",
     category: "owner",
@@ -7,16 +8,16 @@ module.exports = {
     description: "Reload Command",
     owneronly: true,
     execute: async (message, args, client, prefix) => {
-          
-       
-    let ok = client.emoji.ok;
-    let no = client.emoji.no;
-    
+
+
+    let ok = EMOJIS.ok;
+    let no = EMOJIS.no;
+
     let member = message.mentions.members.first() || message.guild.members.cache.get(args[0]) || message.member;
     let data = await User.findOne({ userId: member.id });
     if (!data) data = await User.create({ userId: member.id });
 
-     
+
 
     if(!args[1]){
         return message.reply(`Please Mention a badge name \n Available badges - \`owner\` , \`dev\`, \`premium\`, \`supporter\`, \`staff\` \`manager\`, \`bughunter\` , \`booster\`,\`partner\`,\`vip\` `)
@@ -37,7 +38,7 @@ else if(args[1] === "premium"){
     data.badge.premium = true;
     await data.save();
     return message.reply(`${ok} Added Premium Badge to ${member.user.username}`)
-} 
+}
 else if(args[1] === "supporter"){
     data.badge.supporter = true;
     await data.save();
@@ -77,7 +78,7 @@ else if(args[1] === "vip"){
 }
 else{
 return message.reply(`Invalid Usage`)
-    
+
     }
     }
 }

@@ -1,6 +1,7 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder } = require("discord.js");
 const twentyfourseven = require("../../schema/twentyfourseven")
 
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
   name: "24/7",
   category: "settings",
@@ -10,10 +11,10 @@ module.exports = {
   votelock: true,
   wl : true,
   execute: async (message, args, client, prefix) => {
-      
-    let ok = client.emoji.ok;
-    let no = client.emoji.no;
-    
+
+    let ok = EMOJIS.ok;
+    let no = EMOJIS.no;
+
 
     if (!message.member.permissions.has('MANAGE_CHANNELS')) {
         const noperms = new EmbedBuilder()
@@ -24,13 +25,11 @@ module.exports = {
     const { channel } = message.member.voice;
     if (!channel) {
                     const noperms = new EmbedBuilder()
-                   
+
          .setColor(message.client?.embedColor || '#ff0051')
            .setDescription(`${no} You must be connected to a voice channel to use this command.`)
         return await message.channel.send({embeds: [noperms]});
     }
-   
-      
 
 
 
@@ -66,8 +65,8 @@ module.exports = {
             .setColor(message.client.embedColor)
             .setDescription(`${ok} 24/7 mode is now \`disabled\`.`)
             return await message.channel.send({ embeds : [embed]})
-        
+
       }
-   
+
      }
 }

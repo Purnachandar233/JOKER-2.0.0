@@ -2,6 +2,7 @@ const { EmbedBuilder, Message } = require("discord.js");
 const { now } = require("mongoose");
 const { convertTime } = require('../../utils/convert.js');
 const { progressbar } = require('../../utils/progressbar.js')
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
   name: 'join',
   category: 'music',
@@ -10,10 +11,10 @@ module.exports = {
   owner: false,
   wl : true,
   execute: async (message, args, client, prefix) => {
-     
-    let ok = client.emoji.ok;
-    let no = client.emoji.no;
-    
+
+    let ok = EMOJIS.ok;
+    let no = EMOJIS.no;
+
     const { channel } = message.member.voice;
     if (!channel) {
                     const noperms = new EmbedBuilder()
@@ -21,13 +22,12 @@ module.exports = {
            .setDescription(`${no} You must be connected to a voice channel to use this command.`)
         return await message.channel.send({embeds: [noperms]});
     }
-    if(message.member.voice.selfDeaf) {	
+    if(message.member.voice.selfDeaf) {
       let thing = new EmbedBuilder()
        .setColor(message.client?.embedColor || '#ff0051')
      .setDescription(`${no} <@${message.member.id}> You cannot run this command while deafened.`)
        return await message.channel.send({embeds: [thing]});
      }
-
 
      if (!client.lavalink) {
          return await message.channel.send({embeds: [new EmbedBuilder().setColor(message.client?.embedColor || '#ff0051').setDescription(`${no} Lavalink is not connected yet. Please try again in a moment.`)]});
@@ -54,15 +54,15 @@ module.exports = {
      } else if (message.guild.members.me?.voice?.channel !== channel) {
 
          let thing = new EmbedBuilder()
- 
+
                .setColor(message.client?.embedColor || '#ff0051')
              .setDescription(`${no} You must be in the same channel as me.`);
              return await message.channel.send({embeds: [thing]});
      }
-     
+
      else if(player){
          const noperms = new EmbedBuilder()
-   
+
          .setColor(message.client?.embedColor || '#ff0051')
          .setDescription(`${no} I am already connected to a voice channel.`)
          return await message.channel.send({embeds: [noperms]});

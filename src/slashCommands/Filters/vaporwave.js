@@ -1,5 +1,6 @@
 const { EmbedBuilder } = require("discord.js");
 
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
     name: "vaporwave",
     category: "Filters",
@@ -8,32 +9,31 @@ module.exports = {
     djonly : true,
     wl : true,
    /**
-   * 
-   * @param {Client} client 
-   * @param {CommandInteraction} interaction 
+   *
+   * @param {Client} client
+   * @param {CommandInteraction} interaction
    */
 
     run: async (client, interaction) => {
       await interaction.deferReply({
-        flags: [64]
-      });
-         
-    let ok = client.emoji.ok;
-    let no = client.emoji.no;
-    
+        });
+
+    let ok = EMOJIS.ok;
+    let no = EMOJIS.no;
+
      //
-    
-      
+
+
        //
        const { channel } = interaction.member.voice;
        if (!channel) {
                        const noperms = new EmbedBuilder()
-   
+
             .setColor(interaction.client?.embedColor || '#ff0051')
               .setDescription(`${no} You must be connected to a voice channel to use this command.`)
         return await interaction.editReply({embeds: [noperms]});
        }
-       if(interaction.member.voice.selfDeaf) {	
+       if(interaction.member.voice.selfDeaf) {
          let thing = new EmbedBuilder()
           .setColor(interaction.client?.embedColor || '#ff0051')
         .setDescription(`${no} <@${interaction.member.id}> You cannot run this command while deafened.`)
@@ -84,7 +84,7 @@ module.exports = {
                     const noperms1 = new EmbedBuilder()
                     .setColor(interaction.client?.embedColor || '#ff0051')
                           .setDescription(`${ok} Removing the \`vaporwave\` Filter. (*It might take up to 5 seconds to remove the filter.*)`)
-                    
+
       return await interaction.followUp({embeds: [noperms1]}),
       interaction.channel.send({embeds: [noperms]}).then(responce => {
         setTimeout(() => {
@@ -98,14 +98,9 @@ module.exports = {
         },30000)
     });;
         }
-        
-     
+
 
 
     }
   }
-
-
-
-
 

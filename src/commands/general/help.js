@@ -1,102 +1,176 @@
-const { Client, EmbedBuilder, ActionRowBuilder, ButtonBuilder } = require("discord.js");
-const { readdirSync, statSync } = require("fs");
+const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require("discord.js");
+const { statSync, readdirSync } = require("fs");
 const path = require("path");
+
+const EMOJIS = require("../../utils/emoji.json");
+function getAllCommandFiles(dir) {
+  const files = [];
+  const items = readdirSync(dir);
+  for (const item of items) {
+    const filePath = path.join(dir, item);
+    const stats = statSync(filePath);
+    if (stats.isDirectory()) {
+      files.push(...getAllCommandFiles(filePath));
+    } else if (item.endsWith(".js")) {
+      files.push(filePath);
+    }
+  }
+  return files;
+}
 
 module.exports = {
   name: "help",
   category: "general",
-  description: "Shows the help menu / commands list of the bot. ",
+  description: "Shows the help menu and command list.",
   wl: true,
   execute: async (message, args, client, prefix) => {
-    const em = args.join(" ");
-    if (!em) {
-      let categories = [];
+    const getEmoji = (key, fallback = "") => EMOJIS[key] || fallback;
+    const embedColor = client?.embedColor || "#ff0051";
+
+    const support = new ButtonBuilder()
+      .setStyle(ButtonStyle.Link)
+      .setLabel("Support")
+      .setURL("https://discord.gg/JQzBqgmwFm");
+
+    const invite = new ButtonBuilder()
+      .setStyle(ButtonStyle.Link)
+      .setLabel("Invite")
+      .setURL(`https://discord.com/oauth2/authorize?client_id=${client.user.id}&permissions=70510540062032&integration_type=0&scope=bot+applications.commands`);
+
+    const vote = new ButtonBuilder()
+      .setStyle(ButtonStyle.Link)
+      .setLabel("Vote")
+      .setURL(`https://top.gg/bot/${client.user.id}/vote`);
+
+    const supportEmoji = getEmoji("support");
+    const inviteEmoji = getEmoji("invite");
+    const voteEmoji = getEmoji("vote");
+    try { if (supportEmoji) support.setEmoji(supportEmoji); } catch (_e) {}
+    try { if (inviteEmoji) invite.setEmoji(inviteEmoji); } catch (_e) {}
+    try { if (voteEmoji) vote.setEmoji(voteEmoji); } catch (_e) {}
+
+    const linkRow = new ActionRowBuilder().addComponents(support, invite, vote);
+
+    const query = args.join(" ").trim().toLowerCase();
+
+    if (!query) {
       const commandsDir = path.join(__dirname, "../../commands");
-      
-      // Recursive function to get all .js files
-      const getAllCommandFiles = (dir) => {
-        let files = [];
-        const items = readdirSync(dir);
-        for (const item of items) {
-          const filePath = path.join(dir, item);
-          const stat = statSync(filePath);
-          if (stat.isDirectory()) {
-            files = files.concat(getAllCommandFiles(filePath));
-          } else if (item.endsWith('.js')) {
-            files.push(filePath);
-          }
-        }
-        return files;
-      };
-      
-      readdirSync(commandsDir).forEach((dir) => {
+      const categories = [];
+
+      for (const dir of readdirSync(commandsDir)) {
+        if (dir === "owner") continue;
+
         const dirPath = path.join(commandsDir, dir);
+        let isDirectory = false;
         try {
-          const stats = statSync(dirPath);
-          if (!stats.isDirectory()) return;
-        } catch (e) { return; }
-
-        if (dir === "owner") return;
-        
-        // Get all command files recursively
-        const allFiles = getAllCommandFiles(dirPath);
-        
-        const cmds = allFiles.map((filePath) => {
-          try {
-            const file = require(filePath);
-            if (!file.name) return null;
-            return `\`${file.name.toLowerCase()}\``;
-          } catch (e) {
-            return null;
-          }
-        }).filter(Boolean);
-
-        if (cmds.length > 0) {
-          categories.push({
-            name: `✧ ${dir.charAt(0).toUpperCase() + dir.slice(1)}`,
-            value: `┕ ${cmds.join(", ")}`,
-          });
+          isDirectory = statSync(dirPath).isDirectory();
+        } catch (_e) {
+          isDirectory = false;
         }
-      });
+        if (!isDirectory) continue;
 
-      const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setLabel("Support")
-          .setStyle(5)
-          .setURL(`https://discord.gg/JQzBqgmwFm`),
-        new ButtonBuilder()
-          .setLabel("Invite")
-          .setStyle(5)
-          .setURL(`https://discord.com/oauth2/authorize?client_id=${client.user.id}&permissions=70510540062032&integration_type=0&scope=bot+applications.commands`),
-        new ButtonBuilder()
-          .setLabel("Vote")
-          .setStyle(5)
-          .setURL(`https://top.gg/bot/${client.user.id}/vote`)
-      );
+        if (dir === "fun") {
+          const funActionsDir = path.join(dirPath, "actions");
+          const funGamesDir = path.join(dirPath, "games");
 
-      const embed = new EmbedBuilder()
-        .setTitle(`Joker Command Menu`)
-        .addFields(categories)
-        .setFooter({ text: "Joker Music Team", iconURL: client.user.displayAvatarURL() })
-        .setAuthor({ name: `Command menu`, iconURL: client.user.displayAvatarURL({ forceStatic: false }) })
-        .setDescription(`*Explore the symphony of commands. Type \`${prefix}help <command>\` for details.*`)
-        .setColor(message.client?.embedColor || '#ff0051');
+          const getNames = folderPath => {
+            let names = [];
+            try {
+              names = getAllCommandFiles(folderPath)
+                .map(filePath => {
+                  try {
+                    const cmd = require(filePath);
+                    return cmd?.name ? `\`${cmd.name.toLowerCase()}\`` : null;
+                  } catch (_err) {
+                    return null;
+                  }
+                })
+                .filter(Boolean);
+            } catch (_e) {
+              names = [];
+            }
+            return names;
+          };
 
-      message.channel.send({ embeds: [embed], components: [row] });
-    } else {
-      const command = client.commands.get(em.toLowerCase()) || client.commands.get(client.aliases.get(em.toLowerCase()));
-      if (!command) {
-        const embed = new EmbedBuilder()
-          .setDescription(`*No command found matching your request.*`)
-          .setColor(message.client?.embedColor || '#ff0051');
-        return message.channel.send({ embeds: [embed] });
+          const actionNames = getNames(funActionsDir);
+          const gameNames = getNames(funGamesDir);
+          const total = actionNames.length + gameNames.length;
+          if (!total) continue;
+
+          const lines = [];
+          if (gameNames.length) lines.push(`**Games (${gameNames.length})**: ${gameNames.join(", ")}`);
+          if (actionNames.length) lines.push(`**Actions (${actionNames.length})**: ${actionNames.join(", ")}`);
+
+          let value = lines.join("\n");
+          if (value.length > 1020) value = `${value.slice(0, 1017)}...`;
+
+          categories.push({
+            name: `${getEmoji("star")} Fun (${total})`,
+            value,
+            inline: false
+          });
+          continue;
+        }
+
+        const names = getAllCommandFiles(dirPath)
+          .map(filePath => {
+            try {
+              const cmd = require(filePath);
+              return cmd?.name ? `\`${cmd.name.toLowerCase()}\`` : null;
+            } catch (_err) {
+              return null;
+            }
+          })
+          .filter(Boolean);
+
+        if (!names.length) continue;
+
+        const value = names.join(", ");
+        categories.push({
+          name: `${getEmoji("star")} ${dir.charAt(0).toUpperCase()}${dir.slice(1)} (${names.length})`,
+          value: value.length > 1020 ? `${value.slice(0, 1017)}...` : value,
+          inline: false
+        });
       }
 
       const embed = new EmbedBuilder()
-        .setTitle(`Command Details: ${command.name}`)
-        .setDescription(`> **Aliases**: ${command.aliases ? `\`${command.aliases.join("` `")}\`` : "None"}\n> **Usage**: \`${prefix}${command.name} ${command.usage || ""}\`\n> **Description**: *${command.description || "No description provided."}*`)
-        .setColor(message.client?.embedColor || '#ff0051');
-      return message.channel.send({ embeds: [embed] });
+        .setColor(embedColor)
+        .setDescription([
+          `Use \`${prefix}help <command>\` for detailed usage.`,
+          `You can also use slash commands with \`/help\`.`
+        ].join("\n"))
+        .setAuthor({ name: "Joker Music Help Menu", iconURL: client.user.displayAvatarURL({ forceStatic: false }) }); 
+        
+        
+if (categories.length > 0) embed.addFields(categories);
+      return message.channel.send({ embeds: [embed], components: [linkRow] });
     }
-  },
+
+    const command = client.commands.get(query) || client.commands.get(client.aliases.get(query));
+    if (!command) {
+      const notFound = new EmbedBuilder()
+        .setColor(embedColor)
+        .setTitle(`${getEmoji("error")} Command Not Found`)
+        .setDescription(`No command matched \`${query}\`. Try \`${prefix}help\` for a full list.`)
+return message.channel.send({ embeds: [notFound] });
+    }
+
+    const detail = new EmbedBuilder()
+      .setColor(embedColor)
+      .setTitle(`${getEmoji("info")} ${command.name} Command`)
+      .setDescription(command.description || "No description provided.")
+      .addFields(
+        {
+          name: `${getEmoji("search")} Usage`,
+          value: `\`${prefix}${command.name}${command.usage ? ` ${command.usage}` : ""}\``,
+          inline: false
+        },
+        {
+          name: `${getEmoji("queue")} Aliases`,
+          value: command.aliases && command.aliases.length ? `\`${command.aliases.join("` `")}\`` : "`None`",
+          inline: false
+        }
+      )
+return message.channel.send({ embeds: [detail] });
+  }
 };

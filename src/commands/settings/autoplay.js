@@ -2,6 +2,7 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder } = require("discord.js");
 const twentyfourseven = require("../../schema/twentyfourseven");
 const autoplaySchema = require("../../schema/autoplay.js");
 
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
   name: "autoplay",
   category: "settings",
@@ -11,25 +12,25 @@ module.exports = {
   votelock:true,
   djonly : false,
   wl : true,
-  execute: async (message, args, client, prefix) => {  
-    let ok = client.emoji.ok;
-    let no = client.emoji.no;
-    
+  execute: async (message, args, client, prefix) => {
+    let ok = EMOJIS.ok;
+    let no = EMOJIS.no;
 
-    
+
+
     //
        const { channel } = message.member.voice;
        if (!channel) {
                        const noperms = new EmbedBuilder()
- 
+
             .setColor(message.client.embedColor)
               .setDescription(`${no} You must be connected to a voice channel to use this command.`)
            return await message.channel.send({embeds: [noperms]});
        }
-       if(message.member.voice.selfDeaf) {      
+       if(message.member.voice.selfDeaf) {
          let thing = new EmbedBuilder()
           .setColor(message.client.embedColor)
- 
+
         .setDescription(`${no} <@${message.member.id}> You cannot run this command while deafened.`)
           return await message.channel.send({embeds: [thing]});
         }
@@ -39,7 +40,7 @@ module.exports = {
                  const tracks = getQueueArray(player);
                  if(!player || !tracks || tracks.length === 0) {
                       const noperms = new EmbedBuilder()
- 
+
                         .setColor(message.client.embedColor)
             .setDescription(`${no} There is nothing playing in this server.`)
            return await message.channel.send({embeds: [noperms]});
@@ -50,8 +51,8 @@ module.exports = {
            .setDescription(`${no} You must be connected to the same voice channel as me.`)
            return await message.channel.send({embeds: [noperms]});
        }
-         
-     
+
+
        const autoplay = player.get("autoplay");
        if (autoplay === false) {
          const identifier = tracks[0]?.identifier || tracks[0]?.info?.identifier || null;
@@ -103,12 +104,12 @@ module.exports = {
          let thing = new EmbedBuilder()
          .setColor(message.client.embedColor)
              .setDescription(`${ok} I have stopped to play recommended tracks.`)
-            
+
              return await message.channel.send({embeds: [thing]});
-         
+
      }
- 
-      
+
+
         }
 }
 

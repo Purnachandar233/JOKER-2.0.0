@@ -1,41 +1,48 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder } = require("discord.js");
+const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require("discord.js");
 
+const { safeReply, safeDeferReply } = require("../../utils/safeReply");
+
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
-    name: "invite",
-    description: "gives the links to invite the bots",
-    wl : true,
+  name: "invite",
+  description: "Get invite links",
+  wl: true,
+  run: async (client, interaction) => {
+    const getEmoji = (key, fallback = "") => EMOJIS[key] || fallback;
+    const embedColor = client?.embedColor || "#ff0051";
+    const createEmbed = ({ title, description, fields, author, thumbnail, image, footer, timestamp = false }) => {
+      const embed = new EmbedBuilder().setColor(embedColor);
+      if (title) embed.setTitle(title);
+      if (description) embed.setDescription(description);
+      if (Array.isArray(fields) && fields.length > 0) embed.addFields(fields);
+      if (author) embed.setAuthor(author);
+      if (thumbnail) embed.setThumbnail(thumbnail);
+      if (image) embed.setImage(image);
+return embed;
+    };
+    const createLinkRow = () => {
+      const support = new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel("Support").setURL("https://discord.gg/JQzBqgmwFm");
+      const invite = new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel("Invite").setURL(`https://discord.com/oauth2/authorize?client_id=${client.user.id}&permissions=70510540062032&integration_type=0&scope=bot+applications.commands`);
+      const vote = new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel("Vote").setURL(`https://top.gg/bot/${client.user.id}/vote`);
+      const supportEmoji = getEmoji("support");
+      const inviteEmoji = getEmoji("invite");
+      const voteEmoji = getEmoji("vote");
+      try { if (supportEmoji) support.setEmoji(supportEmoji); } catch (_e) {}
+      try { if (inviteEmoji) invite.setEmoji(inviteEmoji); } catch (_e) {}
+      try { if (voteEmoji) vote.setEmoji(voteEmoji); } catch (_e) {}
+      return new ActionRowBuilder().addComponents(support, invite, vote);
+    };
 
-    /**
-     * 
-     * @param {Client} client 
-     * @param {CommandInteraction} interaction 
-     */
+    const deferred = await safeDeferReply(interaction, { ephemeral: false });
+    if (!deferred) return safeReply(interaction, { content: "Failed to defer reply." });
 
-    run: async (client, interaction) => {
-        await interaction.deferReply({
-          ephemeral: false
-        });
-          
-    let ok = client.emoji.ok;
-    let no = client.emoji.no;
-    
-        const row = new ActionRowBuilder()
-        .addComponents(
-          new ButtonBuilder()
-      .setLabel("Joker Music")
-      .setStyle(5)
-      .setURL(`https://discord.com/api/oauth2/authorize?client_id=${client.user.id}&permissions=37088600&redirect_uri=https%3A%2F%2Fdiscord.gg%2FpCj2UBbwST&response_type=code&scope=bot%20applications.commands%20identify`)
-      .setLabel("Support Server")
-      .setStyle(5)
-      .setURL(`https://discord.gg/JQzBqgmwFm`),
-        );
-       
-                const embed = new EmbedBuilder()
-                
-               .setDescription(`Click on the buttons to invite the bots! [Click here](https://discord.gg/JQzBqgmwFm) to join the support server!
-               
-               `)
-                    .setColor(interaction.client?.embedColor || '#ff0051')
-        await interaction.editReply({embeds: [embed], components: [row]})
-    }
-}
+    const embed = createEmbed({
+      title: `${getEmoji("invite")} Invite Joker Music`,
+      description: "Use the buttons below to invite the bot or open support.",
+     
+    });
+
+    return safeReply(interaction, { embeds: [embed], components: [createLinkRow()] });
+  }
+};
+

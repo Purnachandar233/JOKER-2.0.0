@@ -1,5 +1,6 @@
 const { CommandInteraction, Client, EmbedBuilder } = require("discord.js");
 
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
     name: "djrole",
     description: "Enable or disable the DJ role.",
@@ -19,7 +20,6 @@ module.exports = {
       ],
       votelock: true,
 
-
     /**
      * @param {Client} client
      * @param {CommandInteraction} interaction
@@ -29,10 +29,10 @@ module.exports = {
         await interaction.deferReply({
           ephemeral: false
         });
-          
-    let ok = client.emoji.ok;
-    let no = client.emoji.no;
-    
+
+    let ok = EMOJIS.ok;
+    let no = EMOJIS.no;
+
         if (!interaction.member.permissions.has('MANAGE_ROLES')) {
             const noperms = new EmbedBuilder()
            .setColor(interaction.client?.embedColor || '#ff0051')

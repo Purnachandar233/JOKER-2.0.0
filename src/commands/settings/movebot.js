@@ -1,6 +1,7 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ChannelType } = require("discord.js");
 const twentyfourseven = require("../../schema/twentyfourseven")
 
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
   name: "movebot",
   category: "settings",
@@ -9,12 +10,12 @@ module.exports = {
   wl : true,
 
   execute: async (message, args, client, prefix) => {
-      
-    let ok = client.emoji.ok;
-    let no = client.emoji.no;
-    
+
+    let ok = EMOJIS.ok;
+    let no = EMOJIS.no;
+
     const channel = message.member.voice.channel;
-    
+
     // Validate user is in a voice channel
     if(!channel) {
         const nvc = new EmbedBuilder()
@@ -22,9 +23,9 @@ module.exports = {
         .setDescription(`${no} Please connect to a voice channel first`)
         return message.channel.send({embeds: [nvc]})
     }
-    
+
     const botChannel = message.guild.members.me?.voice?.channel;
-    
+
     // Validate bot has a voice channel
     if(!botChannel) {
         const nobot = new EmbedBuilder()
@@ -32,7 +33,7 @@ module.exports = {
         .setDescription(`${no} I am not connected to any voice channel`)
         return message.channel.send({embeds: [nobot]})
     }
-    
+
     // Check if already in same channel
     if(channel.id === botChannel.id) {
         const ttt = new EmbedBuilder()
@@ -40,7 +41,7 @@ module.exports = {
         .setDescription(`${no} I am already in your channel`)
         return message.channel.send({embeds: [ttt]})
     }
-    
+
     const player = client.lavalink.players.get(message.guild.id)
     const opop = new EmbedBuilder()
     .setColor(message.client?.embedColor || '#ff0051')

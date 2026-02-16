@@ -63,9 +63,7 @@ module.exports = {
                         { name: "Progress", value: `${questionIndex + 1}/${questions.length}`, inline: false },
                         { name: "Score", value: `${score}`, inline: false }
                     )
-                    .setFooter({ text: "Select your answer" });
-
-                const row = new ActionRowBuilder();
+const row = new ActionRowBuilder();
                 q.options.forEach((option, index) => {
                     row.addComponents(
                         new ButtonBuilder()
@@ -76,10 +74,15 @@ module.exports = {
                 });
 
                 message.channel.send({ embeds: [quizEmbed], components: [row] }).then(msg => {
-                    const filter = (i) => i.customId.startsWith('quiz_') && i.user.id === message.author.id;
+                    const filter = (i) => i.customId.startsWith('quiz_');
                     const collector = msg.createMessageComponentCollector({ filter, time: 20000, max: 1 });
 
-                    collector.on('collect', (interaction) => {
+                    collector.on('collect', async (interaction) => {
+                        if (interaction.user.id !== message.author.id) {
+                            await interaction.reply({ content: `Only <@${message.author.id}> can use these buttons.`, ephemeral: true }).catch(() => {});
+                            return;
+                        }
+
                         const selectedOption = parseInt(interaction.customId.split('_')[1]);
                         const correct = selectedOption === q.correct;
 

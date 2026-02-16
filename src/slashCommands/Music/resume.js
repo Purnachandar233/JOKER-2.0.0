@@ -2,6 +2,7 @@ const { EmbedBuilder, CommandInteraction, Client } = require("discord.js");
 const safeReply = require('../../utils/safeReply');
 const musicChecks = require('../../utils/musicChecks');
 
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
     name: "resume",
     description: "Resume currently playing music",
@@ -11,19 +12,19 @@ module.exports = {
     sameVoiceChannel: true,
     wl : true,
     djonly :true,
-	
+
     /**
-     * 
-     * @param {Client} client 
-     * @param {CommandInteraction} interaction 
+     *
+     * @param {Client} client
+     * @param {CommandInteraction} interaction
      */
 
     run: async (client, interaction) => {
       return await client.errorHandler.executeWithErrorHandling(interaction, async (interaction) => {
         await safeReply.safeDeferReply(interaction);
 
-        let ok = client.emoji.ok;
-        let no = client.emoji.no;
+        let ok = EMOJIS.ok;
+        let no = EMOJIS.no;
 
         // Check cooldown
         const cooldown = client.cooldownManager.check("resume", interaction.user.id);
@@ -89,6 +90,4 @@ module.exports = {
       });
     }
 };
-
-
 

@@ -1,5 +1,4 @@
 const { Client } = require("discord.js");
-const chalk = require("chalk");
 const mongoose = require('mongoose');
 const { LavalinkManager, Node } = require("lavalink-client");
 const { readdirSync } = require("fs");
@@ -13,7 +12,6 @@ const PermissionService = require('../services/PermissionService');
 const PlayerController = require('../services/PlayerController');
 const FilterManager = require('../services/FilterManager');
 const cooldownManager = require('../utils/cooldownManager');
-
 
 /**
  * @param {Client} client
@@ -38,13 +36,10 @@ module.exports = async (client) => {
         }
     };
 
-
-
-
     /**
      * Mongodb connection
      */
-    
+
         const dbOptions = {
                 autoIndex: false,
                 connectTimeoutMS: 30000,
@@ -53,7 +48,7 @@ module.exports = async (client) => {
             };
 
     const mongoUrl = process.env.MONGODB_URL || process.env.MONGOURI || client.config.mongourl;
-   
+
     if (mongoUrl && typeof mongoUrl === 'string' && mongoUrl.startsWith('mongodb')) {
             // Connect to MongoDB with improved error handling
             const attemptConnect = async (retries = 3, delay = 1000) => {
@@ -61,7 +56,7 @@ module.exports = async (client) => {
                     try {
                         await mongoose.connect(mongoUrl, dbOptions);
                         safeLog('Connected to MongoDB successfully', 'info');
-                        
+
                         // Verify connection is working
                         await mongoose.connection.db.admin().ping();
                         safeLog('MongoDB connection verified and healthy', 'info');
@@ -79,7 +74,7 @@ module.exports = async (client) => {
                 }
                 return true;
             };
-            
+
             // Start connection in background but log when ready
             attemptConnect()
                 .then(success => {
@@ -102,7 +97,7 @@ module.exports = async (client) => {
     mongoose.connection.on('disconnected', () => {
         safeLog('MongoDB Disconnected', 'warn');
     });
-        
+
     /**
      * Error Handler
      */
@@ -110,8 +105,7 @@ module.exports = async (client) => {
     client.on("reconnecting", () => safeLog("Bot reconnecting...", 'warn'))
     client.on('warn', error => { safeLog(error && (error.stack || error.toString()), 'warn'); });
     client.on('error', error => { safeLog(error && (error.stack || error.toString()), 'error'); });
-    process.on('unhandledRejection', error => { safeLog(error && (error.stack || error.toString()), 'error'); });
-    process.on('uncaughtException', error => { safeLog(error && (error.stack || error.toString()), 'error'); });
+    // process-level handlers are registered in src/bot.js to avoid duplicate logging
 
  /**
  * Client Events
@@ -124,8 +118,16 @@ try {
         try {
             const event = require(`../events/Client/${file}`);
             let eventName = file.split(".")[0];
-            client.on(eventName, event.bind(null, client));
-            loadedClientEvents.push(eventName);
+
+            // Discord.js v15 removes the deprecated `ready` event name.
+            // Route ready.js to `clientReady` now, while keeping other events unchanged.
+            if (eventName === 'ready') {
+                client.on('clientReady', event.bind(null, client));
+                loadedClientEvents.push('clientReady (from ready.js)');
+            } else {
+                client.on(eventName, event.bind(null, client));
+                loadedClientEvents.push(eventName);
+            }
         } catch (err) {
             safeLog(`[ERROR] Failed to load Client event file ${file}: ${err && (err.stack || err.message || err)}`, 'error');
         }
@@ -135,11 +137,10 @@ try {
     safeLog(`[ERROR] Unable to read Client events folder: ${err && (err.stack || err.message || err)}`, 'error');
 }
 
-
 const data = [];
 readdirSync("./src/slashCommands/").forEach((dir) => {
         const slashCommandFile = readdirSync(`./src/slashCommands/${dir}/`).filter((files) => files.endsWith(".js"));
-    
+
         for (const file of slashCommandFile) {
             const slashCommand = require(`../slashCommands/${dir}/${file}`);
             // Attach filename so error handlers can surface the originating file
@@ -158,34 +159,60 @@ readdirSync("./src/slashCommands/").forEach((dir) => {
     readdirSync("./src/commands/").forEach((dir) => {
         const fullDir = `./src/commands/${dir}/`;
         const CommandFile = readdirSync(fullDir).filter((files) => files.endsWith(".js"));
-    
+
         for (const file of CommandFile) {
             const command = require(`../commands/${dir}/${file}`);
             if(!command.name) continue;
-            client.commands.set(command.name.toLowerCase(), command);
+            const commandName = command.name.toLowerCase();
+            client.commands.set(commandName, command);
             if (command.aliases && Array.isArray(command.aliases)) {
-                command.aliases.forEach((alias) => client.aliases.set(alias.toLowerCase(), command.name.toLowerCase()));
+                command.aliases.forEach((alias) => {
+                    const aliasKey = String(alias).toLowerCase();
+                    const existing = client.aliases.get(aliasKey);
+                    if (existing && existing !== commandName) {
+                        safeLog(`[WARN] Alias collision skipped: "${aliasKey}" already mapped to "${existing}", ignoring "${commandName}"`, 'warn');
+                        return;
+                    }
+                    if (client.commands.has(aliasKey) && aliasKey !== commandName) {
+                        safeLog(`[WARN] Alias collision skipped: "${aliasKey}" matches command name, ignoring alias for "${commandName}"`, 'warn');
+                        return;
+                    }
+                    client.aliases.set(aliasKey, commandName);
+                });
             }
         }
-        
+
         // Load nested commands in one level deeper
         const subDirs = readdirSync(fullDir, { withFileTypes: true })
             .filter(dirent => dirent.isDirectory())
             .map(dirent => dirent.name);
-            
+
         subDirs.forEach(subDir => {
             const subCommandFiles = readdirSync(`${fullDir}${subDir}/`).filter((files) => files.endsWith(".js"));
             for (const file of subCommandFiles) {
                 const command = require(`../commands/${dir}/${subDir}/${file}`);
                 if(!command.name) continue;
-                client.commands.set(command.name.toLowerCase(), command);
+                const commandName = command.name.toLowerCase();
+                client.commands.set(commandName, command);
                 if (command.aliases && Array.isArray(command.aliases)) {
-                    command.aliases.forEach((alias) => client.aliases.set(alias.toLowerCase(), command.name.toLowerCase()));
+                    command.aliases.forEach((alias) => {
+                        const aliasKey = String(alias).toLowerCase();
+                        const existing = client.aliases.get(aliasKey);
+                        if (existing && existing !== commandName) {
+                            safeLog(`[WARN] Alias collision skipped: "${aliasKey}" already mapped to "${existing}", ignoring "${commandName}"`, 'warn');
+                            return;
+                        }
+                        if (client.commands.has(aliasKey) && aliasKey !== commandName) {
+                            safeLog(`[WARN] Alias collision skipped: "${aliasKey}" matches command name, ignoring alias for "${commandName}"`, 'warn');
+                            return;
+                        }
+                        client.aliases.set(aliasKey, commandName);
+                    });
                 }
             }
         });
     });
-   
+
 
     // The discord.js v15 ready event was renamed to `clientReady`. Register the
     // same initialization for both event names to remain backwards compatible
@@ -213,7 +240,7 @@ readdirSync("./src/slashCommands/").forEach((dir) => {
             safeLog('[WARN] No Lavalink nodes configured in config.json. Music features will be unavailable.', 'warn');
             return;
         }
-         
+
          try {
              client.lavalink = new LavalinkManager({
                  nodes: nodes,
@@ -275,11 +302,11 @@ readdirSync("./src/slashCommands/").forEach((dir) => {
 
     client.once("ready", async () => {
         const startup = new StartupLogger();
-        
+
         startup.sectionStart('CLIENT CONNECTION');
         startup.success(`Discord Connected: ${client.user && client.user.tag ? client.user.tag : client.user}`);
         startup.sectionEnd();
-        
+
         // Register global slash commands on ready (independent of Lavalink)
         try {
             if (Array.isArray(data) && data.length > 0) {
@@ -306,10 +333,10 @@ readdirSync("./src/slashCommands/").forEach((dir) => {
     });
     client.once("clientReady", async () => {
         const startup = new StartupLogger();
-        
+
         try {
             startup.printBanner('JOKER MUSIC', 'v2.0.0');
-            
+
             // Initialize Lavalink
             startup.sectionStart('LAVALINK SETUP');
             await setupLavalink();
@@ -318,37 +345,37 @@ readdirSync("./src/slashCommands/").forEach((dir) => {
 
             // Initialize Services
             startup.sectionStart('SERVICE INITIALIZATION');
-            
+
             // 1. Initialize Logger (critical for all other services)
             client.logger = new Logger(client);
             startup.success('Logger', 'Ready for structured logging');
-            
+
             // 2. Initialize CommandErrorHandler
             client.errorHandler = new CommandErrorHandler(client);
             startup.success('CommandErrorHandler', 'Error handling enabled');
-            
+
             // 3. Initialize PermissionService
             client.permissionService = new PermissionService(client);
             startup.success('PermissionService', 'Permission checks enabled');
-            
+
             // 4. Initialize PlayerController (critical for music commands)
             client.playerController = new PlayerController(client);
             startup.success('PlayerController', 'Player management ready');
-            
+
             // 5. Initialize FilterManager
             client.filterManager = new FilterManager(client);
             startup.success('FilterManager', 'Audio filters available');
-            
+
             // 6. Attach cooldownManager (singleton pattern, no .start() needed)
             client.cooldownManager = cooldownManager;
             startup.success('CooldownManager', 'Command cooldowns enabled');
-            
+
             startup.success('All 7 services initialized', 'COMPLETE');
             startup.sectionEnd();
-            
+
             // Start maintenance tasks
             startup.sectionStart('MAINTENANCE TASKS');
-            
+
             // Logger cleanup every 72 hours
             setInterval(async () => {
                 try {
@@ -360,7 +387,7 @@ readdirSync("./src/slashCommands/").forEach((dir) => {
                 }
             }, 72 * 60 * 60 * 1000);
             startup.info('Log cleanup scheduled', '72h interval');
-            
+
             // Permission cache cleanup every hour
             setInterval(() => {
                 try {
@@ -372,11 +399,11 @@ readdirSync("./src/slashCommands/").forEach((dir) => {
                 }
             }, 60 * 60 * 1000);
             startup.info('Cache cleanup scheduled', '1h interval');
-            
+
             startup.sectionEnd();
-            
+
             startup.complete('All systems initialized and ready');
-            
+
         } catch (e) {
             const startup = new StartupLogger();
             startup.criticalError(`Initialization failed: ${e && (e.message || e.toString())}`);

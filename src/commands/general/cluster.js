@@ -1,36 +1,56 @@
 const { EmbedBuilder } = require("discord.js");
-const { mem } = require('node-os-utils');
-const moment = require('moment');
 
+const moment = require("moment");
+
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
   name: "cluster",
   category: "general",
-  description: "Shows the current cluster details!.",
+  description: "Shows the current cluster details.",
   owner: false,
   wl: true,
-  execute: async (message, args, client, prefix) => {
-    const memusage = process.memoryUsage();
-    
+  execute: async (message, args, client) => {
+    const getEmoji = (key, fallback = "") => EMOJIS[key] || fallback;
+    const embedColor = client?.embedColor || "#ff0051";
+    const createEmbed = ({ title, description, fields, author, thumbnail, image, footer, timestamp = false }) => {
+      const embed = new EmbedBuilder().setColor(embedColor);
+      if (title) embed.setTitle(title);
+      if (description) embed.setDescription(description);
+      if (Array.isArray(fields) && fields.length > 0) embed.addFields(fields);
+      if (author) embed.setAuthor(author);
+      if (thumbnail) embed.setThumbnail(thumbnail);
+      if (image) embed.setImage(image);
+return embed;
+    };
+    const statField = (label, value, emojiKey, inline = true) => ({
+      name: `${emojiKey ? `${getEmoji(emojiKey)} ` : ""}${label}`,
+      value: String(value),
+      inline
+    });
+
+    const mem = process.memoryUsage();
     const d = moment.duration(client.uptime);
-    const days = d.days() + "d";
-    const hours = d.hours() + "h";
-    const minutes = d.minutes() + "m";
-    const seconds = d.seconds() + "s";
-    const up = `${days}, ${hours}, ${minutes}, and ${seconds}`;
+    const uptime = `${d.days()}d ${d.hours()}h ${d.minutes()}m ${d.seconds()}s`;
 
-    const statsEmbed = new EmbedBuilder()
-      .setColor(message.client?.embedColor || '#ff0051')
-      .setAuthor({ name: `This Cluster Details`, iconURL: message.member.user.displayAvatarURL({ dynamic: true }) })
-      .addFields(
-        { name: 'Servers', value: `\`\`\`Total: ${client.guilds.cache.size} servers\`\`\``, inline: true },
-        { name: 'Users', value: `\`\`\`Total: ${client.users.cache.size} users\`\`\``, inline: true },
-        { name: 'Memory', value: `\`\`\`${Math.round(memusage.heapUsed / 1024 / 1024)}/${Math.round(memusage.heapTotal / 1024 / 1024)}mb\`\`\``, inline: true },
-        { name: 'Uptime', value: `\`\`\`${up}\`\`\``, inline: true },
-        { name: 'Cluster Ping', value: `\`\`\`${client.ws.ping}ms\`\`\``, inline: true },
-        { name: 'Shard Id', value: `\`\`\`\n${message.guild.shardId}\n\`\`\``, inline: true }
-      )
-      .setFooter({ text: 'Developed with ❤️ by Joker Team', iconURL: client.user.displayAvatarURL() });
+    const embed = createEmbed({
+      title: `${getEmoji("spark")} Cluster Runtime` ,
+      description: "Live shard and process telemetry for this node.",
+      author: {
+        name: `${message.guild.name} Cluster View`,
+        iconURL: message.member.user.displayAvatarURL({ forceStatic: false })
+      },
+      fields: [
+        statField("Servers", `\`${client.guilds.cache.size}\``, "server", true),
+        statField("Users", `\`${client.users.cache.size}\``, "users", true),
+        statField("Heap", `\`${Math.round(mem.heapUsed / 1024 / 1024)} / ${Math.round(mem.heapTotal / 1024 / 1024)} MB\``, "memory", true),
+        statField("Uptime", `\`${uptime}\``, "time", true),
+        statField("Ping", `\`${client.ws.ping}ms\``, "ping", true),
+        statField("Shard", `\`${message.guild.shardId}\``, "info", true)
+      ],
+      footer: `${getEmoji("music")} Joker Music | Cluster Diagnostics`
+    });
 
-    message.channel.send({ embeds: [statsEmbed] });
+    return message.channel.send({ embeds: [embed] });
   }
-}
+};
+

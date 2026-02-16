@@ -18,7 +18,7 @@ async function replyError(interaction, message, client) {
         client?.logger?.log?.(`Failed to edit error reply: ${err?.message}`, 'warn');
       });
     } else {
-      await interaction.reply({ embeds: [embed], flags: [64] }).catch(err => {
+      await interaction.reply({ embeds: [embed], ephemeral: true }).catch(err => {
         client?.logger?.log?.(`Failed to send error reply: ${err?.message}`, 'warn');
       });
     }
@@ -76,7 +76,7 @@ async function logError(client, error, context = {}) {
 
   // Send to webhook if configured. Allow env override and an enable flag.
   try {
-  
+
     const webhookUrl = process.env.ERROR_WEBHOOK_URL || client?.config?.webhooks?.errorLogs;
     if (!webhookUrl) return;
     const { WebhookClient, EmbedBuilder } = require('discord.js');

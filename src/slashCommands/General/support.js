@@ -1,27 +1,48 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder } = require("discord.js");
+const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require("discord.js");
 
+const { safeReply, safeDeferReply } = require("../../utils/safeReply");
 
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
-    name: "support",
-    description: "Support Server link.",
-    wl : true,
-   
-    run: async (client, interaction) => {
-        let ok = client.emoji.ok;
-        let no = client.emoji.no;
+  name: "support",
+  description: "Support server link",
+  wl: true,
+  run: async (client, interaction) => {
+    const getEmoji = (key, fallback = "") => EMOJIS[key] || fallback;
+    const embedColor = client?.embedColor || "#ff0051";
+    const createEmbed = ({ title, description, fields, author, thumbnail, image, footer, timestamp = false }) => {
+      const embed = new EmbedBuilder().setColor(embedColor);
+      if (title) embed.setTitle(title);
+      if (description) embed.setDescription(description);
+      if (Array.isArray(fields) && fields.length > 0) embed.addFields(fields);
+      if (author) embed.setAuthor(author);
+      if (thumbnail) embed.setThumbnail(thumbnail);
+      if (image) embed.setImage(image);
+return embed;
+    };
+    const createLinkRow = () => {
+      const support = new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel("Support").setURL("https://discord.gg/JQzBqgmwFm");
+      const invite = new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel("Invite").setURL(`https://discord.com/oauth2/authorize?client_id=${client.user.id}&permissions=70510540062032&integration_type=0&scope=bot+applications.commands`);
+      const vote = new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel("Vote").setURL(`https://top.gg/bot/${client.user.id}/vote`);
+      const supportEmoji = getEmoji("support");
+      const inviteEmoji = getEmoji("invite");
+      const voteEmoji = getEmoji("vote");
+      try { if (supportEmoji) support.setEmoji(supportEmoji); } catch (_e) {}
+      try { if (inviteEmoji) invite.setEmoji(inviteEmoji); } catch (_e) {}
+      try { if (voteEmoji) vote.setEmoji(voteEmoji); } catch (_e) {}
+      return new ActionRowBuilder().addComponents(support, invite, vote);
+    };
 
-        const row = new ActionRowBuilder()
-        .addComponents(
-          new ButtonBuilder()
-      .setLabel("Support Server")
-      .setStyle(5)
-      .setURL(`https://discord.gg/pCj2UBbwST`),
-        );
+    const deferred = await safeDeferReply(interaction, { ephemeral: false });
+    if (!deferred) return safeReply(interaction, { content: "Failed to defer reply." });
 
-            const mainPage = new EmbedBuilder()
-            .setDescription(`[Click here](https://discord.gg/pCj2UBbwST) to join our support server.`)
-            .setColor(interaction.client?.embedColor || '#ff0051')
-        return interaction.editReply({embeds: [mainPage], components: [row]})
+    const embed = createEmbed({
+      title: `${getEmoji("support")} Support Center`,
+      description: "Need help with setup or commands? Open support using the button below.",
+      footer: `${getEmoji("support")} Joker Music Support`
+    });
 
-},
+    return safeReply(interaction, { embeds: [embed], components: [createLinkRow()] });
+  }
 };
+

@@ -1,72 +1,109 @@
 const { EmbedBuilder } = require("discord.js");
-const prettyMiliSeconds = require("pretty-ms");
+
+const formatDuration = require("../../utils/formatDuration");
 const redeemCode = require("../../schema/redemcode.js");
 const Premium = require("../../schema/Premium.js");
 
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
-    name: "user-redeem",
-    category: "special",
-    aliases: ["redeem-user"],
-    wl: true,
-    description: "redeems a redeem code",
-    execute: async (message, args, client, prefix) => {
-        let ok = client.emoji.ok;
-        let no = client.emoji.no;
+  name: "user-redeem",
+  category: "special",
+  aliases: ["redeem-user"],
+  wl: true,
+  description: "Redeem a premium code for your account.",
+  execute: async (message, args, client, prefix) => {
+    const getEmoji = (key, fallback = "") => EMOJIS[key] || fallback;
+    const embedColor = client?.embedColor || "#ff0051";
+    const createEmbed = ({ title, description, fields, author, thumbnail, image, footer, timestamp = false }) => {
+      const embed = new EmbedBuilder().setColor(embedColor);
+      if (title) embed.setTitle(title);
+      if (description) embed.setDescription(description);
+      if (Array.isArray(fields) && fields.length > 0) embed.addFields(fields);
+      if (author) embed.setAuthor(author);
+      if (thumbnail) embed.setThumbnail(thumbnail);
+      if (image) embed.setImage(image);
+return embed;
+    };
+    const statField = (label, value, emojiKey, inline = true) => ({
+      name: `${emojiKey ? `${getEmoji(emojiKey)} ` : ""}${label}`,
+      value: String(value),
+      inline
+    });
 
-        const isPremiumUser = await Premium.findOne({ Id: message.author.id, Type: 'user' });
-        
-        // Check if user has an ACTIVE premium (not expired)
-        if (isPremiumUser && (isPremiumUser.Permanent || isPremiumUser.Expire > Date.now())) {
-            let alr = new EmbedBuilder()
-                .setDescription(`${no} | This User Already Has an Active Premium Subscription.`)
-                .setColor(message.client?.embedColor || '#ff0051');
-            return message.channel.send({ embeds: [alr] });
-        }
+    const ok = EMOJIS.ok;
+    const no = EMOJIS.no;
+    const code = args[0]?.trim();
 
-        if (!args[0]) return message.channel.send(`No Code Provided!!`);
-
-        const CodeOk = await redeemCode.findOne({ Code: args[0] });
-        if (!CodeOk) {
-            let exp = new EmbedBuilder()
-                .setDescription(`${no} | Code Is Invalid Or Expired`)
-                .setColor(message.client?.embedColor || '#ff0051');
-            return message.channel.send({ embeds: [exp] });
-        }
-
-        // Validate code hasn't expired
-        if (!CodeOk.Permanent && CodeOk.Expiry < Date.now()) {
-            await CodeOk.deleteOne();
-            let exp = new EmbedBuilder()
-                .setDescription(`${no} | This Code Has Expired`)
-                .setColor(message.client?.embedColor || '#ff0051');
-            return message.channel.send({ embeds: [exp] });
-        }
-
-        // Delete old expired premium if exists
-        if (isPremiumUser) await isPremiumUser.deleteOne();
-
-        await Premium.create({
-            Id: message.author.id,
-            Type: 'user',
-            Code: args[0],
-            ActivatedAt: Date.now(),
-            Expire: CodeOk.Expiry || 0,
-            Permanent: CodeOk.Permanent || false,
-            PlanType: "Standard"
-        });
-
-        if (CodeOk.Usage <= 1) {
-            await CodeOk.deleteOne();
-        } else {
-            await redeemCode.findOneAndUpdate({ Code: args[0] }, { Usage: CodeOk.Usage - 1 });
-        }
-
-        const expiryText = CodeOk.Permanent ? "Never" : prettyMiliSeconds(CodeOk.Expiry - Date.now());
-        let success = new EmbedBuilder()
-            .setTitle("Premium Activated")
-            .setDescription(`${ok} | \`Joker Music Premium Activated Successfully\`\n\`\`\`asciidoc\nUser     :: ${message.author.username}\nExpiry   :: ${expiryText}\n\`\`\``)
-            .setColor(message.client?.embedColor || '#ff0051');
-
-        message.channel.send({ embeds: [success] });
+    if (!code) {
+      const embed = createEmbed({
+        title: `${getEmoji("error")} Missing Code`,
+        description: `${no} Usage: \`${prefix}user-redeem <code>\``
+      });
+      return message.channel.send({ embeds: [embed] });
     }
-}
+
+    const activePremium = await Premium.findOne({ Id: message.author.id, Type: "user" });
+    if (activePremium && (activePremium.Permanent || activePremium.Expire > Date.now())) {
+      const embed = createEmbed({
+        title: `${getEmoji("premium")} Already Premium`,
+        description: `${no} You already have an active premium subscription.`
+      });
+      return message.channel.send({ embeds: [embed] });
+    }
+
+    const codeDoc = await redeemCode.findOne({ Code: code });
+    if (!codeDoc) {
+      const embed = createEmbed({
+        title: `${getEmoji("error")} Invalid Code`,
+        description: `${no} The provided code is invalid or already used.`
+      });
+      return message.channel.send({ embeds: [embed] });
+    }
+
+    if (!codeDoc.Permanent && codeDoc.Expiry < Date.now()) {
+      await codeDoc.deleteOne();
+      const embed = createEmbed({
+        title: `${getEmoji("error")} Expired Code`,
+        description: `${no} This redeem code has expired.`
+      });
+      return message.channel.send({ embeds: [embed] });
+    }
+
+    if (activePremium) {
+      await activePremium.deleteOne();
+    }
+
+    await Premium.create({
+      Id: message.author.id,
+      Type: "user",
+      Code: code,
+      ActivatedAt: Date.now(),
+      Expire: codeDoc.Expiry || 0,
+      Permanent: codeDoc.Permanent || false,
+      PlanType: "Standard"
+    });
+
+    if (codeDoc.Usage <= 1) {
+      await codeDoc.deleteOne();
+    } else {
+      await redeemCode.findOneAndUpdate({ Code: code }, { Usage: codeDoc.Usage - 1 });
+    }
+
+    const validity = codeDoc.Permanent
+      ? "Permanent"
+      : formatDuration(Math.max(0, codeDoc.Expiry - Date.now()), { verbose: false }).replace(/\s\d+s$/, "");
+
+    const embed = createEmbed({
+      title: `${getEmoji("premium")} Premium Activated`,
+      description: `${ok} User premium has been activated successfully.`,
+      fields: [
+        statField("User", `\`${message.author.tag}\``, "users"),
+        statField("Plan", "`Standard`", "premium"),
+        statField("Validity", `\`${validity}\``, "time")
+      ]
+    });
+
+    return message.channel.send({ embeds: [embed] });
+  }
+};
+

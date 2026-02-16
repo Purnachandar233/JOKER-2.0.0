@@ -4,9 +4,9 @@ module.exports = async (client, player, oldChannel, newChannel) => {
         const guild = client.guilds.cache.get(player.guildId);
         if (!guild) return;
         const channel = guild.channels.cache.get(player.textChannelId);
-        
+
         if (oldChannel === newChannel) return;
-        
+
         if (newChannel === null || !newChannel) {
             if (!player) return;
             if (channel) {
@@ -29,12 +29,12 @@ module.exports = async (client, player, oldChannel, newChannel) => {
 
         const oldChannelName = oldChannel ? `<#${oldChannel.id}>` : 'Unknown';
         const newChannelName = newChannel ? `<#${newChannel.id}>` : 'Unknown';
-        
+
         const denginde = new EmbedBuilder()
             .setColor(client?.embedColor || '#ff0051')
             .setTitle(`Player has been moved`)
             .setDescription(`I have been moved from ${oldChannelName} to ${newChannelName}`);
-        
+
         const msg = await channel.send({ embeds: [denginde] }).catch(() => {});
         if (msg) {
             setTimeout(() => {

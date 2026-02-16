@@ -3,7 +3,7 @@ module.exports = async (client, player, track, payload) => {
         const msg = player.get(`playingsongmsg`);
         if (msg) await msg.delete().catch(() => {});
     } catch (e) {}
-    
+
     const autoplay = player.get("autoplay");
     if (autoplay === true) {
         try {

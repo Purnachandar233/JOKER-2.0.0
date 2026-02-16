@@ -1,4 +1,5 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder } = require('discord.js');
+const EMOJIS = require("../../utils/emoji.json");
 const {
     format,
     arrayMove
@@ -11,23 +12,23 @@ module.exports = {
   owner: false,
   wl : true,
   execute: async (message, args, client, prefix) => {
-  
-    let ok = client.emoji.ok;
-    let no = client.emoji.no;
-    
+
+    let ok = EMOJIS.ok;
+    let no = EMOJIS.no;
+
      const player = client.lavalink.players.get(message.guild.id);
           //if no FROM args return error
           const safePlayer = require('../../utils/safePlayer');
           if (!args[0]) {
             const emr = new EmbedBuilder()
-    
+
             .setDescription(` ${no} Wrong Command Usage!\n\nUsage: \`move <from> <to>\`\nExample: \`move ${safePlayer.queueSize(player) - 2 <= 0 ? safePlayer.queueSize(player) : safePlayer.queueSize(player) - 2 } 1\``)
             return message.channel.send({embeds: [emr]})
           }
           //If no TO args return error
           if (!args[1]) {
             const ror = new EmbedBuilder()
-        
+
             .setDescription(`${no} Wrong Command Usage!\n\nUsage: \`move <from> <to>\`\nExample: \`move ${safePlayer.queueSize(player) - 2 <= 0 ? safePlayer.queueSize(player) : safePlayer.queueSize(player) - 2 } 1\``)
             return message.channel.send({embeds: [ror]})
           }

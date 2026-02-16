@@ -1,44 +1,67 @@
 const { EmbedBuilder } = require("discord.js");
+
 const Premium = require("../../schema/Premium.js");
-const prettyMs = require("pretty-ms");
+const formatDuration = require("../../utils/formatDuration");
 
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
-    name: "server",
-    category: "general",
-    description: "Shows information about the current server.",
-    execute: async (message, args, client, prefix) => {
-        const guild = message.guild;
+  name: "server",
+  category: "general",
+  description: "Shows information about the current server.",
+  execute: async (message, args, client) => {
+    const getEmoji = (key, fallback = "") => EMOJIS[key] || fallback;
+    const embedColor = client?.embedColor || "#ff0051";
+    const createEmbed = ({ title, description, fields, author, thumbnail, image, footer, timestamp = false }) => {
+      const embed = new EmbedBuilder().setColor(embedColor);
+      if (title) embed.setTitle(title);
+      if (description) embed.setDescription(description);
+      if (Array.isArray(fields) && fields.length > 0) embed.addFields(fields);
+      if (author) embed.setAuthor(author);
+      if (thumbnail) embed.setThumbnail(thumbnail);
+      if (image) embed.setImage(image);
+return embed;
+    };
+    const statField = (label, value, emojiKey, inline = true) => ({
+      name: `${emojiKey ? `${getEmoji(emojiKey)} ` : ""}${label}`,
+      value: String(value),
+      inline
+    });
 
-        // Check guild premium validity
-        const id = args[0] || message.guild.id;
-        const isPremium = await Premium.findOne({ Id: id, Type: 'guild' });
+    const guild = message.guild;
+    const id = args[0] || guild.id;
+    const premium = await Premium.findOne({ Id: id, Type: "guild" });
 
-        let premiumValidity = "No Premium";
-        if (isPremium) {
-            if (!isPremium.Permanent && isPremium.Expire < Date.now()) {
-                await isPremium.deleteOne();
-                premiumValidity = "Expired";
-            } else {
-                const text = isPremium.Permanent ? "Never" : prettyMs(isPremium.Expire - Date.now(), { verbose: false }).replace(/\s\d+s$/, '');
-                premiumValidity = `Expires: ${text}`;
-            }
-        }
-
-        const embed = new EmbedBuilder()
-            .setColor(message.client?.embedColor || '#ff0051')
-            .setTitle(`${guild.name} Information`)
-            .setThumbnail(guild.iconURL({ dynamic: true }))
-            .addFields(
-                { name: "Owner", value: `<@${guild.ownerId}>`, inline: true },
-                { name: "Members", value: `\`${guild.memberCount}\``, inline: true },
-                { name: "Premium Validity", value: `\`${premiumValidity}\``, inline: true },
-                { name: "Created At", value: `<t:${Math.floor(guild.createdTimestamp / 1000)}:R>`, inline: true },
-                { name: "Roles", value: `\`${guild.roles.cache.size}\``, inline: true },
-                { name: "Channels", value: `\`${guild.channels.cache.size}\``, inline: true },
-                { name: "Boosts", value: `\`${guild.premiumSubscriptionCount || 0}\``, inline: true }
-            )
-            .setFooter({ text: `ID: ${guild.id}` });
-
-        message.channel.send({ embeds: [embed] });
+    let premiumLabel = "No Premium";
+    if (premium) {
+      if (!premium.Permanent && premium.Expire < Date.now()) {
+        await premium.deleteOne();
+        premiumLabel = "Expired";
+      } else if (premium.Permanent) {
+        premiumLabel = "Permanent";
+      } else {
+        const remaining = formatDuration(premium.Expire - Date.now(), { verbose: false }).replace(/\s\d+s$/, "");
+        premiumLabel = `Expires in ${remaining}`;
+      }
     }
-}
+
+    const createdAt = Math.floor(guild.createdTimestamp / 1000);
+    const embed = createEmbed({
+      title: `${getEmoji("server")} ${guild.name}`,
+      description: "Professional server overview and health indicators.",
+      thumbnail: guild.iconURL({ forceStatic: false, size: 256 }) || null,
+      fields: [
+        statField("Owner", `<@${guild.ownerId}>`, "users", true),
+        statField("Members", `\`${guild.memberCount}\``, "users", true),
+        statField("Roles", `\`${guild.roles.cache.size}\``, "info", true),
+        statField("Channels", `\`${guild.channels.cache.size}\``, "queue", true),
+        statField("Boosts", `\`${guild.premiumSubscriptionCount || 0}\``, "star", true),
+        statField("Created", `<t:${createdAt}:R>`, "time", true),
+        statField("Premium", `\`${premiumLabel}\``, "premium", false)
+      ],
+      footer: `Server ID: ${guild.id}`
+    });
+
+    return message.channel.send({ embeds: [embed] });
+  }
+};
+

@@ -1,6 +1,7 @@
 const { EmbedBuilder, CommandInteraction, Client } = require("discord.js")
 const { convertTime } = require('../../utils/convert.js');
 
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
   name: "fix",
   description: "Tries to fix the lag or other audio issues forcefully by changing server region.",
@@ -21,19 +22,19 @@ module.exports = {
   votelock: true,
 
   /**
-   * 
-   * @param {Client} client 
-   * @param {CommandInteraction} interaction 
+   *
+   * @param {Client} client
+   * @param {CommandInteraction} interaction
    */
 
   run: async (client, interaction) => {
     await interaction.deferReply({
       ephemeral: false
     });
-      
-    let ok = client.emoji.ok;
-    let no = client.emoji.no;
-    
+
+    let ok = EMOJIS.ok;
+    let no = EMOJIS.no;
+
     if (!interaction.member.permissions.has('MANAGE_CHANNELS')) {
       const noperms = new EmbedBuilder()
      .setColor(interaction.client?.embedColor || '#ff0051')
@@ -43,12 +44,12 @@ module.exports = {
     const { channel } = interaction.member.voice;
     if (!channel) {
                     const noperms = new EmbedBuilder()
-                  
+
          .setColor(interaction.client?.embedColor || '#ff0051')
            .setDescription(`${no} You must be connected to a voice channel to use this command.`)
         return await interaction.editReply({embeds: [noperms]});
     }
-    if(interaction.member.voice.selfDeaf) {     
+    if(interaction.member.voice.selfDeaf) {
       let thing = new EmbedBuilder()
        .setColor(interaction.client?.embedColor || '#ff0051')
      .setDescription(`${no} <@${interaction.user.id}> You cannot run this command while deafened.`)
@@ -59,7 +60,7 @@ module.exports = {
       const tracks = getQueueArray(player);
       if(!player || !tracks || tracks.length === 0) {
                     const noperms = new EmbedBuilder()
-      
+
          .setColor(interaction.client?.embedColor || '#ff0051')
          .setDescription(`${no} There is nothing playing in this server.`)
         return await interaction.editReply({embeds: [noperms]});
@@ -73,7 +74,6 @@ module.exports = {
     const args = interaction.options.getString("region");
 
 
-      
       if(args){
         const guild = client.guilds.cache.get(interaction.guild.id);
         const voiceChannel = guild.channels.cache.get(player.voiceChannelId);
@@ -94,40 +94,40 @@ module.exports = {
         }, 12000)
     });
        ;
-    
+
        }
-    
+
         try {
             const channelOpts = {
                 rtcRegion: args,
             };
-    
+
             voiceChannel.edit(channelOpts, `Fix command`);
-  
+
               const noperms = new EmbedBuilder()
               .setColor(interaction.client?.embedColor || '#ff0051')
                .setDescription(`Voice Region is now set to \`${args}\`.`)
                return await interaction.editReply({ embeds: [noperms] })
-            
+
     }catch(e){
         return await interaction.editReply({ content: `Unable to change the voice region make sure I have the \`MANAGE_CHANNELS\` permission and make sure you specified a vaild voicechannel region.`})
      }
      return;
     }
-            
-    
+
+
     const guild = client.guilds.cache.get(interaction.guild.id);
     const voiceChannel = guild.channels.cache.get(player.voiceChannelId);
     const Responses = ['us-west', 'brazil', 'hongkong', 'india', 'japan', 'rotterdam', 'russia', 'singapore', 'south-korea', 'southafrica', 'sydney', 'us-central', 'us-east', 'us-south'];
     const rc = Math.floor(Math.random() * Responses.length);
-    
+
     try {
         const channelOpts = {
             rtcRegion: Responses[rc],
         };
-    
+
         voiceChannel.edit(channelOpts, `Fix command`);
-      
+
         const noperms = new EmbedBuilder()
         .setColor(interaction.client?.embedColor || '#ff0051')
          .setDescription(`Voice Region is now set to \`${Responses[rc]}\`.`)
@@ -135,9 +135,9 @@ module.exports = {
     }catch(e){
         return await interaction.editReply({ content: `Unable to change the voice region make sure I have the \`MANAGE_CHANNELS\` permission and try again.` })
     }
-  
-     
-   
+
+
+
 
     }
 

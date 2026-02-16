@@ -1,5 +1,6 @@
 const { EmbedBuilder } = require('discord.js')
 
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
   name: '8d',
   category: 'filters',
@@ -11,8 +12,8 @@ module.exports = {
   wl: true,
 
   execute: async (message, args, client, prefix) => {
-    const ok = client.emoji.ok
-    const no = client.emoji.no
+    const ok = EMOJIS.ok
+    const no = EMOJIS.no
 
     const { channel } = message.member.voice
     if (!channel) {

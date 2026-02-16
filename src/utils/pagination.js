@@ -18,10 +18,10 @@ const messagepaginationEmbed = async (message, pages, buttonList, author, timeou
     if (!Array.isArray(pages) || pages.length === 0) throw new Error('Pagination requires at least 1 page');
     let page = 0;
     const row = new ActionRowBuilder().addComponents(buttonList);
-    const currentPage = await message.reply({ 
-        embeds: [pages[page].setFooter({ text: `Page ${page + 1}/${pages.length}` })], 
-        components: [row], 
-        allowedMentions: { repliedUser: false } 
+    const currentPage = await message.reply({
+        embeds: [pages[page]],
+        components: [row],
+        allowedMentions: { repliedUser: false }
     });
 
     const filter = (i) => i.user.id === author.id;
@@ -45,9 +45,9 @@ const messagepaginationEmbed = async (message, pages, buttonList, author, timeou
             default:
                 break;
         }
-        await i.editReply({ 
-            embeds: [pages[page].setFooter({ text: `Page ${page + 1}/${pages.length}` })], 
-            components: [row] 
+        await i.editReply({
+            embeds: [pages[page]],
+            components: [row]
         });
         collector.resetTimer();
     });
@@ -55,14 +55,14 @@ const messagepaginationEmbed = async (message, pages, buttonList, author, timeou
     collector.on('end', () => {
         try {
             const disabledRow = new ActionRowBuilder().addComponents(
-                buttonList[0].setDisabled(true), 
-                buttonList[1].setDisabled(true), 
-                buttonList[2].setDisabled(true), 
+                buttonList[0].setDisabled(true),
+                buttonList[1].setDisabled(true),
+                buttonList[2].setDisabled(true),
                 buttonList[3].setDisabled(true)
             );
-            currentPage.edit({ 
-                embeds: [pages[page].setFooter({ text: `Page ${page + 1}/${pages.length}` })], 
-                components: [disabledRow] 
+            currentPage.edit({
+                embeds: [pages[page]],
+                components: [disabledRow]
             }).catch(err => {
               try {
                 console.warn('Pagination disable buttons error:', err?.message);
@@ -85,7 +85,7 @@ const intpaginationEmbed = async (interaction, pages, buttonList, author, timeou
     const row = new ActionRowBuilder().addComponents(buttonList);
     const replyMethod = interaction.deferred ? 'editReply' : 'reply';
     await interaction[replyMethod]({
-        embeds: [pages[page].setFooter({ text: `Page ${page + 1}/${pages.length}` })],
+        embeds: [pages[page]],
         components: [row]
     });
     const currentPage = await interaction.fetchReply();
@@ -111,9 +111,9 @@ const intpaginationEmbed = async (interaction, pages, buttonList, author, timeou
             default:
                 break;
         }
-        await i.editReply({ 
-            embeds: [pages[page].setFooter({ text: `Page ${page + 1}/${pages.length}` })], 
-            components: [row] 
+        await i.editReply({
+            embeds: [pages[page]],
+            components: [row]
         });
         collector.resetTimer();
     });
@@ -121,14 +121,14 @@ const intpaginationEmbed = async (interaction, pages, buttonList, author, timeou
     collector.on('end', () => {
         try {
             const disabledRow = new ActionRowBuilder().addComponents(
-                buttonList[0].setDisabled(true), 
-                buttonList[1].setDisabled(true), 
-                buttonList[2].setDisabled(true), 
+                buttonList[0].setDisabled(true),
+                buttonList[1].setDisabled(true),
+                buttonList[2].setDisabled(true),
                 buttonList[3].setDisabled(true)
             );
-            currentPage.edit({ 
-                embeds: [pages[page].setFooter({ text: `Page ${page + 1}/${pages.length}` })], 
-                components: [disabledRow] 
+            currentPage.edit({
+                embeds: [pages[page]],
+                components: [disabledRow]
             }).catch(err => {
               try {
                 console.warn('Pagination interaction disable buttons error:', err?.message);
@@ -156,11 +156,10 @@ const queuepaginationEmbed = async (interaction, pages, buttonList, author, time
     if (!pages[page] || typeof pages[page].setFooter !== 'function') {
         pages[page] = new EmbedBuilder().setColor((typeof interaction !== 'undefined' && interaction?.client?.embedColor) ? interaction.client.embedColor : '#ff0051').setDescription(String(pages[page] || '*No content*'));
     }
-    // send ephemeral reply via flags and fetch the reply afterwards
+    // Use the existing interaction response state (deferred/replied) for visibility.
     await interaction[replyMethod]({
-        embeds: [pages[page].setFooter({ text: `Page ${page + 1}/${pages.length}` })],
-        components: [row],
-        flags: [64]
+        embeds: [pages[page]],
+        components: [row]
     });
     const currentPage = await interaction.fetchReply();
 
@@ -188,9 +187,9 @@ const queuepaginationEmbed = async (interaction, pages, buttonList, author, time
         if (!pages[page] || typeof pages[page].setFooter !== 'function') {
             pages[page] = new EmbedBuilder().setColor((typeof interaction !== 'undefined' && interaction?.client?.embedColor) ? interaction.client.embedColor : '#ff0051').setDescription(String(pages[page] || '*No content*'));
         }
-        await i.editReply({ 
-            embeds: [pages[page].setFooter({ text: `Page ${page + 1}/${pages.length}` })], 
-            components: [row] 
+        await i.editReply({
+            embeds: [pages[page]],
+            components: [row]
         });
         collector.resetTimer();
     });
@@ -198,17 +197,17 @@ const queuepaginationEmbed = async (interaction, pages, buttonList, author, time
     collector.on('end', () => {
         try {
             const disabledRow = new ActionRowBuilder().addComponents(
-                buttonList[0].setDisabled(true), 
-                buttonList[1].setDisabled(true), 
-                buttonList[2].setDisabled(true), 
+                buttonList[0].setDisabled(true),
+                buttonList[1].setDisabled(true),
+                buttonList[2].setDisabled(true),
                 buttonList[3].setDisabled(true)
             );
             if (!pages[page] || typeof pages[page].setFooter !== 'function') {
                 pages[page] = new EmbedBuilder().setColor((typeof interaction !== 'undefined' && interaction?.client?.embedColor) ? interaction.client.embedColor : '#ff0051').setDescription(String(pages[page] || '*No content*'));
             }
-            interaction.editReply({ 
-                embeds: [pages[page].setFooter({ text: `Page ${page + 1}/${pages.length}` })], 
-                components: [disabledRow] 
+            interaction.editReply({
+                embeds: [pages[page]],
+                components: [disabledRow]
             }).catch(err => {
               try {
                 console.warn('Queue pagination disable buttons error:', err?.message);

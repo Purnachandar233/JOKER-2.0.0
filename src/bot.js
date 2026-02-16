@@ -4,6 +4,7 @@ const { readdirSync } = require("fs");
 
 const Topgg = require("@top-gg/sdk")
 const db = require('../src/schema/prefix.js');
+const { patchEmbedEmojiSanitizer } = require("./utils/embedEmojiSanitizer");
 
 const client = new Client({
     intents: [
@@ -17,12 +18,15 @@ const client = new Client({
         presence: {
             status:'online',
             activities: [{
-                name: `Music | =help`, 
+                name: `Music | =help`,
                 type: ActivityType.Listening,
             }]
         },
     partials: [Partials.Message, Partials.Channel, Partials.Reaction, Partials.GuildMember]
 });
+
+// Remove emojis from embed text globally while keeping button emojis intact.
+patchEmbedEmojiSanitizer();
 
 // Warn about privileged intents (enable in Developer Portal)
 try {
@@ -42,10 +46,8 @@ client.config = require("../config.json");
 client.owner = client.config.ownerId;
 client.prefix = process.env.PREFIX || client.config.prefix;
 client.embedColor = client.config.embedColor;
-client.cooldowns = new Collection(); 
+client.cooldowns = new Collection();
 client.logger = require("./utils/logger.js");
-client.emoji = require("./utils/emoji.json");
-
 
 require("./handler/Client")(client);
 // NOTE: Global listener limits removed. If you see "MaxListenersExceededWarning",

@@ -1,76 +1,131 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder } = require("discord.js");
-const User = require("../../schema/User.js")
-const prettyMiliSeconds = require("pretty-ms");
+ const { EmbedBuilder } = require("discord.js");
+
+const User = require("../../schema/User.js");
 const day = require("dayjs");
-const Premium = require("../../schema/Premium.js")
-module.exports = {
-    name: "profile",
-    category: "special",
-    description: "Gives Your or other's profile",
-    owneronly: false,
-    wl : true,
-    execute: async (message, args, client, prefix) => {
-        let owner = client.emoji.owner
-        let dev = client.emoji.developer
-        let bug = client.emoji.bughunter
-        let sup = client.emoji.supporter
-        let prem = client.emoji.premium
-        let staff = client.emoji.staff
-        let manager = client.emoji.manager
-        let partner = client.emoji.partner
-        let booster = client.emoji.booster
+const Premium = require("../../schema/Premium.js");
+const formatDuration = require("../../utils/formatDuration");
 
-        let cache = []
-        let member = message.mentions.members.first() || message.guild.members.cache.get(args[0]) || message.member;
-        let data = await User.findOne({ userId: member.id });
-        if (!data) data = await User.create({ userId: member.id });
+const EMOJIS = require("../../utils/emoji.json");
+function getBadgeLines(client, data) {
+  const map = [
+    ["owner", "Owner"],
+    ["dev", "Verified Bot Developer"],
+    ["supporter", "Supporter"],
+    ["bug", "Bug Hunter"],
+    ["premium", "Premium User"],
+    ["manager", "Manager"],
+    ["partner", "Partnered Member"],
+    ["staff", "Staff Member"],
+    ["booster", "Server Booster"]
+  ];
 
-        if(data.badge.owner) cache.push(`${owner} Owner`)
-        if(data.badge.dev) cache.push(`${dev} Verified Bot Developer`)
-        if(data.badge.supporter) cache.push(`${sup} Supporter`)
-        if(data.badge.bug) cache.push(`${bug} Bug Hunter`)
-        if(data.badge.premium) cache.push(`${prem} Premium User`)
-        if(data.badge.manager) cache.push(`${manager} Manager`)
-        if(data.badge.partner) cache.push(`${partner} Partnered Member`)
-        if(data.badge.staff) cache.push(`${staff} Staff Member`)
-        if(data.badge.booster) cache.push(`${booster} Server Booster`)
-
-        if(cache.length === 0) cache.push(`you have no achievements in ${client.user.username}! Don't Worry [click here](https://discord.gg/pCj2UBbwST) to buy premium and get some achievements in ${client.user.username}..! `)
-
-        const isPremium = await Premium.findOne({ Id: member.id, Type: 'user' });
-        let cache1 = []
-
-        if (isPremium && isPremium.Permanent) {
-            cache1.push(`Validity : Permanent Subscription`)
-        }
-
-        if (isPremium && !isPremium.Permanent) {
-            if (isPremium.Expire > Date.now()) {
-                cache1.push(`Validity : ${prettyMiliSeconds(isPremium.Expire - Date.now())}`)
-            } else {
-                await isPremium.deleteOne();
-                cache1.push(`Expired On : ${day(isPremium.Expire).format('DD/MM/YYYY')}`)
-            }
-        }
-
-        if (!isPremium) {
-            cache1.push(`You don't have any active user premium subscription. [Click here](https://discord.gg/pCj2UBbwST) to buy one.`)
-        }
-
-        let cache2 = []
-        const voteok = client.topgg ? await client.topgg.hasVoted(member.id).catch(() => false) : false;
-        if(!voteok) cache2.push(`**Not Voted** You Can't use any premium command as you didn't voted for Joker Music on [Top.gg](https://top.gg/bot/898941398538158080/vote)`)
-        if(voteok) cache2.push(`**Voted** You can use all premium commands for 12 hours.`)
-
-        const profile = new EmbedBuilder()
-            .setColor(message.client?.embedColor || '#ff0051')
-            .setAuthor({ name: `Joker Music Profile Of ${member.user.username}` })
-            .addFields(
-                { name: "Commands used", value: `${data.count}` },
-                { name: `Achievements of ${member.user.username}`, value: cache.join("\n") },
-                { name: "Premium Status", value: cache1.join("\n") },
-                { name: "Has Voted?", value: cache2.join("\n") }
-            );
-        message.channel.send({ embeds: [profile] });
+  const lines = [];
+  for (const [key, label] of map) {
+    if (data?.badge?.[key]) {
+      const icon = EMOJIS[key] || EMOJIS.star || "*";
+      lines.push(`${icon} ${label}`);
     }
+  }
+
+  if (lines.length === 0) {
+    lines.push("No achievements unlocked yet.");
+  }
+
+  return lines;
 }
+
+function restoreBadgeFieldValue(embed, badgeValue) {
+  const fields = embed?.data?.fields;
+  if (!Array.isArray(fields)) return;
+
+  const field = fields.find(entry =>
+    typeof entry?.name === "string" && entry.name.toLowerCase().includes("achievements")
+  );
+  if (field) field.value = badgeValue;
+}
+
+module.exports = {
+  name: "profile",
+  category: "special",
+  description: "Shows your profile or another member profile.",
+  owneronly: false,
+  wl: true,
+  execute: async (message, args, client) => {
+    const getEmoji = (key, fallback = "") => EMOJIS[key] || fallback;
+    const embedColor = client?.embedColor || "#ff0051";
+    const createEmbed = ({ title, description, fields, author, thumbnail, image, footer, timestamp = false }) => {
+      const embed = new EmbedBuilder().setColor(embedColor);
+      if (title) embed.setTitle(title);
+      if (description) embed.setDescription(description);
+      if (Array.isArray(fields) && fields.length > 0) embed.addFields(fields);
+      if (author) embed.setAuthor(author);
+      if (thumbnail) embed.setThumbnail(thumbnail);
+      if (image) embed.setImage(image);
+return embed;
+    };
+    const statField = (label, value, emojiKey, inline = true) => ({
+      name: `${emojiKey ? `${getEmoji(emojiKey)} ` : ""}${label}`,
+      value: String(value),
+      inline
+    });
+
+    const member =
+      message.mentions.members.first() ||
+      message.guild.members.cache.get(args[0]) ||
+      message.member;
+
+    let userData = await User.findOne({ userId: member.id });
+    if (!userData) {
+      userData = await User.create({ userId: member.id });
+    }
+
+    const badgeLines = getBadgeLines(client, userData);
+    const badgeValue = badgeLines.join("\n");
+    const premiumDoc = await Premium.findOne({ Id: member.id, Type: "user" });
+
+    let premiumText = `No active premium subscription. Join support to get one.`;
+    if (premiumDoc?.Permanent) {
+      premiumText = "Permanent subscription";
+    } else if (premiumDoc && premiumDoc.Expire > Date.now()) {
+      premiumText = `Valid for ${formatDuration(premiumDoc.Expire - Date.now(), { verbose: false }).replace(/\s\d+s$/, "")}`;
+    } else if (premiumDoc) {
+      const expiredAt = day(premiumDoc.Expire).format("DD/MM/YYYY");
+      premiumText = `Expired on ${expiredAt}`;
+      await premiumDoc.deleteOne();
+    }
+
+    const voted = client.topgg
+      ? await client.topgg.hasVoted(member.id).catch(() => false)
+      : false;
+    const voteText = voted
+      ? "Voted - premium commands unlocked for 12 hours."
+      : `Not voted - vote on [Top.gg](https://top.gg/bot/${client.user.id}) to unlock premium commands for 12 hours.`;
+
+    const embed = createEmbed({
+      title: `${getEmoji("users")} Profile - ${member.user.username}`,
+      thumbnail: member.displayAvatarURL({ forceStatic: false, size: 1024 }),
+      fields: [
+        statField("Commands Used", `\`${userData.count || 0}\``, "music"),
+        {
+          name: `${getEmoji("star")} Achievements`,
+          value: badgeValue,
+          inline: false
+        },
+        {
+          name: `${getEmoji("premium")} Premium Status`,
+          value: premiumText,
+          inline: false
+        },
+        {
+          name: `${getEmoji("vote")} Vote Status`,
+          value: voteText,
+          inline: false
+        }
+      ]
+    });
+    restoreBadgeFieldValue(embed, badgeValue);
+
+    return message.channel.send({ embeds: [embed] });
+  }
+};
+

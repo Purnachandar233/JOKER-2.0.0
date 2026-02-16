@@ -3,6 +3,7 @@ const safeReply = require('../../utils/safeReply');
 const musicChecks = require('../../utils/musicChecks');
 const safePlayer = require('../../utils/safePlayer');
 
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
   name: "disconnect",
   description: "Leave voice channel",
@@ -14,18 +15,18 @@ module.exports = {
   wl: true,
 
   /**
-   * 
-   * @param {Client} client 
-   * @param {CommandInteraction} interaction 
+   *
+   * @param {Client} client
+   * @param {CommandInteraction} interaction
    */
 
   run: async (client, interaction) => {
     return await client.errorHandler.executeWithErrorHandling(interaction, async (interaction) => {
       await safeReply.safeDeferReply(interaction);
-      
-      let ok = client.emoji.ok;
-      let no = client.emoji.no;
-      
+
+      let ok = EMOJIS.ok;
+      let no = EMOJIS.no;
+
       const { channel } = interaction.member.voice;
       if (!channel) {
         const embed = new EmbedBuilder()
@@ -68,7 +69,7 @@ module.exports = {
         const embed = new EmbedBuilder()
           .setColor(interaction.client?.embedColor || '#ff0051')
           .setDescription(`${ok} Destroyed the player and left the voice channel \`${channel.name}\``);
-        
+
         await safeReply.safeReply(interaction, { embeds: [embed] });
         client.logger.logCommand('disconnect', interaction.user.id, interaction.guildId, Date.now() - interaction.createdTimestamp, true);
       } catch (err) {
@@ -80,6 +81,4 @@ module.exports = {
     });
   }
 };
-
-
 

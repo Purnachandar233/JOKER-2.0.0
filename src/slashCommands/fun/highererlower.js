@@ -12,7 +12,7 @@ module.exports = {
       description: 'The user you want to play against',
       type: 9,
       required: true
-    }  
+    }
   ],
   run: async (client, interaction) => {
     const deferred = await safeDeferReply(interaction, { ephemeral: false });

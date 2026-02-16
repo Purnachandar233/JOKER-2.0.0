@@ -12,7 +12,7 @@ module.exports = async (client, player, track, payload) => {
         const thing = new EmbedBuilder()
             .setColor(client?.embedColor || '#ff0051')
             .setDescription(`An error occurred while playing ${trackTitle}\nThis song may be banned or private in your country.`);
-        
+
         await channel.send({ embeds: [thing] }).catch(() => {});
 
         if (!player.voiceChannelId) {

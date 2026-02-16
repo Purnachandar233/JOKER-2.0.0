@@ -3,6 +3,7 @@ const safeReply = require('../../utils/safeReply');
 const musicChecks = require('../../utils/musicChecks');
 const safePlayer = require('../../utils/safePlayer');
 
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
     name: "skipto",
     description: "Skips to a certain track.",
@@ -30,8 +31,8 @@ module.exports = {
       return await client.errorHandler.executeWithErrorHandling(interaction, async (interaction) => {
         await safeReply.safeDeferReply(interaction);
 
-        let ok = client.emoji.ok;
-        let no = client.emoji.no;
+        let ok = EMOJIS.ok;
+        let no = EMOJIS.no;
 
         // Check cooldown
         const cooldown = client.cooldownManager.check("skipto", interaction.user.id);
@@ -79,14 +80,14 @@ module.exports = {
         try {
           // Remove all tracks before the target position
           safePlayer.queueRemove(player, 0, position - 1);
-          
+
           // Stop playback to advance to the new first track
           await safePlayer.safeStop(player);
 
           const embed = new EmbedBuilder()
             .setDescription(`${ok} Skipped to track **${position}**.`)
             .setColor(interaction.client.embedColor);
-          
+
           await safeReply.safeReply(interaction, { embeds: [embed] });
 
           // Set cooldown after success
@@ -103,5 +104,4 @@ module.exports = {
       });
     }
 };
-
 

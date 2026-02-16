@@ -4,6 +4,7 @@ const { getPreview, getTracks } = require('spotify-url-info')(fetch);
 const safePlayer = require('../../utils/safePlayer');
 const { safeReply, safeDeferReply } = require('../../utils/safeReply');
 
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
   name: "spotify",
   description: "plays some high quality music from spotify",
@@ -22,7 +23,7 @@ module.exports = {
 	],
   votelock: true,
 
-  
+
 
   /**
    * @param {Client} client
@@ -32,26 +33,26 @@ module.exports = {
   run: async (client, interaction,) => {
     const deferred = await safeDeferReply(interaction, { ephemeral: false });
     if (!deferred) return safeReply(interaction, { content: 'Failed to defer reply.' });
-          
-    let ok = client.emoji.ok;
-    let no = client.emoji.no;
-    
-      const emojiaddsong = client.emoji.addsong;
-      const emojiplaylist = client.emoji.playlist;
+
+    let ok = EMOJIS.ok;
+    let no = EMOJIS.no;
+
+      const emojiaddsong = EMOJIS.addsong;
+      const emojiplaylist = EMOJIS.playlist;
 
     const query = interaction.options.getString("query");
-    if (!query) return await interaction.editReply({ flags: [64], embeds: [new EmbedBuilder().setColor(interaction.client?.embedColor || '#ff0051')                     
+    if (!query) return await interaction.editReply({ embeds: [new EmbedBuilder().setColor(interaction.client?.embedColor || '#ff0051')
       .setDescription(`${no} Please provide a search input to search.`)]
       }).catch(() => {});
       const { channel } = interaction.member.voice;
       if (!channel) {
                       const noperms = new EmbedBuilder()
-                
+
            .setColor(interaction.client?.embedColor || '#ff0051')
              .setDescription(`${no} You must be connected to a voice channel to use this command.`)
           return await interaction.editReply({embeds: [noperms]});
       }
-      if(interaction.member.voice.selfDeaf) {	
+      if(interaction.member.voice.selfDeaf) {
         let thing = new EmbedBuilder()
          .setColor(interaction.client?.embedColor || '#ff0051')
 
@@ -74,7 +75,7 @@ return await interaction.editReply({embeds: [noperms]});
       selfDeafen: true,
 
     });
-    
+
     // If query is a Spotify URL, extract metadata and search for matching playable track
     const timeoutPromise = (p) => new Promise((_, reject) => setTimeout(() => reject(new Error('Search timeout after 10 seconds')), p || 10000));
     let s;

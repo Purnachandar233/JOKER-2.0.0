@@ -1,5 +1,6 @@
 const { EmbedBuilder } = require('discord.js');
 const track = require('../../schema/trackinfoSchema.js');
+const EMOJIS = require("../../utils/emoji.json");
 // Use spotify-url-info (no axios dependency)
 const fetch = require('isomorphic-unfetch');
 const { getPreview, getTracks } = require('spotify-url-info')(fetch);
@@ -74,7 +75,7 @@ module.exports = {
         // Use direct track data instead of polling queue (atomic operation)
         // This prevents race conditions where queue changes between check and play
         const trackToPlay = preferTrack || (searchResult?.tracks?.[0]);
-        
+
         if (!trackToPlay) {
           // No preferred track - try queue polling as fallback (slower but safer)
           for (let i = 0; i < 3; i++) {
@@ -89,10 +90,10 @@ module.exports = {
         }
 
         // Use direct track encoding/URI to avoid queue race condition
-        const trackStr = trackToPlay.track || trackToPlay.encoded || 
-                         trackToPlay?.info?.identifier || trackToPlay?.id || 
+        const trackStr = trackToPlay.track || trackToPlay.encoded ||
+                         trackToPlay?.info?.identifier || trackToPlay?.id ||
                          trackToPlay?.uri || trackToPlay;
-        
+
         try {
           return await safePlayer.safeCall(player, 'play', trackStr);
         } catch (e) {
@@ -266,7 +267,7 @@ module.exports = {
         }
         return await message.channel.send({ embeds: [new EmbedBuilder().setColor(message.client?.embedColor || '#ff0051').setDescription("*The search yielded no echoes. Try a different query.*")] }).catch(() => {});
     }
-    
+
         // reuse getQueueArray declared earlier in this function
 
         if (s.loadType === "PLAYLIST_LOADED" && s.playlist) {
@@ -289,7 +290,7 @@ module.exports = {
         try { player.set('suppressUntil', Date.now() + 2000); } catch (e) {}
         const playlistName = s.playlist?.name || 'Unknown';
         const playlistUrl = (typeof query === 'string' && query.match(/^https?:\/\//i)) ? query : (s.playlist?.info?.uri || s.playlist?.url || '');
-        const tick = (client.emoji && client.emoji.ok) ? client.emoji.ok : '✅';
+        const tick = EMOJIS.ok || "✅";
         const userLabel = message.member.toString();
         const embed = new EmbedBuilder()
           .setColor(message.client?.embedColor || '#ff0051')

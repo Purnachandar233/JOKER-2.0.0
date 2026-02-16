@@ -21,7 +21,7 @@ function withErrorLogging(promise, context = 'Operation', logger = defaultLogger
     try {
       const msg = err && (err.message || err.toString ? err.toString() : String(err));
       const stack = err && err.stack;
-      
+
       if (logger && typeof logger.log === 'function') {
         logger.log(`${context} failed: ${msg}${stack ? '\n' + stack : ''}`, 'error');
       } else if (logger && typeof logger.error === 'function') {
@@ -32,7 +32,7 @@ function withErrorLogging(promise, context = 'Operation', logger = defaultLogger
     } catch (logErr) {
       console.error('Error logging promise rejection:', logErr);
     }
-    
+
     // Don't re-throw - we've logged it
     return null;
   });

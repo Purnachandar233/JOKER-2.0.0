@@ -5,7 +5,7 @@ const { safeReply, safeDeferReply } = require('../../utils/safeReply');
 module.exports = {
   name: 'ship',
   description: legacy.description || 'Ship two users together!',
-  options: [ 
+  options: [
     { name: 'user1', description: 'First user to ship', required: true, type: 9 },
     { name: 'user2', description: 'Second user to ship', required: true, type: 9 }
   ],

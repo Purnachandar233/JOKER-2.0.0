@@ -1,13 +1,5 @@
 const { EmbedBuilder } = require("discord.js");
-
-// Valid anime slap GIF URLs - Updated working sources
-const slapGifs = [
-    "https://media1.giphy.com/media/3o6Zt6KHxJTbXCnSvu/giphy.gif",
-    "https://media1.giphy.com/media/v2LYL3dw3i3OwH94L5/giphy.gif",
-    "https://media2.giphy.com/media/xTiTnkk3x12LvAjqPu/giphy.gif",
-    "https://media3.giphy.com/media/5xtDarE6XC3gN4bB4KU/giphy.gif",
-    "https://media4.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.gif"
-];
+const { getActionGif } = require("../../../utils/actionGifProvider");
 
 // Helper function to get first mentioned user from both Collection and Map
 function getFirstMentionedUser(message, args, client) {
@@ -27,7 +19,7 @@ module.exports = {
     description: "Give someone a playful slap!",
     execute: async (message, args, client, prefix) => {
         const user = getFirstMentionedUser(message, args, client);
-        
+
         if (!user) {
             return message.reply("Please mention someone to slap! 😅");
         }
@@ -36,15 +28,13 @@ module.exports = {
             return message.reply("You can't slap yourself! 🙈");
         }
 
-        const randomGif = slapGifs[Math.floor(Math.random() * slapGifs.length)];
+        const randomGif = await getActionGif("slap");
 
         const embed = new EmbedBuilder()
             .setColor("#ff6b6b")
             .setTitle(`${message.author.username} slaps ${user.username}`)
             .setDescription(`${user.username} just received a playful slap from ${message.author.username}! 🤚`)
             .setImage(randomGif)
-            .setFooter({ text: "Joker Music • Action Command" });
-
-        message.channel.send({ embeds: [embed] });
+message.channel.send({ embeds: [embed] });
     }
 };

@@ -1,3 +1,4 @@
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
     name: "reload",
     category: "owner",
@@ -5,11 +6,11 @@ module.exports = {
     description: "Reload Command",
     owneronly: true,
     execute: async (message, args, client, prefix) => {
-          
-    let ok = client.emoji.ok;
-    let no = client.emoji.no;
-    
-  
+
+    let ok = EMOJIS.ok;
+    let no = EMOJIS.no;
+
+
 
         if (!args.length) return message.channel.send(`mention command!`);
         const commandName = args[0].toLowerCase();
@@ -25,7 +26,6 @@ module.exports = {
         } catch (e) {
             return message.channel.send(`Could not find file for command \`${command.name}\` at \`${commandPath}\`.`);
         }
-
 
         try {
             const newCommand = require(`${process.cwd()}/src/commands/${command.category}/${command.name}.js`);

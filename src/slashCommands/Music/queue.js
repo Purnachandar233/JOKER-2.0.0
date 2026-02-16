@@ -1,8 +1,19 @@
-const { EmbedBuilder, CommandInteraction, Client, ButtonBuilder } = require("discord.js");
-const { intpaginationEmbed } = require('../../utils/pagination.js');
-const safeReply = require('../../utils/safeReply');
-const musicChecks = require('../../utils/musicChecks');
-let chunk = require('chunk');
+const { ButtonBuilder, ButtonStyle, EmbedBuilder } = require("discord.js");
+
+const { intpaginationEmbed } = require("../../utils/pagination.js");
+const safeReply = require("../../utils/safeReply");
+const musicChecks = require("../../utils/musicChecks");
+
+const EMOJIS = require("../../utils/emoji.json");
+
+function chunkArray(list, size) {
+  if (!Array.isArray(list) || size <= 0) return [];
+  const chunks = [];
+  for (let i = 0; i < list.length; i += size) {
+    chunks.push(list.slice(i, i + size));
+  }
+  return chunks;
+}
 
 module.exports = {
   name: "queue",
@@ -10,33 +21,50 @@ module.exports = {
   owner: false,
   player: true,
   inVoiceChannel: true,
-  wl : true,
+  wl: true,
   sameVoiceChannel: false,
 
-  /**
-   * 
-   * @param {Client} client 
-   * @param {CommandInteraction} interaction 
-   */
-
   run: async (client, interaction) => {
-    return await client.errorHandler.executeWithErrorHandling(interaction, async (interaction) => {
-      await safeReply.safeDeferReply(interaction);
+    const getEmoji = (key, fallback = "") => EMOJIS[key] || fallback;
+    const embedColor = client?.embedColor || "#ff0051";
+    const createEmbed = ({ title, description, fields, author, thumbnail, image, footer, timestamp = false }) => {
+      const embed = new EmbedBuilder().setColor(embedColor);
+      if (title) embed.setTitle(title);
+      if (description) embed.setDescription(description);
+      if (Array.isArray(fields) && fields.length > 0) embed.addFields(fields);
+      if (author) embed.setAuthor(author);
+      if (thumbnail) embed.setThumbnail(thumbnail);
+      if (image) embed.setImage(image);
+return embed;
+    };
+    const createPaginationButtons = (page = 1, total = 1) => {
+      const first = new ButtonBuilder().setCustomId("first").setLabel("First").setStyle(ButtonStyle.Secondary).setDisabled(page <= 1);
+      const back = new ButtonBuilder().setCustomId("back").setLabel("Back").setStyle(ButtonStyle.Secondary).setDisabled(page <= 1);
+      const next = new ButtonBuilder().setCustomId("next").setLabel("Next").setStyle(ButtonStyle.Primary).setDisabled(page >= total);
+      const last = new ButtonBuilder().setCustomId("last").setLabel("Last").setStyle(ButtonStyle.Primary).setDisabled(page >= total);
+      try { first.setEmoji(getEmoji("first")); } catch (_e) {}
+      try { back.setEmoji(getEmoji("back")); } catch (_e) {}
+      try { next.setEmoji(getEmoji("next")); } catch (_e) {}
+      try { last.setEmoji(getEmoji("last")); } catch (_e) {}
+      return [first, back, next, last];
+    };
 
-      let ok = client.emoji.ok;
-      let no = client.emoji.no;
+    return client.errorHandler.executeWithErrorHandling(interaction, async safeInteraction => {
+      await safeReply.safeDeferReply(safeInteraction);
 
-      // Check cooldown
-      const cooldown = client.cooldownManager.check("queue", interaction.user.id);
+      const ok = EMOJIS.ok;
+      const no = EMOJIS.no;
+
+      const cooldown = client.cooldownManager.check("queue", safeInteraction.user.id);
       if (cooldown.onCooldown) {
-        const embed = new EmbedBuilder()
-          .setColor(interaction.client?.embedColor || '#ff0051')
-          .setDescription(`${no} Cooldown active. Try again in ${cooldown.remaining()}ms`);
-        return await safeReply.safeReply(interaction, { embeds: [embed] });
+        const embed = createEmbed({
+          title: `${getEmoji("time")} Cooldown Active`,
+          description: `${no} Try again in ${cooldown.remaining()}ms.`
+        });
+        return safeReply.safeReply(safeInteraction, { embeds: [embed] });
       }
 
-      // Run music checks
-      const check = await musicChecks.runMusicChecks(client, interaction, {
+      const check = await musicChecks.runMusicChecks(client, safeInteraction, {
         inVoiceChannel: true,
         botInVoiceChannel: true,
         sameChannel: false,
@@ -45,61 +73,69 @@ module.exports = {
       });
 
       if (!check.valid) {
-        return await safeReply.safeReply(interaction, { embeds: [check.embed] });
+        return safeReply.safeReply(safeInteraction, { embeds: [check.embed] });
       }
 
-      // Get queue using thread-safe controller
-      const queue = await client.playerController.getQueue(interaction.guildId);
-      const currentTrack = await client.playerController.getCurrentTrack(interaction.guildId);
+      const queue = await client.playerController.getQueue(safeInteraction.guildId);
+      const currentTrack = await client.playerController.getCurrentTrack(safeInteraction.guildId);
 
       if (!queue || queue.length === 0) {
-        const embed = new EmbedBuilder()
-          .setColor(interaction.client?.embedColor || '#ff0051')
-          .setDescription(`${no} There is nothing playing in this server or there are no songs in the queue.`);
-        return await safeReply.safeReply(interaction, { embeds: [embed] });
+        const embed = createEmbed({
+          title: `${getEmoji("queue")} Queue Empty`,
+          description: `${no} There is nothing playing in this server.`
+        });
+        return safeReply.safeReply(safeInteraction, { embeds: [embed] });
       }
 
-      // Format queue entries
+      const currentTitle = currentTrack?.info?.title || currentTrack?.title || "No current track";
+      const currentDuration = currentTrack?.info?.isStream || currentTrack?.isStream
+        ? "LIVE"
+        : (currentTrack?.info?.duration || currentTrack?.duration)
+          ? new Date(currentTrack?.info?.duration || currentTrack?.duration).toISOString().slice(11, 19)
+          : "Unknown";
+
       const queueEntries = queue.map((track, i) => {
-        const title = track?.info?.title || track?.title || 'Unknown Title';
+        const title = track?.info?.title || track?.title || "Unknown Title";
         const duration = track?.info?.duration || track?.duration;
         const isStream = track?.info?.isStream || track?.isStream;
-        const durationStr = isStream ? '◉ LIVE' : (duration ? new Date(duration).toISOString().slice(11, 19) : 'Unknown');
-        return `${i + 1}. ${title} - \`${durationStr}\``;
+        const durationText = isStream ? "LIVE" : (duration ? new Date(duration).toISOString().slice(11, 19) : "Unknown");
+        return `${i + 1}. ${title} - \`${durationText}\``;
       });
 
-      // Chunk queue into pages (10 per page)
-      const chunked = chunk(queueEntries, 10);
+      const chunked = chunkArray(queueEntries, 10);
       const embeds = [];
 
-      const currentTitle = currentTrack?.info?.title || currentTrack?.title || 'No current track';
-      const currentDuration = !currentTrack?.isStream ? (currentTrack?.duration ? new Date(currentTrack.duration).toISOString().slice(11, 19) : 'Unknown') : '◉ LIVE';
-
-      for (let i = 1; i <= chunked.length; ++i) {
-        const upcoming = chunked[i - 1] && chunked[i - 1].length ? chunked[i - 1].join('\n') : '*No more tracks in line.*';
-        embeds.push(new EmbedBuilder()
-          .setColor(interaction.client?.embedColor || '#ff0051')
-          .setTitle(`${interaction.guild.name} Music Queue`)
-          .setDescription(`**Now playing**\n${currentTitle} - \`${currentDuration}\`\n\n**Upcoming tracks**\n${upcoming}`)
-          .setFooter({ text: `Page ${i}/${chunked.length}` }));
+      for (let i = 0; i < chunked.length; i++) {
+        const upcoming = chunked[i]?.length ? chunked[i].join("\n") : "*No more tracks in line.*";
+        embeds.push(createEmbed({
+          title: `${getEmoji("queue")} ${safeInteraction.guild.name} Queue`,
+          description: `**Now Playing**\n${currentTitle} - \`${currentDuration}\`\n\n**Upcoming Tracks**\n${upcoming}`,
+          footer: `${getEmoji("music")} Page ${i + 1}/${chunked.length}`
+        }));
       }
 
-      const button1 = new ButtonBuilder().setCustomId('first').setLabel('First').setStyle(2);
-      const button2 = new ButtonBuilder().setCustomId('back').setLabel('Back').setStyle(2);
-      const button3 = new ButtonBuilder().setCustomId('next').setLabel('Next').setStyle(2);
-      const button4 = new ButtonBuilder().setCustomId('last').setLabel('Last').setStyle(2);
-      const buttonList = [button1, button2, button3, button4];
+      if (!embeds.length) {
+        embeds.push(createEmbed({
+          title: `${getEmoji("queue")} ${safeInteraction.guild.name} Queue`,
+          description: `**Now Playing**\n${currentTitle} - \`${currentDuration}\`\n\n**Upcoming Tracks**\n*No more tracks in line.*`,
+          footer: `${getEmoji("music")} Page 1/1`
+        }));
+      }
 
-      intpaginationEmbed(interaction, embeds, buttonList, interaction.member.user, 30000);
+      if (embeds.length === 1) {
+        await safeReply.safeReply(safeInteraction, { embeds: [embeds[0]] });
+      } else {
+        const buttonList = createPaginationButtons(1, embeds.length).map(button =>
+          ButtonBuilder.from(button).setDisabled(false)
+        );
+        await intpaginationEmbed(safeInteraction, embeds, buttonList, safeInteraction.member.user, 30000);
+      }
 
-      // Set cooldown after success
-      client.cooldownManager.set("queue", interaction.user.id, 1000);
+      client.cooldownManager.set("queue", safeInteraction.user.id, 1000);
+      client.logger.logCommand("queue", safeInteraction.user.id, safeInteraction.guildId, Date.now() - safeInteraction.createdTimestamp, true);
 
-      // Log the command
-      client.logger.logCommand('queue', interaction.user.id, interaction.guildId, Date.now() - interaction.createdTimestamp, true);
+      return ok;
     });
   }
 };
-
-
 

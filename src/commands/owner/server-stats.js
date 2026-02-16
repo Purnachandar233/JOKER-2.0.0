@@ -1,37 +1,57 @@
 const { EmbedBuilder } = require("discord.js");
-const os = require('os');
 
+const os = require("os");
+const formatDuration = require("../../utils/formatDuration");
+
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
   name: "server-stats",
   category: "owner",
-  description: "Shows the VPS stats of the bot.",
+  description: "Shows host stats for the bot process.",
   owneronly: true,
-  execute: async (message, args, client, prefix) => {
-    const totalSeconds = os.uptime();
-    const realTotalSecs = Math.floor(totalSeconds % 60);
-    const days = Math.floor((totalSeconds % (31536 * 100)) / 86400);
-    const hours = Math.floor((totalSeconds / 3600) % 24);
-    const mins = Math.floor((totalSeconds / 60) % 60);
+  execute: async (message, args, client) => {
+    const getEmoji = (key, fallback = "") => EMOJIS[key] || fallback;
+    const embedColor = client?.embedColor || "#ff0051";
+    const createEmbed = ({ title, description, fields, author, thumbnail, image, footer, timestamp = false }) => {
+      const embed = new EmbedBuilder().setColor(embedColor);
+      if (title) embed.setTitle(title);
+      if (description) embed.setDescription(description);
+      if (Array.isArray(fields) && fields.length > 0) embed.addFields(fields);
+      if (author) embed.setAuthor(author);
+      if (thumbnail) embed.setThumbnail(thumbnail);
+      if (image) embed.setImage(image);
+return embed;
+    };
+    const statField = (label, value, emojiKey, inline = true) => ({
+      name: `${emojiKey ? `${getEmoji(emojiKey)} ` : ""}${label}`,
+      value: String(value),
+      inline
+    });
 
-    const vps = new EmbedBuilder()
-      .setAuthor({ name: 'Virtual Private Server Stats' })
-      .setColor(message.client?.embedColor || '#ff0051')
-      .addFields(
-        { name: 'Host', value: `${os.type()} ${os.arch()}`, inline: true },
-        { name: 'CPU', value: `${os.cpus()[0].model}`, inline: true },
-        { name: 'Uptime', value: `${days}d ${hours}h ${mins}m ${realTotalSecs}s`, inline: true },
-        { name: 'RAM', value: `${Math.round(os.totalmem() / 1024 / 1024)}MB`, inline: true },
-        { name: 'Memory Usage', value: `${(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2)} MB`, inline: true },
-        { name: 'CPU Load', value: `${os.loadavg()[0].toFixed(2)}%`, inline: true },
-        { name: 'CPU Cores', value: `${os.cpus().length}`, inline: true },
-        { name: 'Speed', value: `${os.cpus()[0].speed}Mhz`, inline: true },
-        { name: 'Heap Total', value: `${Math.round(process.memoryUsage().heapTotal / 1024 / 1024)}MB`, inline: true },
-        { name: 'Free Memory', value: `${Math.round(os.freemem() / 1024 / 1024)}MB`, inline: true },
-        { name: 'Node Version', value: `${process.version}`, inline: true }
-      )
-      .setFooter({ text: 'Joker Music Bot' })
-      .setTimestamp();
+    const cpu = os.cpus()[0];
+    const uptime = formatDuration(os.uptime() * 1000, { verbose: false, unitCount: 4 });
+    const processMemMb = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2);
+    const heapTotalMb = (process.memoryUsage().heapTotal / 1024 / 1024).toFixed(2);
 
-    message.channel.send({ embeds: [vps] });
+    const embed = createEmbed({
+      title: `${getEmoji("server")} Host Statistics`,
+      description: "Runtime and machine diagnostics for this process.",
+      fields: [
+        statField("Host", `\`${os.type()} ${os.arch()}\``, "server"),
+        statField("Node", `\`${process.version}\``, "info"),
+        statField("Uptime", `\`${uptime}\``, "time"),
+        statField("CPU Model", `\`${cpu?.model || "Unknown"}\``, "server", false),
+        statField("CPU Cores", `\`${os.cpus().length}\``, "server"),
+        statField("CPU Speed", `\`${cpu?.speed || 0}MHz\``, "server"),
+        statField("Load (1m)", `\`${os.loadavg()[0].toFixed(2)}\``, "server"),
+        statField("RAM Total", `\`${Math.round(os.totalmem() / 1024 / 1024)}MB\``, "memory"),
+        statField("RAM Free", `\`${Math.round(os.freemem() / 1024 / 1024)}MB\``, "memory"),
+        statField("Heap Used", `\`${processMemMb}MB\``, "memory"),
+        statField("Heap Total", `\`${heapTotalMb}MB\``, "memory")
+      ]
+    });
+
+    return message.channel.send({ embeds: [embed] });
   }
 };
+

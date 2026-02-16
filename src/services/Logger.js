@@ -23,7 +23,7 @@ class Logger {
 
     // Default to 'info' level for low load (skip debug logs)
     this.currentLevel = this.levels.info;
-    
+
     // Write buffer for async batching (reduce I/O operations)
     this.writeBuffer = new Map(); // filename -> Array<entry>
     this.bufferFlushInterval = 5000; // Flush every 5 seconds
@@ -52,7 +52,7 @@ class Logger {
    */
   log(message, type = 'info', metadata = {}) {
     const logType = type ? type.toLowerCase() : 'info';
-    
+
     // Map common type names to logger methods
     switch (logType) {
       case 'debug':
@@ -66,10 +66,18 @@ class Logger {
         return this.warn(message, metadata);
       case 'error':
       case 'err':
-        return this.error(message, null, metadata);
+        return this.error(
+          message instanceof Error ? (message.message || String(message)) : message,
+          message instanceof Error ? message : null,
+          metadata
+        );
       case 'fatal':
       case 'critical':
-        return this.fatal(message, null, metadata);
+        return this.fatal(
+          message instanceof Error ? (message.message || String(message)) : message,
+          message instanceof Error ? message : null,
+          metadata
+        );
       default:
         return this.info(message, { ...metadata, originalType: logType });
     }
@@ -127,13 +135,13 @@ class Logger {
     try {
       for (const [filename, entries] of this.writeBuffer.entries()) {
         if (entries.length === 0) continue;
-        
+
         // Write all entries at once (async, non-blocking)
         const content = entries.join('\n') + '\n';
         fs.appendFile(filename, content, 'utf-8', (err) => {
           if (err) console.error('[Logger] Async write error:', err.message);
         });
-        
+
         // Clear buffer
         this.writeBuffer.set(filename, []);
       }
@@ -152,7 +160,7 @@ class Logger {
         this.writeBuffer.set(filename, []);
       }
       this.writeBuffer.get(filename).push(entry);
-      
+
       // Flush if buffer is getting large (reduce memory)
       if (this.writeBuffer.get(filename).length >= 50) {
         this.flushBuffer();
@@ -167,10 +175,10 @@ class Logger {
    */
   formatFileEntry(level, message, metadata = {}) {
     const timestamp = this.getISOTimestamp();
-    const metaStr = Object.keys(metadata).length > 0 
-      ? ' ' + JSON.stringify(metadata) 
+    const metaStr = Object.keys(metadata).length > 0
+      ? ' ' + JSON.stringify(metadata)
       : '';
-    
+
     return `[${timestamp}] [${level.toUpperCase()}] ${message}${metaStr}`;
   }
 
@@ -180,7 +188,7 @@ class Logger {
   formatConsoleEntry(level, message, icon = '') {
     const timestamp = this.getTimestamp();
     const levelStr = level.toUpperCase();
-    
+
     // Map levels to symbols for cleaner output
     const symbols = {
       'INFO': 'ℹ',
@@ -191,7 +199,7 @@ class Logger {
       'SUCCESS': '✓',
       'READY': '✓'
     };
-    
+
     const symbol = icon || symbols[levelStr] || '•';
     return `[${timestamp}] ${symbol} ${message}`;
   }
@@ -216,7 +224,7 @@ class Logger {
    */
   info(message, metadata = {}) {
     if (this.levels.info < this.currentLevel) return;
-    
+
     const consoleEntry = this.formatConsoleEntry('info', message, 'ℹ');
     const fileEntry = this.formatFileEntry('info', message, metadata);
     console.log(consoleEntry);
@@ -228,7 +236,7 @@ class Logger {
    */
   success(message, metadata = {}) {
     if (this.levels.info < this.currentLevel) return;
-    
+
     const consoleEntry = this.formatConsoleEntry('success', message, '✓');
     const fileEntry = this.formatFileEntry('info', message, metadata);
     console.log('\x1b[32m' + consoleEntry + '\x1b[0m'); // Green
@@ -240,7 +248,7 @@ class Logger {
    */
   warn(message, metadata = {}) {
     if (this.levels.warn < this.currentLevel) return;
-    
+
     const consoleEntry = this.formatConsoleEntry('warn', message, '⚠');
     const fileEntry = this.formatFileEntry('warn', message, metadata);
     console.warn('\x1b[33m' + consoleEntry + '\x1b[0m'); // Yellow
@@ -293,7 +301,7 @@ class Logger {
   logCommand(commandName, userId, guildId, duration, success = true) {
     const status = success ? '✅' : '❌';
     const message = `${status} Command: /${commandName}`;
-    
+
     const metadata = {
       command: commandName,
       user: userId,

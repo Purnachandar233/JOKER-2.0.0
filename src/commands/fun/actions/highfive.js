@@ -1,13 +1,5 @@
 const { EmbedBuilder } = require("discord.js");
-
-// Verified working anime highfive GIFs
-const highfiveGifs = [
-    "https://media.giphy.com/media/3o7TKU8gNS9TQfm8OI/giphy.gif",  // Anime highfive celebration
-    "https://media.giphy.com/media/l0HlN9Q0kYWd74nAQ/giphy.gif",   // Happy highfive
-    "https://media.giphy.com/media/v2LYL3dw3i3OwH94L5/giphy.gif",  // Enthusiastic highfive
-    "https://media.giphy.com/media/iKBAAfYNgnXSozLVyn/giphy.gif",   // Victory highfive
-    "https://media.giphy.com/media/L95W4z3PSpLT60Opie/giphy.gif"   // Success highfive
-];
+const { getActionGif } = require("../../../utils/actionGifProvider");
 
 // Helper function to get first mentioned user from both Collection and Map
 function getFirstMentionedUser(message, args, client) {
@@ -29,7 +21,7 @@ module.exports = {
     usage: "highfive @user",
     execute: async (message, args, client, prefix) => {
         const user = getFirstMentionedUser(message, args, client);
-        
+
         if (!user) {
             return message.channel.send("Please mention someone to high five! ✋");
         }
@@ -38,7 +30,7 @@ module.exports = {
             return message.channel.send("You can't high five yourself! 😄");
         }
 
-        const randomGif = highfiveGifs[Math.floor(Math.random() * highfiveGifs.length)];
+        const randomGif = await getActionGif("highfive");
 
         const embed = new EmbedBuilder()
             .setColor(client?.embedColor || '#ff0051')

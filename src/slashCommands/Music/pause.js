@@ -2,6 +2,7 @@ const { EmbedBuilder, CommandInteraction, Client } = require("discord.js");
 const safeReply = require('../../utils/safeReply');
 const musicChecks = require('../../utils/musicChecks');
 
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
     name: "pause",
     description: "Pause the currently playing music",
@@ -11,19 +12,19 @@ module.exports = {
     djonly :true,
     sameVoiceChannel: true,
     wl : true,
-	
+
     /**
-     * 
-     * @param {Client} client 
-     * @param {CommandInteraction} interaction 
+     *
+     * @param {Client} client
+     * @param {CommandInteraction} interaction
      */
 
     run: async (client, interaction) => {
       return await client.errorHandler.executeWithErrorHandling(interaction, async (interaction) => {
         await safeReply.safeDeferReply(interaction);
-        
-        let ok = client.emoji.ok;
-        let no = client.emoji.no;
+
+        let ok = EMOJIS.ok;
+        let no = EMOJIS.no;
 
         // Check cooldown
         const cooldown = client.cooldownManager.check("pause", interaction.user.id);
@@ -48,7 +49,7 @@ module.exports = {
         }
 
         const player = check.player;
-        
+
         if (player.paused) {
           const embed = new EmbedBuilder()
             .setColor(interaction.client?.embedColor || '#ff0051')
@@ -69,7 +70,7 @@ module.exports = {
         const embed = new EmbedBuilder()
           .setColor(interaction.client?.embedColor || '#ff0051')
           .setDescription(`${ok} **The player has been paused**`);
-        
+
         await safeReply.safeReply(interaction, { embeds: [embed] });
 
         // Set cooldown after success
@@ -80,6 +81,4 @@ module.exports = {
       });
     }
 };
-
-
 

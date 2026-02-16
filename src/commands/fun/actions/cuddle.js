@@ -1,13 +1,5 @@
 const { EmbedBuilder } = require("discord.js");
-
-// Verified working anime romantic cuddle GIFs
-const cuddleGifs = [
-    "https://media.giphy.com/media/L95W4z3PSpLT60Opie/giphy.gif",  // Romantic anime cuddle
-    "https://media.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.gif",  // Couple cuddle moment
-    "https://media.giphy.com/media/3o7TKU8gNS9TQfm8OI/giphy.gif",  // Affectionate cuddle
-    "https://media.giphy.com/media/l0HlN9Q0kYWd74nAQ/giphy.gif",  // Sweet embrace
-    "https://media.giphy.com/media/iKBAAfYNgnXSozLVyn/giphy.gif"  // Romantic moment
-];
+const { getActionGif } = require("../../../utils/actionGifProvider");
 
 // Helper function to get first mentioned user from both Collection and Map
 function getFirstMentionedUser(message, args, client) {
@@ -29,7 +21,7 @@ module.exports = {
     description: "Cuddle with someone!",
     execute: async (message, args, client, prefix) => {
         const user = getFirstMentionedUser(message, args, client);
-        
+
         if (!user) {
             return message.channel.send("Please mention someone to cuddle! 🧸");
         }
@@ -38,7 +30,7 @@ module.exports = {
             return message.channel.send("You can't cuddle yourself! 😔");
         }
 
-        const randomGif = cuddleGifs[Math.floor(Math.random() * cuddleGifs.length)];
+        const randomGif = await getActionGif("cuddle");
 
         const embed = new EmbedBuilder()
             .setColor("#ff69b4")

@@ -5,7 +5,7 @@ const User = new mongoose.Schema({
     count: { type: Number, default: 0 },
     voted: { type: Boolean, default: false },
     badge: {
-        
+
         dev: { type: Boolean, default: false },
         owner: { type: Boolean, default: false },
         supporter: { type: Boolean, default: false },

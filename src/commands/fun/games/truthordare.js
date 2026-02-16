@@ -53,14 +53,17 @@ module.exports = {
       .setTitle("🎭 Truth or Dare")
       .setDescription("Choose your challenge!")
       .setColor(client.embedColor || '#e74c3c')
-      .setFooter({ text: `Game by ${message.author.username}` });
-    
-    const msg = await message.channel.send({ embeds: [startEmbed], components: [row] });
+const msg = await message.channel.send({ embeds: [startEmbed], components: [row] });
 
-    const filter = (i) => i.customId.startsWith('tod_') && i.user.id === message.author.id;
+    const filter = (i) => i.customId.startsWith('tod_');
     const collector = msg.createMessageComponentCollector({ filter, time: 20000, max: 1 });
 
     collector.on('collect', async (interaction) => {
+      if (interaction.user.id !== message.author.id) {
+        await interaction.reply({ content: `Only <@${message.author.id}> can use these buttons.`, ephemeral: true }).catch(() => {});
+        return;
+      }
+
       const choice = interaction.customId.split('_')[1];
       let content = '';
       let emoji = '';
@@ -77,9 +80,7 @@ module.exports = {
         .setTitle(`${emoji} ${choice.charAt(0).toUpperCase() + choice.slice(1)}`)
         .setDescription(content)
         .setColor(choice === 'truth' ? '#3498db' : '#e74c3c')
-        .setFooter({ text: `Requested by ${interaction.user.username}` });
-      
-      await interaction.update({ embeds: [embed], components: [] });
+await interaction.update({ embeds: [embed], components: [] });
     });
 
     collector.on('end', (collected) => {

@@ -2,6 +2,7 @@ const { CommandInteraction, Client, EmbedBuilder } = require("discord.js");
 const safeReply = require('../../utils/safeReply');
 const musicChecks = require('../../utils/musicChecks');
 
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
     name: "loop",
     description: "Toggle looping",
@@ -40,8 +41,8 @@ module.exports = {
       return await client.errorHandler.executeWithErrorHandling(interaction, async (interaction) => {
         await safeReply.safeDeferReply(interaction);
 
-        let ok = client.emoji.ok;
-        let no = client.emoji.no;
+        let ok = EMOJIS.ok;
+        let no = EMOJIS.no;
 
         // Check cooldown
         const cooldown = client.cooldownManager.check("loop", interaction.user.id);
@@ -107,6 +108,4 @@ module.exports = {
       });
     }
 };
-
-
 

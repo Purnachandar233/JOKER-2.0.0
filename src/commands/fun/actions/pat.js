@@ -1,13 +1,5 @@
 const { EmbedBuilder } = require("discord.js");
-
-// Verified working anime romantic pat/headpat GIFs
-const patGifs = [
-    "https://media.giphy.com/media/l0HlQaQ5jcKxaiEPm/giphy.gif",  // Cute romantic headpat
-    "https://media.giphy.com/media/xTiTnkk3x12LvAjqPu/giphy.gif",  // Affectionate pat
-    "https://media.giphy.com/media/v2LYL3dw3i3OwH94L5/giphy.gif",  // Tender moment
-    "https://media.giphy.com/media/3o7TKU8gNS9TQfm8OI/giphy.gif",  // Romantic pat
-    "https://media.giphy.com/media/iKBAAfYNgnXSozLVyn/giphy.gif"  // Sweet headpat
-];
+const { getActionGif } = require("../../../utils/actionGifProvider");
 
 // Helper function to get first mentioned user from both Collection and Map
 function getFirstMentionedUser(message, args, client) {
@@ -29,7 +21,7 @@ module.exports = {
     usage: "pat @user",
     execute: async (message, args, client, prefix) => {
         const user = getFirstMentionedUser(message, args, client);
-        
+
         if (!user) {
             return message.channel.send("Please mention someone to pat! 🤗");
         }
@@ -38,7 +30,7 @@ module.exports = {
             return message.channel.send("You can't pat yourself! 😄");
         }
 
-        const randomGif = patGifs[Math.floor(Math.random() * patGifs.length)];
+        const randomGif = await getActionGif("pat");
 
         const embed = new EmbedBuilder()
             .setColor("#ffd700")

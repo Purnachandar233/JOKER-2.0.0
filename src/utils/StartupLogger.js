@@ -14,10 +14,10 @@ class StartupLogger {
   printBanner(botName, version) {
     const width = 60;
     const padding = Math.floor((width - botName.length - version.length - 1) / 2);
-    
+
     console.log('\n' + '═'.repeat(width));
     console.log(
-      ' '.repeat(padding) + 
+      ' '.repeat(padding) +
       `\x1b[36m${botName}\x1b[0m \x1b[90m${version}\x1b[0m`
     );
     console.log('═'.repeat(width) + '\n');
