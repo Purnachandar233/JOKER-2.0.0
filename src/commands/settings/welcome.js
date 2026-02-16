@@ -42,6 +42,13 @@ return embed;
     const sub = String(args[0] || "").toLowerCase();
     const { guildId, guild, author } = message;
 
+    if (!message.member.permissions.has('ADMINISTRATOR')) {
+        const noperms = new EmbedBuilder()
+       .setColor(message.client?.embedColor || '#ff0051')
+       .setDescription(`You need this required Permissions: \`admin\` to run this command.`)
+       return await message.channel.send({embeds: [noperms]});
+    }
+
     if (!sub) {
       const embed = createEmbed({
         title: `${getEmoji("server")} Welcome System`,
