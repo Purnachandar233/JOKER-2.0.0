@@ -5,6 +5,7 @@ const safeReply = require('../../utils/safeReply');
 const musicChecks = require('../../utils/musicChecks');
 const safePlayer = require('../../utils/safePlayer');
 
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
     name: "rewind",
     description: "Rewinds a track in seconds.",
@@ -32,8 +33,8 @@ module.exports = {
       return await client.errorHandler.executeWithErrorHandling(interaction, async (interaction) => {
         await safeReply.safeDeferReply(interaction);
 
-        let ok = client.emoji.ok;
-        let no = client.emoji.no;
+        let ok = EMOJIS.ok;
+        let no = EMOJIS.no;
 
         // Check cooldown
         const cooldown = client.cooldownManager.check("rewind", interaction.user.id);
@@ -72,18 +73,14 @@ module.exports = {
         const tracks = safePlayer.getQueueArray(player);
 
         try {
-          let seekTime = player.position - Number(timeMs);
-          const curDur = tracks[0]?.info?.duration || tracks[0]?.duration || 0;
-          if (seekTime >= curDur - player.position || seekTime < 0) {
-            seekTime = 0;
-          }
+          const seekTime = Math.max(0, Number(player.position) - Number(timeMs));
 
-          await safePlayer.safeCall(player, 'seek', Number(seekTime));
-          
+          await safePlayer.safeCall(player, 'seek', seekTime);
+
           const embed = new EmbedBuilder()
             .setColor(interaction.client?.embedColor || '#ff0051')
-            .setDescription(`${ok} Rewind by \`${convertTime(timeMs)}\``);
-          
+            .setDescription(`${ok} Rewound to \`${convertTime(seekTime)}\``);
+
           await safeReply.safeReply(interaction, { embeds: [embed] });
 
           // Set cooldown after success
@@ -100,6 +97,4 @@ module.exports = {
       });
     }
 };
-
-
 

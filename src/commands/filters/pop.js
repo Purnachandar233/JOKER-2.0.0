@@ -1,5 +1,6 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder } = require('discord.js')
 
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
   name: 'pop',
   category: 'filters',
@@ -10,8 +11,8 @@ module.exports = {
   djonly: false,
   wl: true,
   execute: async (message, args, client, prefix) => {
-    const ok = client.emoji.ok
-    const no = client.emoji.no
+    const ok = EMOJIS.ok
+    const no = EMOJIS.no
     //
 
     //
@@ -84,5 +85,4 @@ module.exports = {
     }
   }
 }
-
 

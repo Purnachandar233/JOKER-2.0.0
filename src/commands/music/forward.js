@@ -3,6 +3,7 @@ const { convertTime } = require('../../utils/convert.js');
 const ms = require('ms');
 const safePlayer = require('../../utils/safePlayer');
 
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
   name: 'forward',
   category: 'music',
@@ -12,26 +13,26 @@ module.exports = {
   djonly : true,
   wl : true,
   execute: async (message, args, client, prefix) => {
-     
-    let ok = client.emoji.ok;
-    let no = client.emoji.no;
-    
+
+    let ok = EMOJIS.ok;
+    let no = EMOJIS.no;
+
     const time = args.join(" ")
     //
-   
+
     //
        const { channel } = message.member.voice;
        if (!channel) {
                        const noperms = new EmbedBuilder()
-                      
+
             .setColor(message.client?.embedColor || '#ff0051')
               .setDescription(`${no} You must be connected to a voice channel to use this command.`)
            return await message.channel.send({embeds: [noperms]});
        }
-       if(message.member.voice.selfDeaf) {	
+       if(message.member.voice.selfDeaf) {
          let thing = new EmbedBuilder()
           .setColor(message.client?.embedColor || '#ff0051')
- 
+
         .setDescription(`${no} <@${message.member.id}> You cannot run this command while deafened.`)
           return await message.channel.send({embeds: [thing]});
         }
@@ -40,7 +41,7 @@ module.exports = {
             const tracks = getQueueArray(player);
             if(!player || !tracks || tracks.length === 0) {
                        const noperms = new EmbedBuilder()
- 
+
             .setColor(message.client?.embedColor || '#ff0051')
             .setDescription(`${no} There is nothing playing in this server.`)
            return await message.channel.send({embeds: [noperms]});
@@ -51,24 +52,32 @@ module.exports = {
            .setDescription(`${no} You must be connected to the same voice channel as me.`)
            return await message.channel.send({embeds: [noperms]});
        }
-         
-       
-     
+
+
+
      if (!time[0]) {
         const ppp = new EmbedBuilder()
-        .setDescription(`${no} Please specify a vaild time ex: \`1m\`.`)
+        .setDescription(`${no} Please specify a valid time ex: \`1m\`.`)
         return message.channel.send({embeds: [ppp]});
       }
-      const etime = require('ms')(time)
+      const etime = ms(time);
+      if (!Number.isFinite(etime) || etime <= 0) {
+        const ppp = new EmbedBuilder()
+          .setColor(message.client?.embedColor || '#ff0051')
+          .setDescription(`${no} Please provide a valid forward duration ex: \`1m\`.`);
+        return message.channel.send({ embeds: [ppp] });
+      }
+
     const currentDur = tracks[0]?.info?.duration || tracks[0]?.duration || 0;
-    let seektime = Number(player.position) + Number(etime) ;
-    if (Number(seektime) >= currentDur) seektime = currentDur - 1000;
-    await safePlayer.safeCall(player, 'seek', Number(seektime))
+    const maxSeek = Math.max(0, Number(currentDur) - 1000);
+    let seektime = Number(player.position) + Number(etime);
+    seektime = Math.min(Math.max(0, seektime), maxSeek);
+    await safePlayer.safeCall(player, 'seek', seektime)
      let thing = new EmbedBuilder()
        .setColor(message.client?.embedColor || '#ff0051')
-      .setDescription(`${ok} Forwarded to \`${convertTime(player.position)}\``)
+      .setDescription(`${ok} Forwarded to \`${convertTime(seektime)}\``)
      return await message.channel.send({ embeds: [thing] });
-      
+
         }
 }
 

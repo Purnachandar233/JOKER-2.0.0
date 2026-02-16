@@ -73,13 +73,13 @@ class PermissionService {
       const Premium = require('../schema/premium-user');
       const premium = await Premium.findOne({ userID: userId }).select('userID').lean();
       const isPremium = !!premium;
-      
+
       // Cache result
       this.premiumCache.set(userId, {
         isPremium,
         expires: Date.now() + this.cacheTTL
       });
-      
+
       return isPremium;
     } catch (err) {
       console.error('PermissionService.isPremium error:', err && (err.message || err));
@@ -101,13 +101,13 @@ class PermissionService {
       const Premium = require('../schema/Premium');
       const premium = await Premium.findOne({ guildID: guildId }).select('guildID').lean();
       const isPremium = !!premium;
-      
+
       // Cache result
       this.premiumCache.set(`guild_${guildId}`, {
         isPremium,
         expires: Date.now() + this.cacheTTL
       });
-      
+
       return isPremium;
     } catch (err) {
       console.error('PermissionService.isGuildPremium error:', err && (err.message || err));
@@ -126,7 +126,7 @@ class PermissionService {
     try {
       const djSchema = require('../schema/djroleSchema');
       const djRole = await djSchema.findOne({ guildID: guildId });
-      
+
       if (!djRole) return false; // No DJ role set
 
       return member.roles.cache.has(djRole.roleID);
@@ -156,14 +156,14 @@ class PermissionService {
   cleanCache() {
     const now = Date.now();
     let removed = 0;
-    
+
     for (const [key, value] of this.premiumCache.entries()) {
       if (value.expires < now) {
         this.premiumCache.delete(key);
         removed++;
       }
     }
-    
+
     if (removed > 0 && removed > this.premiumCache.size / 2) {
       console.log(`[PermissionService] Cache cleanup: removed ${removed} expired entries`);
     }

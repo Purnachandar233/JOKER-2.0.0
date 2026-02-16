@@ -56,7 +56,7 @@ class CommandErrorHandler {
       if (shouldLog) {
         const count = (this.errorCount.get(commandName) || 0) + 1;
         this.errorCount.set(commandName, count);
-        
+
         console.error(`❌ /${commandName}: ${error && (error.message || error)}`);
       }
 
@@ -123,7 +123,6 @@ class CommandErrorHandler {
     // Default message
     return 'An unexpected error occurred. Please try again.';
   }
-
 
 }
 

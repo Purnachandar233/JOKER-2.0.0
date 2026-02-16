@@ -32,7 +32,7 @@ module.exports = {
 
         const playRound = async () => {
             const nextCard = Math.floor(Math.random() * 13) + 1;
-            
+
             return new Promise((resolve) => {
                 const createRoundEmbed = () => {
                     return new EmbedBuilder()
@@ -44,8 +44,7 @@ module.exports = {
                             { name: "Scores", value: `${message.author.username}: ${player1Score} | ${opponent.username}: ${player2Score}`, inline: false },
                             { name: "Round", value: `${round}/${maxRounds}`, inline: false }
                         )
-                        .setFooter({ text: `${currentPlayer.username}'s turn` });
-                };
+};
 
                 const roundMsg = message.channel.send({
                     embeds: [createRoundEmbed()],
@@ -66,10 +65,20 @@ module.exports = {
                         )
                     ]
                 }).then(msg => {
-                    const filter = (i) => i.user.id === currentPlayer.id && i.customId.startsWith('hol_');
+                    const filter = (i) => i.customId.startsWith('hol_');
                     const collector = msg.createMessageComponentCollector({ filter, time: 30000, max: 1 });
 
-                    collector.on('collect', (interaction) => {
+                    collector.on('collect', async (interaction) => {
+                        if (interaction.user.id !== message.author.id && interaction.user.id !== opponent.id) {
+                            await interaction.reply({ content: "You are not part of this game.", ephemeral: true }).catch(() => {});
+                            return;
+                        }
+
+                        if (interaction.user.id !== currentPlayer.id) {
+                            await interaction.reply({ content: `It is ${currentPlayer.username}'s turn.`, ephemeral: true }).catch(() => {});
+                            return;
+                        }
+
                         const guess = interaction.customId.split('_')[1];
                         let correct = false;
 
@@ -122,8 +131,8 @@ module.exports = {
             }
         }
 
-        const winner = player1Score > player2Score ? message.author.username : 
-                       player2Score > player1Score ? opponent.username : 
+        const winner = player1Score > player2Score ? message.author.username :
+                       player2Score > player1Score ? opponent.username :
                        "Tie!";
 
         const finalEmbed = new EmbedBuilder()

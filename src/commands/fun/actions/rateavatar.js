@@ -1,13 +1,5 @@
 const { EmbedBuilder } = require("discord.js");
-
-// Valid anime reaction GIF URLs - Updated working sources
-const reactionGifs = [
-    "https://media1.giphy.com/media/l0HlQaQ5jcKxaiEPm/giphy.gif",
-    "https://media2.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.gif",
-    "https://media3.giphy.com/media/l0HlE7Q0oPSfyxjDO/giphy.gif",
-    "https://media4.giphy.com/media/l0IykYQh0u1QNxTHy/giphy.gif",
-    "https://media1.giphy.com/media/xT8qBgLKuNzGSpGIls/giphy.gif"
-];
+const { getActionGif } = require("../../../utils/actionGifProvider");
 
 // Helper function to get first mentioned user from both Collection and Map
 function getFirstMentionedUser(message, args, client) {
@@ -48,7 +40,7 @@ module.exports = {
             feedback = "Not bad at all! Shows good taste! 👍";
         }
 
-        const reactionGif = reactionGifs[Math.floor(Math.random() * reactionGifs.length)];
+        const reactionGif = await getActionGif("happy");
 
         const embed = new EmbedBuilder()
             .setColor("#ffb6c1")

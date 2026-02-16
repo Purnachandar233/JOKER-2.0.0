@@ -30,7 +30,6 @@ module.exports = {
       let mainpage = new EmbedBuilder()
         .setTitle(` Joker Music | Lyrics of ${song}`)
         .setDescription(lyrics)
-        .setFooter({ text: `Thanks For Choosing Joker Music` })
         .setThumbnail(client.user.displayAvatarURL())
         .setColor(message.client?.embedColor || '#ff0051');
 

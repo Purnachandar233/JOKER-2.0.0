@@ -1,5 +1,6 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder } = require('discord.js');
 
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
   name: 'removedupes',
   category: 'music',
@@ -10,23 +11,23 @@ module.exports = {
   wl : true,
   djonly : true,
   execute: async (message, args, client, prefix) => {
-     
-    let ok = client.emoji.ok;
-    let no = client.emoji.no;
-   
+
+    let ok = EMOJIS.ok;
+    let no = EMOJIS.no;
+
     //
        const { channel } = message.member.voice;
        if (!channel) {
                        const noperms = new EmbedBuilder()
-                      
+
             .setColor(message.client?.embedColor || '#ff0051')
               .setDescription(`${no} You must be connected to a voice channel to use this command.`)
            return await message.channel.send({embeds: [noperms]});
        }
-       if(message.member.voice.selfDeaf) {	
+       if(message.member.voice.selfDeaf) {
          let thing = new EmbedBuilder()
           .setColor(message.client?.embedColor || '#ff0051')
- 
+
         .setDescription(`${no} <@${message.member.id}> You cannot run this command while deafened.`)
           return await message.channel.send({embeds: [thing]});
         }
@@ -35,7 +36,7 @@ module.exports = {
            const tracks = getQueueArray(player);
            if(!player || !tracks || tracks.length === 0) {
                        const noperms = new EmbedBuilder()
- 
+
             .setColor(message.client?.embedColor || '#ff0051')
             .setDescription(`${no} There is nothing playing in this server.`)
            return await message.channel.send({embeds: [noperms]});
@@ -46,7 +47,7 @@ module.exports = {
            .setDescription(`${no} You must be connected to the same voice channel as me.`)
            return await message.channel.send({embeds: [noperms]});
        }
-        
+
           const safePlayer = require('../../utils/safePlayer');
        const newtracks = [];
            for (let i = 0; i < tracks.length; i++) {
@@ -69,8 +70,7 @@ module.exports = {
         return await message.channel.send({ embeds : [new EmbedBuilder().setDescription(`${ok} Removed all the duplicates songs from the queue.`)
        .setColor(message.client?.embedColor || '#ff0051')
  ]})
-      
+
         }
 }
-
 

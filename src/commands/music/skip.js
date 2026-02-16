@@ -2,6 +2,7 @@ const { EmbedBuilder, Message } = require("discord.js");
 const { convertTime } = require('../../utils/convert.js');
 const { progressbar } = require('../../utils/progressbar.js');
 const twentyfourseven = require('../../schema/twentyfourseven.js');
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
   name: 'skip',
   category: 'music',
@@ -9,24 +10,24 @@ module.exports = {
   description: 'skips the current song. ',
   owner: false,
   wl : true,
-  
+
   execute: async (message, args, client, prefix) => {
-      
-    let ok = client.emoji.ok;
-    let no = client.emoji.no;
-    
+
+    let ok = EMOJIS.ok;
+    let no = EMOJIS.no;
+
     const { channel } = message.member.voice;
         if (!channel) {
                         const noperms = new EmbedBuilder()
-              
+
              .setColor(message.client?.embedColor || '#ff0051')
                .setDescription(`${no} You must be connected to a voice channel to use this command.`)
             return await message.channel.send({embeds: [noperms]});
         }
-        if(message.member.voice.selfDeaf) {	
+        if(message.member.voice.selfDeaf) {
           let thing = new EmbedBuilder()
            .setColor(message.client?.embedColor || '#ff0051')
-    
+
          .setDescription(`${no} <@${message.member.id}> You cannot run this command while deafened.`)
            return await message.channel.send({embeds: [thing]});
          }
@@ -35,7 +36,7 @@ module.exports = {
               const arr = getQueueArray(player);
               if(!player || !arr || arr.length === 0) {
                         const noperms = new EmbedBuilder()
-            
+
              .setColor(message.client?.embedColor || '#ff0051')
              .setDescription(`${no} There is nothing playing in this server.`)
             return await message.channel.send({embeds: [noperms]});
@@ -47,7 +48,7 @@ module.exports = {
             return await message.channel.send({embeds: [noperms]});
         }
 
-       
+
 
         try {
           const safePlayer = require('../../utils/safePlayer');

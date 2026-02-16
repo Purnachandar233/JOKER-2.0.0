@@ -1,6 +1,7 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder } = require('discord.js');
 const safePlayer = require('../../utils/safePlayer');
 
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
   name: 'volume',
   category: 'music',
@@ -11,11 +12,11 @@ module.exports = {
   votelock:true,
   wl : true,
   execute: async (message, args, client, prefix) => {
-      
-    let ok = client.emoji.ok;
-    let no = client.emoji.no;
-    
-   
+
+    let ok = EMOJIS.ok;
+    let no = EMOJIS.no;
+
+
     const volume = args.join(" ")
    //
      const djSchema = require('../../schema/djroleSchema')
@@ -33,12 +34,12 @@ module.exports = {
       const { channel } = message.member.voice;
       if (!channel) {
                       const noperms = new EmbedBuilder()
-                     
+
            .setColor(message.client?.embedColor || '#ff0051')
              .setDescription(`${no} You must be connected to a voice channel to use this command.`)
           return await message.channel.send({embeds: [noperms]});
       }
-      if(message.member.voice.selfDeaf) {       
+      if(message.member.voice.selfDeaf) {
         let thing = new EmbedBuilder()
          .setColor(message.client?.embedColor || '#ff0051')
 
@@ -61,20 +62,20 @@ module.exports = {
           .setDescription(`${no} You must be connected to the same voice channel as me.`)
           return await message.channel.send({embeds: [noperms]});
       }
-                
-      if (isNaN(volume) || volume < 0 || volume > 100) { 
+
+      if (isNaN(volume) || volume < 0 || volume > 100) {
           let ething = new EmbedBuilder()
-      
+
           .setColor(message.client?.embedColor || '#ff0051')
           .setDescription(`${no} Please use a number between \`0\` - \`100\``)
           return await message.channel.send({ embeds: [ething] });
       }
       await safePlayer.safeSetVolume(player, Number(volume));
-  
+
     let thing = new EmbedBuilder()
       .setColor(message.client?.embedColor || '#ff0051')
       .setDescription(`${ok} The volume has been changed to **${volume}%**`)
     return await message.channel.send({ embeds: [thing] });
-     
+
        }
 }

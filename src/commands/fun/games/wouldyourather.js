@@ -82,9 +82,7 @@ module.exports = {
         { name: "Option 2", value: q.option2, inline: true },
         { name: "Votes", value: `${q.option1}: **${votes.option1}** | ${q.option2}: **${votes.option2}**`, inline: false }
       )
-      .setFooter({ text: `Asked by ${message.author.username}` });
-    
-    const msg = await message.channel.send({ embeds: [embed], components: [row] });
+const msg = await message.channel.send({ embeds: [embed], components: [row] });
 
     const filter = (i) => i.customId.startsWith('wyr_');
     const collector = msg.createMessageComponentCollector({ filter, time: 60000 });
@@ -113,9 +111,7 @@ module.exports = {
           { name: "Option 2", value: q.option2, inline: true },
           { name: "Votes", value: `${q.option1}: **${votes.option1}** | ${q.option2}: **${votes.option2}**`, inline: false }
         )
-        .setFooter({ text: `Asked by ${message.author.username}` });
-
-      await interaction.deferUpdate();
+await interaction.deferUpdate();
       await msg.edit({ embeds: [updatedEmbed] });
     });
 

@@ -1,25 +1,38 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
-const welcomeSchema = new mongoose.Schema({
-  guildID: { 
-    type: String, 
-    required: true, 
-    unique: true 
+const welcomeSchema = new mongoose.Schema(
+  {
+    guildID: {
+      type: String,
+      required: true,
+      unique: true
+    },
+    channelID: {
+      type: String,
+      default: null
+    },
+    roleID: {
+      type: String,
+      default: null
+    },
+    message: {
+      type: String,
+      default: "Welcome {user} to {server}!"
+    },
+    title: {
+      type: String,
+      default: "Welcome!"
+    },
+    embedColor: {
+      type: String,
+      default: null
+    },
+    enabled: {
+      type: Boolean,
+      default: false
+    }
   },
-  channelID: { 
-    type: String 
-  },
-  roleID: { 
-    type: String 
-  },
-  message: { 
-    type: String, 
-    default: 'Welcome {user} to {server}!' 
-  },
-  enabled: { 
-    type: Boolean, 
-    default: false 
-  }
-}, { timestamps: true });
+  { timestamps: true }
+);
 
-module.exports = mongoose.model('welcome', welcomeSchema);
+module.exports = mongoose.model("welcome", welcomeSchema);

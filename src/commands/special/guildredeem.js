@@ -1,72 +1,96 @@
 const { EmbedBuilder } = require("discord.js");
-const prettyMiliSeconds = require("pretty-ms");
+
+const formatDuration = require("../../utils/formatDuration");
 const redeemCode = require("../../schema/redemcode.js");
 const Premium = require("../../schema/Premium.js");
 
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
-    name: "guild-redeem",
-    category: "special",
-    aliases: ["server-redeem"],
-    wl: true,
-    description: "redeems a redeem code",
-    execute: async (message, args, client, prefix) => {
-        let ok = client.emoji.ok;
-        let no = client.emoji.no;
+  name: "guild-redeem",
+  category: "special",
+  aliases: ["server-redeem"],
+  wl: true,
+  description: "Redeem premium code for this server",
+  execute: async (message, args, client) => {
+    const getEmoji = (key, fallback = "") => EMOJIS[key] || fallback;
+    const embedColor = client?.embedColor || "#ff0051";
+    const createEmbed = ({ title, description, fields, author, thumbnail, image, footer, timestamp = false }) => {
+      const embed = new EmbedBuilder().setColor(embedColor);
+      if (title) embed.setTitle(title);
+      if (description) embed.setDescription(description);
+      if (Array.isArray(fields) && fields.length > 0) embed.addFields(fields);
+      if (author) embed.setAuthor(author);
+      if (thumbnail) embed.setThumbnail(thumbnail);
+      if (image) embed.setImage(image);
+return embed;
+    };
 
-        const isPremiumGuild = await Premium.findOne({ Id: message.guild.id, Type: 'guild' });
-        
-        // Check if guild has an ACTIVE premium (not expired)
-        if (isPremiumGuild && (isPremiumGuild.Permanent || isPremiumGuild.Expire > Date.now())) {
-            let alr = new EmbedBuilder()
-                .setDescription(`${no} | Server Is Already Premium`)
-                .setColor(message.client?.embedColor || '#ff0051');
-            return message.channel.send({ embeds: [alr] });
-        }
+    const ok = EMOJIS.ok;
+    const no = EMOJIS.no;
 
-        if (!args[0]) return message.channel.send(`No Code Provided!!`);
-
-        const CodeOk = await redeemCode.findOne({ Code: args[0] });
-        if (!CodeOk) {
-            let exp = new EmbedBuilder()
-                .setDescription(`${no} | Code Is Invalid Or Expired`)
-                .setColor(message.client?.embedColor || '#ff0051');
-            return message.channel.send({ embeds: [exp] });
-        }
-
-        // Validate code hasn't expired
-        if (!CodeOk.Permanent && CodeOk.Expiry < Date.now()) {
-            await CodeOk.deleteOne();
-            let exp = new EmbedBuilder()
-                .setDescription(`${no} | This Code Has Expired`)
-                .setColor(message.client?.embedColor || '#ff0051');
-            return message.channel.send({ embeds: [exp] });
-        }
-
-        // Delete old expired premium if exists
-        if (isPremiumGuild) await isPremiumGuild.deleteOne();
-
-        await Premium.create({
-            Id: message.guild.id,
-            Type: 'guild',
-            Code: args[0],
-            ActivatedAt: Date.now(),
-            Expire: CodeOk.Expiry || 0,
-            Permanent: CodeOk.Permanent || false,
-            PlanType: "Standard"
-        });
-
-        if (CodeOk.Usage <= 1) {
-            await CodeOk.deleteOne();
-        } else {
-            await redeemCode.findOneAndUpdate({ Code: args[0] }, { Usage: CodeOk.Usage - 1 });
-        }
-
-        const expiryText = CodeOk.Permanent ? "Never" : prettyMiliSeconds(CodeOk.Expiry - Date.now());
-        let success = new EmbedBuilder()
-            .setTitle("Premium Activated")
-            .setDescription(`${ok} | \`Joker Music Premium Activated Successfully\`\n\`\`\`asciidoc\nServer   :: ${message.guild.name}\nExpiry   :: ${expiryText}\n\`\`\``)
-            .setColor(message.client?.embedColor || '#ff0051');
-
-        message.channel.send({ embeds: [success] });
+    const existing = await Premium.findOne({ Id: message.guild.id, Type: "guild" });
+    if (existing && (existing.Permanent || existing.Expire > Date.now())) {
+      const embed = createEmbed({
+        title: `${getEmoji("premium")} Already Premium`,
+        description: `${no} This server already has an active premium subscription.`
+      });
+      return message.channel.send({ embeds: [embed] });
     }
-}
+
+    const code = args[0];
+    if (!code) {
+      const embed = createEmbed({
+        title: `${getEmoji("error")} Missing Code`,
+        description: "Provide a redeem code."
+      });
+      return message.channel.send({ embeds: [embed] });
+    }
+
+    const record = await redeemCode.findOne({ Code: code });
+    if (!record) {
+      const embed = createEmbed({
+        title: `${getEmoji("error")} Invalid Code`,
+        description: `${no} Code is invalid or expired.`
+      });
+      return message.channel.send({ embeds: [embed] });
+    }
+
+    if (!record.Permanent && record.Expiry < Date.now()) {
+      await record.deleteOne();
+      const embed = createEmbed({
+        title: `${getEmoji("error")} Expired Code`,
+        description: `${no} This code has expired.`
+      });
+      return message.channel.send({ embeds: [embed] });
+    }
+
+    if (existing) await existing.deleteOne();
+
+    await Premium.create({
+      Id: message.guild.id,
+      Type: "guild",
+      Code: code,
+      ActivatedAt: Date.now(),
+      Expire: record.Expiry || 0,
+      Permanent: record.Permanent || false,
+      PlanType: "Standard"
+    });
+
+    if (record.Usage <= 1) await record.deleteOne();
+    else await redeemCode.findOneAndUpdate({ Code: code }, { Usage: record.Usage - 1 });
+
+    const expiryText = record.Permanent ? "Never" : formatDuration(record.Expiry - Date.now());
+
+    const embed = createEmbed({
+      title: `${getEmoji("premium")} Premium Activated`,
+      description: `${ok} Premium activated successfully.`,
+      fields: [
+        { name: "Server", value: `\`${message.guild.name}\``, inline: true },
+        { name: "Expiry", value: `\`${expiryText}\``, inline: true }
+      ]
+    });
+
+    return message.channel.send({ embeds: [embed] });
+  }
+};
+

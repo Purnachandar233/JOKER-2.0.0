@@ -1,22 +1,23 @@
 const { EmbedBuilder, CommandInteraction, Client } = require("discord.js")
 
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
     name: "debug",
     description: "debug node info",
     wl : true,
 
     /**
-     * 
-     * @param {Client} client 
-     * @param {CommandInteraction} interaction 
+     *
+     * @param {Client} client
+     * @param {CommandInteraction} interaction
      */
 
     run: async (client, interaction) => {
                 await interaction.deferReply();
-          
-    let ok = client.emoji.ok;
-    let no = client.emoji.no;
-    
+
+    let ok = EMOJIS.ok;
+    let no = EMOJIS.no;
+
         let state;
         try{
             state = client.lavalink.players.get(interaction.guild.id).state

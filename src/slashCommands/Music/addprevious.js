@@ -1,5 +1,6 @@
 const { CommandInteraction, Client, EmbedBuilder } = require("discord.js");
 const safePlayer = require('../../utils/safePlayer');
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
   name: "addprevious",
   description: "Queues the previous track",
@@ -10,9 +11,9 @@ module.exports = {
   votelock: true,
   djonly :true,
   wl : true,
- 
 
-  
+
+
 
   /**
    * @param {Client} client
@@ -22,22 +23,22 @@ module.exports = {
   run: async (client, interaction,) => {
    await interaction.deferReply({
             ephemeral: false
-        });  
-        let ok = client.emoji.ok;
-        let no = client.emoji.no;
-        
-      const emojiaddsong = client.emoji.addsong;
-      const emojiplaylist = client.emoji.playlist;
+        });
+        let ok = EMOJIS.ok;
+        let no = EMOJIS.no;
+
+      const emojiaddsong = EMOJIS.addsong;
+      const emojiplaylist = EMOJIS.playlist;
 
       const { channel } = interaction.member.voice;
       if (!channel) {
                       const noperms = new EmbedBuilder()
-                
+
            .setColor(interaction.client?.embedColor || '#ff0051')
              .setDescription(`${no} You must be connected to a voice channel to use this command.`)
           return await interaction.editReply({embeds: [noperms]});
       }
-      if(interaction.member.voice.selfDeaf) {	
+      if(interaction.member.voice.selfDeaf) {
         let thing = new EmbedBuilder()
          .setColor(interaction.client?.embedColor || '#ff0051')
 
@@ -59,7 +60,6 @@ return await interaction.editReply({embeds: [noperms]});
       voiceChannelId: interaction.member.voice.channelId,
       selfDeafen: true,
     });
-
 
     const last = typeof player.get === 'function' ? player.get('lastTrack') : null;
     if (!last) {

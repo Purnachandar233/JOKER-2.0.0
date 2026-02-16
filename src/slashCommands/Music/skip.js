@@ -2,6 +2,7 @@ const { CommandInteraction, Client, EmbedBuilder } = require("discord.js");
 const safeReply = require('../../utils/safeReply');
 const musicChecks = require('../../utils/musicChecks');
 
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
         name: "skip",
         description: "To skip a song/track from the queue.",
@@ -12,18 +13,18 @@ module.exports = {
         wl : true,
 
     /**
-     * 
-     * @param {Client} client 
-     * @param {CommandInteraction} interaction 
-     * @param {String} color 
+     *
+     * @param {Client} client
+     * @param {CommandInteraction} interaction
+     * @param {String} color
      */
 
   run: async (client, interaction) => {
     return await client.errorHandler.executeWithErrorHandling(interaction, async (interaction) => {
       await safeReply.safeDeferReply(interaction);
-      
-      let ok = client.emoji.ok;
-      let no = client.emoji.no;
+
+      let ok = EMOJIS.ok;
+      let no = EMOJIS.no;
 
       // Check cooldown
       const cooldown = client.cooldownManager.check("skip", interaction.user.id);
@@ -49,7 +50,7 @@ module.exports = {
 
       // Skip to next track using thread-safe controller
       const result = await client.playerController.skip(interaction.guildId);
-      
+
       if (!result.success) {
         const embed = new EmbedBuilder()
           .setColor(interaction.client?.embedColor || '#ff0051')
@@ -60,7 +61,7 @@ module.exports = {
       const embed = new EmbedBuilder()
         .setColor(interaction.client?.embedColor || '#ff0051')
         .setDescription(`${ok} Skipping to the next track.`);
-      
+
       await safeReply.safeReply(interaction, { embeds: [embed] });
 
       // Set cooldown after success

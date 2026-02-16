@@ -22,6 +22,11 @@ module.exports = {
       member: interaction.member,
       author: interaction.user,
       guild: interaction.guild,
+      mentions: {
+        users: {
+          first: () => null
+        }
+      },
       channel: {
         send: (p) => replyFunc(typeof p === 'string' ? { content: p } : p),
       },

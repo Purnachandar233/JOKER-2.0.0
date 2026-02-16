@@ -19,7 +19,7 @@ module.exports = {
         );
       const code = args.join(' ');
       if (!code) return message.reply("Please provide code to evaluate.");
-      
+
       if (code.toLowerCase().includes("token")) {
         return message.channel.send({ content: `\`\`\`js\nT0K3N\`\`\``, components: [drow] });
       }

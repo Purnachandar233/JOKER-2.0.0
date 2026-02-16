@@ -1,5 +1,6 @@
 const { CommandInteraction, Client, EmbedBuilder } = require("discord.js");
 const twentyfourseven = require("../../schema/twentyfourseven")
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
     name: "247",
     description: "Stays 24/7 in voice channel with the options to enable or disable it.",
@@ -20,10 +21,10 @@ module.exports = {
         await interaction.deferReply({
           ephemeral: false
         });
-          
-    let ok = client.emoji.ok;
-    let no = client.emoji.no;
-    
+
+    let ok = EMOJIS.ok;
+    let no = EMOJIS.no;
+
         if (!interaction.member.permissions.has('MANAGE_CHANNELS')) {
           const noperms = new EmbedBuilder()
          .setColor(interaction.client?.embedColor || '#ff0051')
@@ -33,13 +34,11 @@ module.exports = {
       const { channel } = interaction.member.voice;
       if (!channel) {
                       const noperms = new EmbedBuilder()
-                     
+
            .setColor(interaction.client?.embedColor || '#ff0051')
              .setDescription(`${no} You must be connected to a voice channel to use this command.`)
           return await interaction.editReply({embeds: [noperms]});
       }
-     
-		
 
 
 
@@ -75,8 +74,8 @@ module.exports = {
               .setColor(interaction.client.embedColor)
               .setDescription(`${ok} 24/7 mode is now \`disabled\`.`)
               return await interaction.editReply({ embeds : [embed]})
-          
+
         }
-     
+
        }
      };

@@ -4,6 +4,7 @@ const safeReply = require('../../utils/safeReply');
 const musicChecks = require('../../utils/musicChecks');
 const safePlayer = require('../../utils/safePlayer');
 
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
     name: "move",
     description: "Change the position of a track in the queue.",
@@ -37,8 +38,8 @@ module.exports = {
       return await client.errorHandler.executeWithErrorHandling(interaction, async (interaction) => {
         await safeReply.safeDeferReply(interaction);
 
-        let ok = client.emoji.ok;
-        let no = client.emoji.no;
+        let ok = EMOJIS.ok;
+        let no = EMOJIS.no;
 
         // Check cooldown
         const cooldown = client.cooldownManager.check("move", interaction.user.id);
@@ -88,10 +89,10 @@ module.exports = {
           // Convert 1-based positions to 0-based indices
           const fromIndex = Math.max(0, Math.min(tracks.length - 1, from - 1));
           const toIndex = Math.max(0, Math.min(tracks.length - 1, to - 1));
-          
+
           // Move track in queue
           const newQueue = arrayMove(tracks, fromIndex, toIndex);
-          
+
           // Clear and re-add with new order
           await safePlayer.queueClear(player);
           safePlayer.queueAdd(player, newQueue);
@@ -116,7 +117,4 @@ module.exports = {
       });
     }
 };
-
-
-
 

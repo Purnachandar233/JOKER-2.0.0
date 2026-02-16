@@ -9,7 +9,7 @@ async function checkInVoiceChannel(interaction, client) {
   if (!interaction.member?.voice?.channel) {
     const embed = new EmbedBuilder()
       .setColor(client.embedColor || '#ff0051')
-      .setDescription('❌ You must be in a voice channel to use this command.');
+      .setDescription(' You must be in a voice channel to use this command.');
     return { valid: false, embed };
   }
   return { valid: true };

@@ -1,6 +1,7 @@
 const { EmbedBuilder } = require("discord.js");
 const { createBar } = require('../../functions.js');
 
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
   name: 'grab',
   category: 'music',
@@ -10,8 +11,8 @@ module.exports = {
   wl: true,
   votelock: true,
   execute: async (message, args, client, prefix) => {
-    let ok = client.emoji.ok;
-    let no = client.emoji.no;
+    let ok = EMOJIS.ok;
+    let no = EMOJIS.no;
 
     const { channel } = message.member.voice;
     if (!channel) {
@@ -31,7 +32,7 @@ module.exports = {
         const player = client.lavalink.players.get(message.guild.id);
       const { getQueueArray } = require('../../utils/queue.js');
       const tracks = getQueueArray(player);
-    
+
       if(!player || !tracks || tracks.length === 0) {
       const noperms = new EmbedBuilder()
         .setColor(message.client?.embedColor || '#ff0051')
@@ -71,9 +72,8 @@ module.exports = {
         content: `${no} Couldn't send you a DM\n\nPossible reasons:\n- Your DMs are disabled\n- You have me blocked\n\nNone of these helped? Join our [**Support Server**](https://discord.gg/pCj2UBbwST) for more help.`
       });
     });
-    
+
     return message.channel.send({ content: "**📪 Check your DMs.**" });
   }
 };
-
 

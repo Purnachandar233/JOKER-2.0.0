@@ -1,33 +1,34 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder } = require('discord.js');
 
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
   name: 'stop',
   category: 'music',
-  aliases: ["apu"],
+  aliases: ["stp"],
   description: 'stops the player and clears the queue.',
   owner: false,
   djonly : false,
   wl : true,
   execute: async (message, args, client, prefix) => {
-      
-    let ok = client.emoji.ok;
-    let no = client.emoji.no;
-    
-   
- 
+
+    let ok = EMOJIS.ok;
+    let no = EMOJIS.no;
+
+
+
     //
        const { channel } = message.member.voice;
        if (!channel) {
                        const noperms = new EmbedBuilder()
-                      
+
             .setColor(message.client?.embedColor || '#ff0051')
               .setDescription(`${no} You must be connected to a voice channel to use this command.`)
            return await message.channel.send({embeds: [noperms]});
        }
-       if(message.member.voice.selfDeaf) {	
+       if(message.member.voice.selfDeaf) {
          let thing = new EmbedBuilder()
           .setColor(message.client?.embedColor || '#ff0051')
-    
+
         .setDescription(`${no} <@${message.member.id}> You cannot run this command while deafened.`)
           return await message.channel.send({embeds: [thing]});
         }
@@ -36,7 +37,7 @@ module.exports = {
            const tracks = getQueueArray(player);
            if(!player || !tracks || tracks.length === 0) {
                    const noperms = new EmbedBuilder()
-      
+
             .setColor(message.client?.embedColor || '#ff0051')
             .setDescription(`${no} There is nothing playing in this server.`)
              return await message.channel.send({embeds: [noperms]});
@@ -72,15 +73,14 @@ module.exports = {
 
        // Clear queue safely
       try { await safePlayer.queueClear(player); } catch (e) {}
- 
-       const emojistop = client.emoji.stop;
+
+       const emojistop = EMOJIS.stop;
 
        let thing = new EmbedBuilder()
        .setColor(message.client?.embedColor || '#ff0051')
        .setDescription(`${ok} **Stopped the player and cleared the queue!**`)
        return message.channel.send({embeds: [thing]});
-   
+
      }
 }
-
 

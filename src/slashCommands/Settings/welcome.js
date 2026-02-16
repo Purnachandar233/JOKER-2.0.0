@@ -1,224 +1,373 @@
-const { EmbedBuilder, PermissionFlagsBits, ApplicationCommandOptionType } = require('discord.js');
-const Schema = require('../../schema/welcome');
-const { safeReply, safeDeferReply } = require('../../utils/safeReply');
+const { ApplicationCommandOptionType, EmbedBuilder } = require("discord.js");
+
+const { safeReply, safeDeferReply } = require("../../utils/safeReply");
+const EMOJIS = require("../../utils/emoji.json");
+const Schema = require("../../schema/welcome");
+const {
+  normalizeWelcomeColor,
+  renderWelcomeTemplate,
+  welcomeVariablesText
+} = require("../../welcome/template");
 
 module.exports = {
-    name: 'welcome',
-    description: 'Setup the professional welcome system for your server',
-    userPermissions: ['Administrator'],
-    options: [
+  name: "welcome",
+  description: "Configure welcome messages for your server.",
+  userPermissions: ["Administrator"],
+  options: [
+    {
+      name: "setup",
+      description: "Set welcome channel and optional message.",
+      type: ApplicationCommandOptionType.Subcommand,
+      options: [
         {
-            name: 'setup',
-            description: '📋 Setup the welcome channel and message',
-            type: 1,
-            options: [
-                {
-                    name: 'channel',
-                    description: 'The channel to send welcome messages in',
-                    type: ApplicationCommandOptionType.Channel,
-                    required: true
-                },
-                {
-                    name: 'message',
-                    description: 'Welcome message (use {user}, {server}, {count} for member count)',
-                    type: ApplicationCommandOptionType.String,
-                    required: false
-                },
-                {
-                    name: 'color',
-                    description: 'Embed color in hex (default: #ff0051)',
-                    type: ApplicationCommandOptionType.String,
-                    required: false
-                }
-            ]
+          name: "channel",
+          description: "Welcome channel",
+          type: ApplicationCommandOptionType.Channel,
+          required: true
         },
         {
-            name: 'role',
-            description: '🎁 Set auto-role for new members',
-            type: 1,
-            options: [
-                {
-                    name: 'role',
-                    description: 'The role to give to new members',
-                    type: ApplicationCommandOptionType.Role,
-                    required: true
-                }
-            ]
+          name: "message",
+          description: "Welcome template",
+          type: ApplicationCommandOptionType.String,
+          required: false
         },
         {
-            name: 'view',
-            description: '👁️ View current welcome settings',
-            type: 1
-        },
+          name: "color",
+          description: "Hex color like #ff0051 or default",
+          type: ApplicationCommandOptionType.String,
+          required: false
+        }
+      ]
+    },
+    {
+      name: "message",
+      description: "Update welcome message template.",
+      type: ApplicationCommandOptionType.Subcommand,
+      options: [
         {
-            name: 'test',
-            description: '✉️ Test the welcome system',
-            type: 1
-        },
+          name: "text",
+          description: "Welcome template text",
+          type: ApplicationCommandOptionType.String,
+          required: true
+        }
+      ]
+    },
+    {
+      name: "title",
+      description: "Update welcome embed title.",
+      type: ApplicationCommandOptionType.Subcommand,
+      options: [
         {
-            name: 'toggle',
-            description: '⚙️ Enable or disable the welcome system',
-            type: 1,
-            options: [
-                {
-                    name: 'status',
-                    description: 'Enable or disable',
-                    type: ApplicationCommandOptionType.Boolean,
-                    required: true
-                }
-            ]
+          name: "text",
+          description: "Embed title",
+          type: ApplicationCommandOptionType.String,
+          required: true
         }
-    ],
-
-    run: async (client, interaction) => {
-        const deferred = await safeDeferReply(interaction, { ephemeral: false });
-        if (!deferred) return safeReply(interaction, { content: 'Failed to defer reply.' });
-        
-        const sub = interaction.options.getSubcommand();
-        const { guildId, guild } = interaction;
-
-        if (sub === 'setup') {
-            const channel = interaction.options.getChannel('channel');
-            const msg = interaction.options.getString('message') || `🎉 Welcome {user} to **{server}**!`;
-            const color = interaction.options.getString('color') || client.embedColor;
-
-            try {
-                await Schema.findOneAndUpdate(
-                    { guildID: guildId },
-                    { channelID: channel.id, message: msg, enabled: true, embedColor: color },
-                    { upsert: true }
-                );
-
-                return interaction.editReply({
-                    embeds: [new EmbedBuilder()
-                        .setColor(color)
-                        .setTitle('✅ Welcome System Configured')
-                        .addFields(
-                            { name: '📍 Channel', value: `<#${channel.id}>`, inline: true },
-                            { name: '🎨 Color', value: color, inline: true },
-                            { name: '📝 Message', value: `\`${msg}\``, inline: false }
-                        )
-                        .setFooter({ text: 'Use /welcome test to see a preview' })]
-                });
-            } catch (err) {
-                return interaction.editReply({ content: '❌ Failed to setup welcome system', ephemeral: true });
-            }
+      ]
+    },
+    {
+      name: "color",
+      description: "Set welcome embed color.",
+      type: ApplicationCommandOptionType.Subcommand,
+      options: [
+        {
+          name: "value",
+          description: "Hex color like #ff0051 or default",
+          type: ApplicationCommandOptionType.String,
+          required: true
         }
-
-        if (sub === 'role') {
-            const role = interaction.options.getRole('role');
-
-            try {
-                await Schema.findOneAndUpdate(
-                    { guildID: guildId },
-                    { roleID: role.id },
-                    { upsert: true }
-                );
-
-                return interaction.editReply({
-                    embeds: [new EmbedBuilder()
-                        .setColor(client.embedColor)
-                        .setTitle('✅ Auto-Role Configured')
-                        .setDescription(`New members will automatically receive <@&${role.id}>`)]
-                });
-            } catch (err) {
-                return interaction.editReply({ content: '❌ Failed to set auto-role', ephemeral: true });
-            }
+      ]
+    },
+    {
+      name: "role",
+      description: "Set auto-role for new members.",
+      type: ApplicationCommandOptionType.Subcommand,
+      options: [
+        {
+          name: "role",
+          description: "Role to assign",
+          type: ApplicationCommandOptionType.Role,
+          required: true
         }
-
-        if (sub === 'view') {
-            try {
-                const data = await Schema.findOne({ guildID: guildId });
-
-                if (!data) {
-                    return interaction.editReply({
-                        embeds: [new EmbedBuilder()
-                            .setColor('#ff6b6b')
-                            .setTitle('❌ Welcome System Not Configured')
-                            .setDescription('Use `/welcome setup` to configure the welcome system')]
-                    });
-                }
-
-                const channel = guild.channels.cache.get(data.channelID);
-                const role = guild.roles.cache.get(data.roleID);
-
-                const embed = new EmbedBuilder()
-                    .setColor(data.embedColor || client.embedColor)
-                    .setTitle('📋 Welcome System Settings')
-                    .addFields(
-                        { name: '📍 Channel', value: channel ? `<#${channel.id}>` : 'Not set', inline: true },
-                        { name: '🎁 Auto-Role', value: role ? `<@&${role.id}>` : 'Not set', inline: true },
-                        { name: '⚙️ Status', value: data.enabled ? '✅ Enabled' : '❌ Disabled', inline: true },
-                        { name: '📝 Message', value: `\`${data.message || 'None'}\`` }
-                    );
-
-                return interaction.editReply({ embeds: [embed] });
-            } catch (err) {
-                return interaction.editReply({ content: '❌ Failed to retrieve settings', ephemeral: true });
-            }
+      ]
+    },
+    {
+      name: "clearrole",
+      description: "Remove auto-role configuration.",
+      type: ApplicationCommandOptionType.Subcommand
+    },
+    {
+      name: "view",
+      description: "View welcome settings.",
+      type: ApplicationCommandOptionType.Subcommand
+    },
+    {
+      name: "test",
+      description: "Send a welcome preview.",
+      type: ApplicationCommandOptionType.Subcommand
+    },
+    {
+      name: "toggle",
+      description: "Enable or disable welcome system.",
+      type: ApplicationCommandOptionType.Subcommand,
+      options: [
+        {
+          name: "status",
+          description: "Enable or disable",
+          type: ApplicationCommandOptionType.Boolean,
+          required: true
         }
-
-        if (sub === 'test') {
-            try {
-                const data = await Schema.findOne({ guildID: guildId });
-
-                if (!data || !data.channelID) {
-                    return interaction.editReply({
-                        content: '❌ Welcome system not configured. Use `/welcome setup` first',
-                        ephemeral: true
-                    });
-                }
-
-                const channel = guild.channels.cache.get(data.channelID);
-                if (!channel) {
-                    return interaction.editReply({
-                        content: '❌ Welcome channel not found or was deleted',
-                        ephemeral: true
-                    });
-                }
-
-                const testMessage = data.message
-                    .replace(/{user}/g, `<@${interaction.user.id}>`)
-                    .replace(/{server}/g, guild.name)
-                    .replace(/{count}/g, guild.memberCount);
-
-                const testEmbed = new EmbedBuilder()
-                    .setColor(data.embedColor || client.embedColor)
-                    .setTitle('Welcome!')
-                    .setDescription(testMessage)
-                    .setThumbnail(interaction.user.displayAvatarURL({ dynamic: true }))
-                    .setFooter({ text: `Member #${guild.memberCount}` });
-
-                await channel.send({ embeds: [testEmbed] });
-
-                return interaction.editReply({
-                    content: `✅ Test welcome message sent to <#${channel.id}>`,
-                    ephemeral: true
-                });
-            } catch (err) {
-                return interaction.editReply({ content: '❌ Failed to send test message', ephemeral: true });
-            }
-        }
-
-        if (sub === 'toggle') {
-            const status = interaction.options.getBoolean('status');
-
-            try {
-                await Schema.findOneAndUpdate(
-                    { guildID: guildId },
-                    { enabled: status },
-                    { upsert: true }
-                );
-
-                return interaction.editReply({
-                    embeds: [new EmbedBuilder()
-                        .setColor(status ? '#51cf66' : '#ff6b6b')
-                        .setTitle(status ? '✅ Welcome System Enabled' : '❌ Welcome System Disabled')
-                        .setDescription(status ? 'New members will be welcomed!' : 'Welcome messages are disabled')]
-                });
-            } catch (err) {
-                return interaction.editReply({ content: '❌ Failed to toggle welcome system', ephemeral: true });
-            }
-        }
+      ]
     }
+  ],
+
+  run: async (client, interaction) => {
+    const getEmoji = (key, fallback = "") => EMOJIS[key] || fallback;
+    const embedColor = client?.embedColor || "#ff0051";
+    const createEmbed = ({ title, description, fields, author, thumbnail, image, footer, timestamp = false }) => {
+      const embed = new EmbedBuilder().setColor(embedColor);
+      if (title) embed.setTitle(title);
+      if (description) embed.setDescription(description);
+      if (Array.isArray(fields) && fields.length > 0) embed.addFields(fields);
+      if (author) embed.setAuthor(author);
+      if (thumbnail) embed.setThumbnail(thumbnail);
+      if (image) embed.setImage(image);
+return embed;
+    };
+    const statField = (label, value, emojiKey, inline = true) => ({
+      name: `${emojiKey ? `${getEmoji(emojiKey)} ` : ""}${label}`,
+      value: String(value),
+      inline
+    });
+
+    const ok = EMOJIS.ok;
+    const no = EMOJIS.no;
+    const deferred = await safeDeferReply(interaction, { ephemeral: false });
+    if (!deferred) return safeReply(interaction, { content: "Failed to process this interaction." });
+
+    const sub = interaction.options.getSubcommand();
+    const { guildId, guild } = interaction;
+
+    if (sub === "setup") {
+      const channel = interaction.options.getChannel("channel");
+      const template = interaction.options.getString("message") || "Welcome {user} to {server}!";
+      const requestedColor = interaction.options.getString("color");
+      const resolvedColor = requestedColor
+        ? normalizeWelcomeColor(requestedColor, client.embedColor)
+        : null;
+
+      if (!channel || !channel.isTextBased()) {
+        const embed = createEmbed({
+          title: `${getEmoji("error")} Invalid Channel`,
+          description: `${no} Please choose a text-based channel.`
+        });
+        return safeReply(interaction, { embeds: [embed] });
+      }
+      if (requestedColor && !resolvedColor) {
+        const embed = createEmbed({
+          title: `${getEmoji("error")} Invalid Color`,
+          description: `${no} Use hex format like \`#ff0051\` or \`default\`.`
+        });
+        return safeReply(interaction, { embeds: [embed] });
+      }
+
+      await Schema.findOneAndUpdate(
+        { guildID: guildId },
+        {
+          channelID: channel.id,
+          message: template,
+          enabled: true,
+          ...(resolvedColor ? { embedColor: resolvedColor } : {})
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+
+      const embed = createEmbed({
+        title: `${getEmoji("success")} Welcome Configured`,
+        description: `${ok} Welcome system configured and enabled.`,
+        fields: [
+          statField("Channel", `<#${channel.id}>`, "server"),
+          statField("Status", "`Enabled`", "success"),
+          { name: `${getEmoji("info")} Message`, value: `\`${template}\``, inline: false }
+        ]
+      });
+      return safeReply(interaction, { embeds: [embed] });
+    }
+
+    if (sub === "message") {
+      const text = interaction.options.getString("text");
+      await Schema.findOneAndUpdate(
+        { guildID: guildId },
+        { message: text },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+
+      const embed = createEmbed({
+        title: `${getEmoji("success")} Welcome Message Updated`,
+        description: `${ok} New welcome template saved.`,
+        fields: [{ name: `${getEmoji("info")} Template`, value: `\`${text}\``, inline: false }]
+      });
+      return safeReply(interaction, { embeds: [embed] });
+    }
+
+    if (sub === "title") {
+      const title = interaction.options.getString("text").slice(0, 256);
+      await Schema.findOneAndUpdate(
+        { guildID: guildId },
+        { title },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+
+      const embed = createEmbed({
+        title: `${getEmoji("success")} Welcome Title Updated`,
+        description: `${ok} New title set to \`${title}\`.`
+      });
+      return safeReply(interaction, { embeds: [embed] });
+    }
+
+    if (sub === "color") {
+      const rawColor = interaction.options.getString("value");
+      const parsed = normalizeWelcomeColor(rawColor, client.embedColor);
+      if (!parsed) {
+        const embed = createEmbed({
+          title: `${getEmoji("error")} Invalid Color`,
+          description: `${no} Use hex format like \`#ff0051\` or \`default\`.`
+        });
+        return safeReply(interaction, { embeds: [embed] });
+      }
+
+      await Schema.findOneAndUpdate(
+        { guildID: guildId },
+        { embedColor: parsed },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+
+      const embed = createEmbed({
+        title: `${getEmoji("success")} Welcome Color Updated`,
+        description: `${ok} Welcome embed color set to \`${parsed}\`.`
+      });
+      return safeReply(interaction, { embeds: [embed] });
+    }
+
+    if (sub === "role") {
+      const role = interaction.options.getRole("role");
+      await Schema.findOneAndUpdate(
+        { guildID: guildId },
+        { roleID: role.id },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+
+      const embed = createEmbed({
+        title: `${getEmoji("success")} Auto Role Updated`,
+        description: `${ok} New members will receive <@&${role.id}>.`
+      });
+      return safeReply(interaction, { embeds: [embed] });
+    }
+
+    if (sub === "clearrole") {
+      await Schema.findOneAndUpdate(
+        { guildID: guildId },
+        { roleID: null },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+      const embed = createEmbed({
+        title: `${getEmoji("success")} Auto Role Cleared`,
+        description: `${ok} Auto-role assignment has been disabled.`
+      });
+      return safeReply(interaction, { embeds: [embed] });
+    }
+
+    if (sub === "view") {
+      const data = await Schema.findOne({ guildID: guildId });
+      if (!data) {
+        const embed = createEmbed({
+          title: `${getEmoji("info")} Welcome Not Configured`,
+          description: "Use `/welcome setup` to configure it."
+        });
+        return safeReply(interaction, { embeds: [embed] });
+      }
+
+      const channel = data.channelID ? guild.channels.cache.get(data.channelID) : null;
+      const role = data.roleID ? guild.roles.cache.get(data.roleID) : null;
+      const color = data.embedColor || client.embedColor;
+
+      const embed = createEmbed({
+        title: `${getEmoji("server")} Welcome Settings`,
+        description: "Current welcome system configuration.",
+        fields: [
+          statField("Status", data.enabled ? "`Enabled`" : "`Disabled`", data.enabled ? "success" : "error"),
+          statField("Channel", channel ? `<#${channel.id}>` : "`Not set`", "server"),
+          statField("Auto Role", role ? `<@&${role.id}>` : "`Not set`", "users"),
+          statField("Color", `\`${color}\``, "info"),
+          { name: `${getEmoji("info")} Title`, value: `\`${data.title || "Welcome!"}\``, inline: false },
+          { name: `${getEmoji("info")} Message`, value: `\`${data.message || "Welcome {user} to {server}!"}\``, inline: false },
+          { name: `${getEmoji("info")} Variables`, value: welcomeVariablesText(), inline: false }
+        ]
+      });
+      return safeReply(interaction, { embeds: [embed] });
+    }
+
+    if (sub === "test") {
+      const data = await Schema.findOne({ guildID: guildId });
+      if (!data?.channelID) {
+        const embed = createEmbed({
+          title: `${getEmoji("error")} Welcome Not Configured`,
+          description: `${no} Configure it first using \`/welcome setup\`.`
+        });
+        return safeReply(interaction, { embeds: [embed] });
+      }
+
+      const channel = guild.channels.cache.get(data.channelID);
+      if (!channel || !channel.isTextBased()) {
+        const embed = createEmbed({
+          title: `${getEmoji("error")} Invalid Welcome Channel`,
+          description: `${no} Configured channel does not exist or is not text-based.`
+        });
+        return safeReply(interaction, { embeds: [embed] });
+      }
+
+      const previewMember = guild.members.cache.get(interaction.user.id) || interaction.member;
+      const preview = renderWelcomeTemplate(data.message, previewMember);
+      const testEmbed = createEmbed({
+        title: data.title || "Welcome!",
+        description: preview,
+        thumbnail: interaction.user.displayAvatarURL({ forceStatic: false }),
+        footer: `Member #${guild.memberCount}`
+      }).setColor(data.embedColor || client.embedColor);
+
+      await channel.send({ embeds: [testEmbed] }).catch(() => {});
+
+      const embed = createEmbed({
+        title: `${getEmoji("success")} Test Sent`,
+        description: `${ok} Welcome preview sent to <#${channel.id}>.`
+      });
+      return safeReply(interaction, { embeds: [embed] });
+    }
+
+    if (sub === "toggle") {
+      const enabled = interaction.options.getBoolean("status");
+      await Schema.findOneAndUpdate(
+        { guildID: guildId },
+        { enabled },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+
+      const embed = createEmbed({
+        title: enabled
+          ? `${getEmoji("success")} Welcome Enabled`
+          : `${getEmoji("error")} Welcome Disabled`,
+        description: enabled
+          ? `${ok} New members will receive welcome messages.`
+          : `${ok} Welcome messages are disabled.`
+      });
+      return safeReply(interaction, { embeds: [embed] });
+    }
+
+    const embed = createEmbed({
+      title: `${getEmoji("error")} Invalid Subcommand`,
+      description: `${no} Use \`/welcome view\` to check current configuration.`
+    });
+    return safeReply(interaction, { embeds: [embed] });
+  }
 };
+

@@ -11,7 +11,7 @@ module.exports = {
   run: async (client, interaction) => {
     return await client.errorHandler.executeWithErrorHandling(interaction, async (interaction) => {
       await safeReply.safeDeferReply(interaction);
-      
+
       try {
         const embed = new EmbedBuilder().setTitle('Music Debug').setColor(interaction.client?.embedColor || '#ff0051');
 

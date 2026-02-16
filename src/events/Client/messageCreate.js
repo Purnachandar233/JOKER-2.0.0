@@ -1,148 +1,241 @@
-const User = require('../../schema/User.js');
+const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require("discord.js");
+
+const EMOJIS = require("../../utils/emoji.json");
+const EMBED_COLOR = "#ff0051";
+
+function getEmoji(client, key, fallback = "") {
+  return EMOJIS[key] || fallback;
+}
+
+function createEmbed(client, options = {}) {
+  const {
+    title,
+    description,
+    fields,
+    author,
+    thumbnail,
+    image,
+    footer,
+    timestamp = false
+  } = options;
+
+  const embed = new EmbedBuilder().setColor(client?.embedColor || EMBED_COLOR);
+
+  if (title) embed.setTitle(title);
+  if (description) embed.setDescription(description);
+  if (Array.isArray(fields) && fields.length > 0) embed.addFields(fields);
+  if (author) embed.setAuthor(author);
+  if (thumbnail) embed.setThumbnail(thumbnail);
+  if (image) embed.setImage(image);
+
+  const footerText = footer || `${getEmoji(client, "music", "[M]")} Joker Music`;
+return embed;
+}
+
+function createLinkRow(client) {
+  const support = new ButtonBuilder()
+    .setStyle(ButtonStyle.Link)
+    .setLabel("Support")
+    .setURL("https://discord.gg/JQzBqgmwFm");
+
+  const invite = new ButtonBuilder()
+    .setStyle(ButtonStyle.Link)
+    .setLabel("Invite")
+    .setURL(`https://discord.com/oauth2/authorize?client_id=${client.user.id}&permissions=70510540062032&integration_type=0&scope=bot+applications.commands`);
+
+  const vote = new ButtonBuilder()
+    .setStyle(ButtonStyle.Link)
+    .setLabel("Vote")
+    .setURL(`https://top.gg/bot/${client.user.id}/vote`);
+
+  const supportEmoji = getEmoji(client, "support");
+  const inviteEmoji = getEmoji(client, "invite");
+  const voteEmoji = getEmoji(client, "vote");
+  try { if (supportEmoji) support.setEmoji(supportEmoji); } catch (_e) {}
+  try { if (inviteEmoji) invite.setEmoji(inviteEmoji); } catch (_e) {}
+  try { if (voteEmoji) vote.setEmoji(voteEmoji); } catch (_e) {}
+
+  return new ActionRowBuilder().addComponents(support, invite, vote);
+}
+
+const User = require("../../schema/User.js");
 const Premium = require("../../schema/Premium.js");
 const blacklist = require("../../schema/blacklistSchema.js");
-const { ActionRowBuilder, ButtonBuilder, EmbedBuilder } = require("discord.js");
-const db = require('../../schema/prefix.js');
+const db = require("../../schema/prefix.js");
+
+function createModernMessage(message, client) {
+  const originalReply = message.reply.bind(message);
+  const originalSend = message.channel.send.bind(message.channel);
+  const originalChannel = message.channel;
+
+  const wrappedChannel = new Proxy(originalChannel, {
+    get(target, prop, receiver) {
+      if (prop === "send") {
+        return async payload => originalSend(payload);
+      }
+
+      const value = Reflect.get(target, prop, receiver);
+      return typeof value === "function" ? value.bind(target) : value;
+    }
+  });
+
+  return new Proxy(message, {
+    get(target, prop, receiver) {
+      if (prop === "reply") {
+        return async payload => originalReply(payload);
+      }
+      if (prop === "channel") {
+        return wrappedChannel;
+      }
+
+      const value = Reflect.get(target, prop, receiver);
+      return typeof value === "function" ? value.bind(target) : value;
+    }
+  });
+}
 
 module.exports = async (client, message) => {
   if (!message.guild || !message.guild.id || message.author.bot) return;
 
-  const Owners = [client.config.ownerId];
+  const owners = Array.isArray(client.config.ownerId)
+    ? client.config.ownerId
+    : [client.config.ownerId].filter(Boolean);
 
   let prefix;
   try {
-    let data = await db.findOne({ Guild: message.guild.id });
+    const data = await db.findOne({ Guild: message.guild.id });
     prefix = data?.Prefix || client.prefix;
   } catch (err) {
-    client.logger?.log(`Prefix lookup error: ${err.message}`, 'warn');
+    client.logger?.log(`Prefix lookup error: ${err.message}`, "warn");
     prefix = client.prefix;
   }
 
   const mention = new RegExp(`^<@!?${client.user.id}>( |)$`);
   if (message.content.match(mention)) {
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setLabel("Invite").setStyle(5).setURL(`https://discord.com/oauth2/authorize?client_id=${client.user.id}&permissions=70510540062032&integration_type=0&scope=bot+applications.commands`),
-      new ButtonBuilder().setLabel("Support").setStyle(5).setURL(`https://discord.gg/JQzBqgmwFm`)
-    );
-    const embed = new EmbedBuilder()
-      .setColor(client?.embedColor || '#ff0051')
-      .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-      .setDescription(`Joker  is a high-quality  music bot built for high quallity music and stability . It is user friendly, low-latency audio and supports dreezer, Spotify,applemusic, SoundCloud and playlists. Features include advanced audio filters\n\nMy Prefix is: \`${prefix}\` \n\nType \`${prefix}help or /help\` to see commands.`);
-    return message.channel.send({ embeds: [embed], components: [row] });
+    const embed = createEmbed(client, {
+      title: `${getEmoji(client, "music")} Joker Music`,
+      author: {
+        name: "Professional Music Assistant",
+        iconURL: client.user.displayAvatarURL({ forceStatic: false })
+      },
+      description: [
+        "High-quality audio, stable playback, and clean interactions.",
+        "",
+        `Prefix: \`${prefix}\``,
+        `Start here: \`${prefix}help\` or \`/help\``
+      ].join("\n"),
+      footer: `${getEmoji(client, "support")} Need setup help? Open Support`
+    });
+
+    return message.channel.send({
+      embeds: [embed],
+      components: [createLinkRow(client)]
+    });
   }
 
-  const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, `\\$&`); 
-  const mentionprefix = new RegExp(`^(<@!?${client.user.id}>|${escapeRegex(prefix)})`);
-  if (!mentionprefix.test(message.content)) return;
+  const escapeRegex = str => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const mentionPrefix = new RegExp(`^(<@!?${client.user.id}>|${escapeRegex(prefix)})`);
+  if (!mentionPrefix.test(message.content)) return;
 
-  const matchedContent = message.content.match(mentionprefix)[0];
+  const matchedContent = message.content.match(mentionPrefix)[0];
   const args = message.content.slice(matchedContent.length).trim().split(/ +/);
   const commandName = args.shift()?.toLowerCase();
-  
   const command = client.commands.get(commandName) || client.commands.get(client.aliases.get(commandName));
-
   if (!command) return;
 
   let user = await User.findOne({ userId: message.author.id }).catch(() => null);
   if (!user) {
-    try {
-      user = await User.create({ userId: message.author.id });
-    } catch (err) {
-      client.logger?.log(`User creation error: ${err.message}`, 'warn');
-    }
+    user = await User.create({ userId: message.author.id }).catch(() => null);
   }
   if (user) {
     user.count = (user.count || 0) + 1;
     await user.save().catch(() => {});
   }
 
-  if (command.owneronly && !Owners.includes(message.author.id)) {
-    // Silent rejection: do not send any message or grant access
-    return;
+  if (command.owneronly && !owners.includes(message.author.id)) return;
+
+  if (command.wl && !owners.includes(message.author.id)) {
+    const blocked = await blacklist.findOne({ UserID: message.author.id }).catch(() => null);
+    if (blocked) {
+      const embed = createEmbed(client, {
+        title: `${getEmoji(client, "error")} Access Blocked`,
+        description: "You are blacklisted from using this bot."
+      });
+      return message.channel.send({ embeds: [embed] });
+    }
   }
 
-  // DJ role validation
   if (command.djonly) {
-    const djSchema = require('../../schema/djroleSchema.js');
+    const djSchema = require("../../schema/djroleSchema.js");
     try {
-      let djdata = await djSchema.findOne({ guildID: message.guild.id }).catch(() => null);
-      if (djdata && djdata.Roleid) {
-        if (!message.member.roles.cache.has(djdata.Roleid)) {
-          const embed = new EmbedBuilder()
-            .setColor(client?.embedColor || '#ff0051')
-            .setDescription(`This command requires you to have the DJ role.`);
+      const djData = await djSchema.findOne({ guildID: message.guild.id }).catch(() => null);
+      if (djData?.Roleid) {
+        if (!message.member.roles.cache.has(djData.Roleid)) {
+          const embed = createEmbed(client, {
+            title: `${getEmoji(client, "error")} DJ Role Required`,
+            description: "You need the configured DJ role to use this command."
+          });
           return message.channel.send({ embeds: [embed] });
         }
-      } else {
-        // No DJ role configured, only allow owner
-        if (!Owners.includes(message.author.id)) {
-          const embed = new EmbedBuilder()
-            .setColor(client?.embedColor || '#ff0051')
-            .setDescription(`No DJ role configured. Contact server owner.`);
-          return message.channel.send({ embeds: [embed] });
-        }
+      } else if (!owners.includes(message.author.id)) {
+        const embed = createEmbed(client, {
+          title: `${getEmoji(client, "error")} DJ Role Not Configured`,
+          description: "No DJ role is configured yet. Ask an admin to set one."
+        });
+        return message.channel.send({ embeds: [embed] });
       }
     } catch (err) {
-      client.logger?.log(`DJ role check error: ${err.message}`, 'error');
-      const embed = new EmbedBuilder()
-        .setColor(client?.embedColor || '#ff0051')
-        .setDescription(`Error checking DJ permissions. Please try again.`);
+      client.logger?.log(`DJ role check error: ${err.message}`, "error");
+      const embed = createEmbed(client, {
+        title: `${getEmoji(client, "error")} Permission Check Failed`,
+        description: "I couldn't verify DJ permissions. Please try again."
+      });
       return message.channel.send({ embeds: [embed] });
     }
   }
 
   if (command.premium) {
-    const pUser = await Premium.findOne({ Id: message.author.id, Type: 'user' });
-    const pGuild = await Premium.findOne({ Id: message.guild.id, Type: 'guild' });
-    
-    // Check if user premium is valid
+    const pUser = await Premium.findOne({ Id: message.author.id, Type: "user" });
+    const pGuild = await Premium.findOne({ Id: message.guild.id, Type: "guild" });
+
     const isUserPremium = pUser && (pUser.Permanent || pUser.Expire > Date.now());
-    // Check if guild premium is valid
     const isGuildPremium = pGuild && (pGuild.Permanent || pGuild.Expire > Date.now());
-    
-    // Clean up expired premium if found
+
     if (pUser && !pUser.Permanent && pUser.Expire <= Date.now()) {
-        await pUser.deleteOne();
+      await pUser.deleteOne();
     }
     if (pGuild && !pGuild.Permanent && pGuild.Expire <= Date.now()) {
-        await pGuild.deleteOne();
+      await pGuild.deleteOne();
     }
-    
+
     let isVoted = false;
-    if (client.topgg && client.topgg.hasVoted) {
-        try {
-          isVoted = await client.topgg.hasVoted(message.author.id);
-        } catch (e) {
-          try { client.logger?.log(`Top.gg Vote Check Error: ${e && (e.stack || e.toString())}`, 'warn'); } catch (err) { console.log("Top.gg Vote Check Error:", e); }
-        }
+    if (client.topgg && typeof client.topgg.hasVoted === "function") {
+      try {
+        isVoted = await client.topgg.hasVoted(message.author.id);
+      } catch (err) {
+        client.logger?.log(`Top.gg vote check error: ${err?.message || err}`, "warn");
+      }
     }
 
     if (!isUserPremium && !isGuildPremium && !isVoted) {
-      const embed = new EmbedBuilder()
-        .setColor(client?.embedColor || '#ff0051')
-        .setAuthor({ name: "Premium Required", iconURL: client.user.displayAvatarURL() })
-        .setDescription(`✧ This command requires a **Premium Subscription** or a **Vote** on [Top.gg](https://top.gg/bot/${client.user.id}/vote).`);
-      
-      const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setLabel("Vote Me").setStyle(5).setURL(`https://top.gg/bot/${client.user.id}/vote`),
-        new ButtonBuilder().setLabel("Get Premium").setStyle(5).setURL(`https://discord.com/invite/JQzBqgmwFm`)
-      );
-
-      return message.channel.send({ embeds: [embed], components: [row] });
+      const embed = createEmbed(client, {
+        title: `${getEmoji(client, "premium")} Premium Required`,
+        description: "This command needs a premium subscription or an active Top.gg vote."
+      });
+      return message.channel.send({ embeds: [embed], components: [createLinkRow(client)] });
     }
   }
 
   try {
-    command.execute(message, args, client, prefix);
+    const modernMessage = createModernMessage(message, client);
+    await command.execute(modernMessage, args, client, prefix);
   } catch (error) {
-    client.logger?.log(`Command execution error: ${error?.message}`, 'error');
-    const embed = new EmbedBuilder()
-      .setColor(client?.embedColor || '#ff0051')
-      .setDescription(`❌ Error executing command: ${error?.message || 'Unknown error'}`);
-    try {
-      await message.reply({ embeds: [embed] }).catch(() => {});
-    } catch (replyErr) {
-      client.logger?.log(`Failed to reply error: ${replyErr.message}`, 'error');
-    }
+    client.logger?.log(`Command execution error: ${error?.message || error}`, "error");
+    const embed = createEmbed(client, {
+      title: `${getEmoji(client, "error")} Command Error`,
+      description: `Error executing command: ${error?.message || "Unknown error"}`
+    });
+    await message.reply({ embeds: [embed] }).catch(() => {});
   }
 };
+

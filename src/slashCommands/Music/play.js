@@ -24,7 +24,7 @@ module.exports = {
     if (!interaction.deferred && !interaction.replied) {
       await interaction.deferReply({ ephemeral: false }).catch(err => client.logger?.log(`deferReply failed: ${err?.message || err}`, 'warn'));
     }
-    
+
     const query = interaction.options.getString("query");
     if (!query) return await interaction.editReply({ embeds: [new EmbedBuilder().setColor((typeof interaction !== 'undefined' && interaction?.client?.embedColor) || (typeof client !== 'undefined' && client?.embedColor) || (typeof client !== 'undefined' && client.config?.embedColor) || '#ff0051').setDescription("Please provide a search input to search.")] }).catch(err => client.logger?.log(`editReply failed (no query): ${err?.message || err}`, 'warn'));
 
@@ -139,7 +139,6 @@ module.exports = {
         }
       }
     }
-
 
     if (!s || !s.tracks || s.tracks.length === 0) {
       if (player && safePlayer.queueSize(player) === 0) await safePlayer.safeDestroy(player);

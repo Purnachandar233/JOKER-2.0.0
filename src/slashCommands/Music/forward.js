@@ -5,6 +5,7 @@ const safeReply = require('../../utils/safeReply');
 const musicChecks = require('../../utils/musicChecks');
 const safePlayer = require('../../utils/safePlayer');
 
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
     name: "forward",
     description: "Forwards a song in seconds.",
@@ -32,8 +33,8 @@ module.exports = {
       return await client.errorHandler.executeWithErrorHandling(interaction, async (interaction) => {
         await safeReply.safeDeferReply(interaction);
 
-        let ok = client.emoji.ok;
-        let no = client.emoji.no;
+        let ok = EMOJIS.ok;
+        let no = EMOJIS.no;
 
         // Check cooldown
         const cooldown = client.cooldownManager.check("forward", interaction.user.id);
@@ -77,11 +78,11 @@ module.exports = {
           if (Number(seekTime) >= currentDuration) seekTime = currentDuration - 1000;
 
           await safePlayer.safeCall(player, 'seek', Number(seekTime));
-          
+
           const embed = new EmbedBuilder()
             .setColor(interaction.client?.embedColor || '#ff0051')
             .setDescription(`${ok} Forward by \`${convertTime(timeMs)}\``);
-          
+
           await safeReply.safeReply(interaction, { embeds: [embed] });
 
           // Set cooldown after success
@@ -98,5 +99,4 @@ module.exports = {
       });
     }
 };
-
 

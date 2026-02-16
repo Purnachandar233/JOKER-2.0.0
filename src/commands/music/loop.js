@@ -1,5 +1,6 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder } = require('discord.js');
 
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
   name: 'loop',
   category: 'music',
@@ -9,25 +10,25 @@ module.exports = {
   djonly : false,
   wl : true,
   execute: async (message, args, client, prefix) => {
-   
-  
-    let ok = client.emoji.ok;
-    let no = client.emoji.no;
-    
-    
+
+
+    let ok = EMOJIS.ok;
+    let no = EMOJIS.no;
+
+
     //
        const { channel } = message.member.voice;
        if (!channel) {
                        const noperms = new EmbedBuilder()
-                      
+
             .setColor(message.client?.embedColor || '#ff0051')
               .setDescription(`${no} You must be connected to a voice channel to use this command.`)
            return await message.channel.send({embeds: [noperms]});
        }
-       if(message.member.voice.selfDeaf) {	
+       if(message.member.voice.selfDeaf) {
          let thing = new EmbedBuilder()
           .setColor(message.client?.embedColor || '#ff0051')
- 
+
         .setDescription(`${no} <@${message.member.id}> You cannot run this command while deafened.`)
           return await message.channel.send({embeds: [thing]});
         }
@@ -36,7 +37,7 @@ module.exports = {
            const tracks = getQueueArray(player);
            if(!player || !tracks || tracks.length === 0) {
                        const noperms = new EmbedBuilder()
- 
+
             .setColor(message.client?.embedColor || '#ff0051')
             .setDescription(`${no} There is nothing playing in this server.`)
            return await message.channel.send({embeds: [noperms]});
@@ -51,15 +52,15 @@ module.exports = {
     if(!validoptions.includes(args[0])) {
         const noperms = new EmbedBuilder()
          .setColor(message.client?.embedColor || '#ff0051')
-         .setDescription(`${no} **Please specify a loop method\n 
+         .setDescription(`${no} **Please specify a loop method\n
          Ex: \`loop queue\` , \`loop song\`,\`loop disable\`**`)
          return message.channel.send({embeds: [noperms]});
-    
+
        }
-      
-    
+
+
          else
-     
+
        if (['track', 'song'].includes(args[0])) {
      player.setRepeatMode(player.repeatMode === 'track' ? 'off' : 'track');
      const trackRepeat = player.repeatMode === 'track' ? "enabled" : "disabled";

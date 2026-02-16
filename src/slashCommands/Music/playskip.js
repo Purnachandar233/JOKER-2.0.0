@@ -1,4 +1,5 @@
 const { CommandInteraction, Client, EmbedBuilder } = require("discord.js");
+const EMOJIS = require("../../utils/emoji.json");
 var {
     arrayMove
   } = require("../../functions.js")
@@ -20,7 +21,7 @@ module.exports = {
 		}
 	],
 
-  
+
 
   /**
    * @param {Client} client
@@ -31,21 +32,21 @@ module.exports = {
    await interaction.deferReply({
             ephemeral: false
         });
-  
-        let ok = client.emoji.ok;
-        let no = client.emoji.no;
-        
+
+        let ok = EMOJIS.ok;
+        let no = EMOJIS.no;
+
     const search = interaction.options.getString("query");
- 
+
       const { channel } = interaction.member.voice;
       if (!channel) {
                       const noperms = new EmbedBuilder()
-                
+
            .setColor(interaction.client?.embedColor || '#ff0051')
              .setDescription(`${no} You must be connected to a voice channel to use this command.`)
           return await interaction.editReply({embeds: [noperms]});
       }
-      if(interaction.member.voice.selfDeaf) {	
+      if(interaction.member.voice.selfDeaf) {
         let thing = new EmbedBuilder()
          .setColor(interaction.client?.embedColor || '#ff0051')
 
@@ -73,19 +74,19 @@ try {
         selfDeafen: true,
       });
     let state = player.state;
-    if (state !== "CONNECTED") { 
+    if (state !== "CONNECTED") {
       player.set("message", interaction);
       player.set("playerauthor", interaction.member.id);
       await safePlayer.safeCall(player, 'connect');
       await safePlayer.safeStop(player);
     }
     try {
-     
+
         res = await player.search({
           query: search,
         }, interaction.member);
 
- 
+
       if (res.loadType === "LOAD_FAILED") throw res.exception;
       else if (res.loadType === "PLAYLIST_LOADED") throw {
         message: "${no} Playlists are not supported with this command."
@@ -136,9 +137,7 @@ try {
 
     .setDescription(`${no} No results found.`)]})
   }
-   
+
   }
 }
-
-
 

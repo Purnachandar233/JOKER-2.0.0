@@ -1,4 +1,4 @@
-const chalk = require("chalk");
+const chalk = require("./chalkCompat");
 const moment = require("moment");
 const config = require('../../config.json');
 const { WebhookClient, EmbedBuilder } = require('discord.js');
@@ -36,8 +36,8 @@ module.exports = class Logger {
 		}
 
 		// Sanitize message and other content to avoid leaking tokens/credentials
-    try { 
-      message = sanitize(String(message)); 
+    try {
+      message = sanitize(String(message));
     } catch (e) {
       console.error('logger sanitize error:', e && (e.message || e));
     }

@@ -1,6 +1,7 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder } = require('discord.js');
 const safePlayer = require('../../utils/safePlayer');
 
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
   name: 'addprevious',
   category: 'music',
@@ -10,20 +11,20 @@ module.exports = {
   votelock:true,
   wl : true,
   execute: async (message, args, client, prefix) => {
-   
-    let ok = client.emoji.ok;
-    let no = client.emoji.no;
+
+    let ok = EMOJIS.ok;
+    let no = EMOJIS.no;
 
     if (!message.replied) await message.channel.send().catch(() => {});
     const { channel } = message.member.voice;
     if (!channel) {
                     const noperms = new EmbedBuilder()
-              
+
          .setColor(message.client?.embedColor || '#ff0051')
            .setDescription(`${no} You must be connected to a voice channel to use this command.`)
         return await message.channel.send({embeds: [noperms]});
     }
-    if(message.member.voice.selfDeaf) {	
+    if(message.member.voice.selfDeaf) {
       let thing = new EmbedBuilder()
        .setColor(message.client?.embedColor || '#ff0051')
 
@@ -45,7 +46,6 @@ return await message.channel.send({embeds: [noperms]});
     voiceChannelId: message.member.voice.channel.id,
     selfDeafen: true,
   });
-
 
   const last = typeof player.get === 'function' ? player.get('lastTrack') : null;
   if (!last) {
@@ -95,5 +95,5 @@ return await message.channel.send({embeds: [noperms]});
     content: `${no} No results found, try to be specific as possible.`
   }).catch(() => {});
 }
-   
+
 }

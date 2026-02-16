@@ -1,117 +1,110 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder } = require('discord.js')
+const { EmbedBuilder } = require("discord.js");
+
+const EMOJIS = require("../../utils/emoji.json");
+const VALID_REGIONS = [
+  "us-west", "brazil", "hongkong", "india", "japan", "rotterdam", "russia",
+  "singapore", "south-korea", "southafrica", "sydney", "us-central", "us-east", "us-south"
+];
 
 module.exports = {
-  name: 'fix',
-  category: 'settings',
-  description: 'Tries to fix the lag or other audio issues forcefully by changing server region.',
+  name: "fix",
+  category: "settings",
+  description: "Force update voice region to resolve playback routing issues.",
   owner: false,
   wl: true,
-  execute: async (message, args, client, prefix) => {
-    const ok = client.emoji.ok
-    const no = client.emoji.no
-    if (!message.member.permissions.has('MANAGE_CHANNELS')) {
-      const noperms = new EmbedBuilder()
-        .setColor(message.client?.embedColor || '#ff0051')
-        .setDescription('You need this required Permissions: `MANAGE_CHANNELS` to run this command.')
-      await message.channel.send({ embeds: [noperms] })
+  execute: async (message, args, client) => {
+    const getEmoji = (key, fallback = "") => EMOJIS[key] || fallback;
+    const embedColor = client?.embedColor || "#ff0051";
+    const createEmbed = ({ title, description, fields, author, thumbnail, image, footer, timestamp = false }) => {
+      const embed = new EmbedBuilder().setColor(embedColor);
+      if (title) embed.setTitle(title);
+      if (description) embed.setDescription(description);
+      if (Array.isArray(fields) && fields.length > 0) embed.addFields(fields);
+      if (author) embed.setAuthor(author);
+      if (thumbnail) embed.setThumbnail(thumbnail);
+      if (image) embed.setImage(image);
+return embed;
+    };
+
+    const ok = EMOJIS.ok;
+    const no = EMOJIS.no;
+
+    if (!message.member.permissions.has("MANAGE_CHANNELS")) {
+      const embed = createEmbed({
+        title: `${getEmoji("error")} Missing Permission`,
+        description: "You need `MANAGE_CHANNELS` to run this command."
+      });
+      return message.channel.send({ embeds: [embed] });
     }
-    const { channel } = message.member.voice
+
+    const { channel } = message.member.voice;
     if (!channel) {
-      const noperms = new EmbedBuilder()
-
-        .setColor(message.client?.embedColor || '#ff0051')
-        .setDescription(`${no} You must be connected to a voice channel to use this command.`)
-      return await message.reply({ embeds: [noperms], empheral: true })
+      const embed = createEmbed({
+        title: `${getEmoji("error")} Voice Channel Required`,
+        description: `${no} You must be connected to a voice channel.`
+      });
+      return message.reply({ embeds: [embed] });
     }
+
     if (message.member.voice.selfDeaf) {
-      const thing = new EmbedBuilder()
-        .setColor(message.client?.embedColor || '#ff0051')
-        .setDescription(`${no} <@${message.member.id}> You cannot run this command while deafened.`)
-      return await message.channel.send({ embeds: [thing] })
-    }
-        const player = client.lavalink.players.get(message.guild.id)
-      const { getQueueArray } = require('../../utils/queue.js');
-      const tracks = getQueueArray(player);
-      if(!player || !tracks || tracks.length === 0) {
-      const noperms = new EmbedBuilder()
-
-        .setColor(message.client?.embedColor || '#ff0051')
-        .setDescription(`${no} There is nothing playing in this server.`)
-      return await message.channel.send({ embeds: [noperms] })
-    }
-    if (player && channel.id !== player.voiceChannelId) {
-      const noperms = new EmbedBuilder()
-        .setColor(message.client?.embedColor || '#ff0051')
-        .setDescription(`${no} You must be connected to the same voice channel as me.`)
-      return await message.channel.send({ embeds: [noperms] })
+      const embed = createEmbed({
+        title: `${getEmoji("error")} Cannot Run While Deafened`,
+        description: `${no} <@${message.member.id}> You cannot run this command while deafened.`
+      });
+      return message.channel.send({ embeds: [embed] });
     }
 
-    if (args) {
-      const guild = client.guilds.cache.get(message.guild.id)
-      const voiceChannel = guild.channels.cache.get(player.voiceChannelId)
-      const validregions = ['us-west', 'brazil', 'hongkong', 'india', 'japan', 'rotterdam', 'russia', 'singapore', 'south-korea', 'southafrica', 'sydney', 'us-central', 'us-east', 'us-south']
-      if (!validregions.includes(args[0])) {
-        const noperms = new EmbedBuilder()
-          .setColor(message.client?.embedColor || '#ff0051')
-          .setDescription('**This Is An Invalid Region Please Select A Valid Region**. \\n\\n Available regions - `brazil`, `hongkong`, `india`, `japan`, `rotterdam`, `russia`, `singapore`, `south-korea`, `southafrica`, `sydney`, `us-central`, `us-east`, `us-south`, `us-west`')
-        return message.channel.send({ embeds: [noperms] }).then(responce => {
-          setTimeout(() => {
-            try {
-              responce.delete().catch(() => {
+    const player = client.lavalink.players.get(message.guild.id);
+    const { getQueueArray } = require("../../utils/queue.js");
+    const tracks = getQueueArray(player);
 
-              })
-            } catch (err) {
-
-            }
-          }, 12000)
-        })
-      }
-
-      try {
-        const region = Array.isArray(args) ? args[0] : args;
-        const channelOpts = {
-          rtcRegion: region
-        }
-
-        voiceChannel.edit(channelOpts, 'Fix command')
-
-        const noperms = new EmbedBuilder()
-          .setColor(message.client?.embedColor || '#ff0051')
-          .setDescription(`Voice Region is now set to \`${region}\`.`)
-        return await message.channel.send({ embeds: [noperms] })
-      } catch (e) {
-        return await message.channel.send({ content: 'Unable to change the voice region make sure I have the `MANAGE_CHANNELS` permission and make sure you specified a vaild voicechannel region.' })
-      }
-      return
+    if (!player || !tracks || tracks.length === 0) {
+      const embed = createEmbed({
+        title: `${getEmoji("queue")} Nothing Playing`,
+        description: `${no} There is nothing playing in this server.`
+      });
+      return message.channel.send({ embeds: [embed] });
     }
 
-    const guild = client.guilds.cache.get(message.guild.id)
-    const voiceChannel = guild.channels.cache.get(player.voiceChannelId)
-    const Responses = ['us-west', 'brazil', 'hongkong', 'india', 'japan', 'rotterdam', 'russia', 'singapore', 'south-korea', 'southafrica', 'sydney', 'us-central', 'us-east', 'us-south']
-    const rc = Math.floor(Math.random() * Responses.length)
-    const validregions = ['us-west', 'brazil', 'hongkong', 'india', 'japan', 'rotterdam', 'russia', 'singapore', 'south-korea', 'southafrica', 'sydney', 'us-central', 'us-east', 'us-south']
-    if (!validregions.includes(args[0])) {
-      const noperms = new EmbedBuilder()
-        .setColor(message.client?.embedColor || '#ff0051')
-        .setDescription('This Is An Invalid Region Please Select A Correct Region. \n Available regions - us-west, brazil, hongkong, india, japan, rotterdam\n russia, singapore, south-korea, southafrica, sydney, us-central, us-east, us-south ')
-      return message.channel.send({ embeds: [noperms] })
+    if (channel.id !== player.voiceChannelId) {
+      const embed = createEmbed({
+        title: `${getEmoji("error")} Wrong Voice Channel`,
+        description: `${no} You must be connected to the same voice channel as me.`
+      });
+      return message.channel.send({ embeds: [embed] });
+    }
+
+    const guild = client.guilds.cache.get(message.guild.id);
+    const voiceChannel = guild.channels.cache.get(player.voiceChannelId);
+    const requestedRegion = Array.isArray(args) && args.length ? String(args[0]).toLowerCase() : null;
+
+    let region = requestedRegion;
+    if (region && !VALID_REGIONS.includes(region)) {
+      const embed = createEmbed({
+        title: `${getEmoji("error")} Invalid Region`,
+        description: `Use one of: \`${VALID_REGIONS.join("`, `")}\``
+      });
+      return message.channel.send({ embeds: [embed] });
+    }
+
+    if (!region) {
+      region = VALID_REGIONS[Math.floor(Math.random() * VALID_REGIONS.length)];
     }
 
     try {
-      const channelOpts = {
-        rtcRegion: Responses[rc]
-      }
-
-      voiceChannel.edit(channelOpts, 'Fix command')
-
-      const noperms = new EmbedBuilder()
-        .setColor(message.client?.embedColor || '#ff0051')
-        .setDescription(`Voice Region is now set to \`${Responses[rc]}\`.`)
-      return await message.channel.send({ embeds: [noperms] })
-    } catch (e) {
-      return await message.channel.send({ content: 'Unable to change the voice region make sure I have the `MANAGE_CHANNELS` permission and try again.' })
+      await voiceChannel.edit({ rtcRegion: region }, "Fix command");
+      const embed = createEmbed({
+        title: `${getEmoji("success")} Region Updated`,
+        description: `${ok} Voice region is now set to \`${region}\`.`
+      });
+      return message.channel.send({ embeds: [embed] });
+    } catch (_e) {
+      const embed = createEmbed({
+        title: `${getEmoji("error")} Update Failed`,
+        description: "Unable to change region. Check my `MANAGE_CHANNELS` permission and try again."
+      });
+      return message.channel.send({ embeds: [embed] });
     }
   }
-}
-
+};
 

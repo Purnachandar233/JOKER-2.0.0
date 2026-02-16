@@ -2,6 +2,7 @@ const { CommandInteraction, Client, EmbedBuilder } = require("discord.js");
 const twentyfourseven = require("../../schema/twentyfourseven");
 const autoplaySchema = require("../../schema/autoplay.js");
 
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
     name: "autoplay",
     description: "Toggle music autoplay.",
@@ -19,25 +20,27 @@ module.exports = {
      */
 
     run: async (client, interaction, prefix ) => {
-        await interaction.deferReply({
-          ephemeral: false
-        });
-     
-        let ok = client.emoji.ok;
-        let no = client.emoji.no;
-        
+        if (!interaction.deferred && !interaction.replied) {
+          await interaction.deferReply({
+            ephemeral: false
+          });
+        }
+
+        let ok = EMOJIS.ok;
+        let no = EMOJIS.no;
+
    //
-   
+
    //
       const { channel } = interaction.member.voice;
       if (!channel) {
                       const noperms = new EmbedBuilder()
-                     
+
            .setColor(interaction.client?.embedColor || '#ff0051')
              .setDescription(`${no} You must be connected to a voice channel to use this command.`)
           return await interaction.editReply({embeds: [noperms]});
       }
-      if(interaction.member.voice.selfDeaf) {	
+      if(interaction.member.voice.selfDeaf) {
         let thing = new EmbedBuilder()
          .setColor(interaction.client?.embedColor || '#ff0051')
 
@@ -57,8 +60,8 @@ module.exports = {
           .setDescription(`${no} You must be connected to the same voice channel as me.`)
           return await interaction.editReply({embeds: [noperms]});
       }
-		
-    
+
+
       const autoplay = player ? player.get("autoplay") : false;
         if (autoplay === false) {
           // If no tracks available, try to load lastTrack from player, then DB
@@ -198,7 +201,7 @@ module.exports = {
 
     }
 
-     
+
        }
      };
 

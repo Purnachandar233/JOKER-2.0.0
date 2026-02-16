@@ -2,6 +2,7 @@ const { EmbedBuilder, CommandInteraction, Client } = require("discord.js");
 const safeReply = require('../../utils/safeReply');
 const musicChecks = require('../../utils/musicChecks');
 
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
     name: "stop",
     description: "Stops the music",
@@ -13,17 +14,17 @@ module.exports = {
     wl : true,
 
     /**
-     * 
-     * @param {Client} client 
-     * @param {CommandInteraction} interaction 
+     *
+     * @param {Client} client
+     * @param {CommandInteraction} interaction
      */
 
     run: async (client, interaction) => {
       return await client.errorHandler.executeWithErrorHandling(interaction, async (interaction) => {
         await safeReply.safeDeferReply(interaction);
 
-        let ok = client.emoji.ok;
-        let no = client.emoji.no;
+        let ok = EMOJIS.ok;
+        let no = EMOJIS.no;
 
         // Check cooldown
         const cooldown = client.cooldownManager.check("stop", interaction.user.id);
@@ -60,7 +61,7 @@ module.exports = {
         const embed = new EmbedBuilder()
           .setColor(interaction.client?.embedColor || '#ff0051')
           .setDescription(`${ok} **Stopped the player and cleared the queue!**`);
-        
+
         await safeReply.safeReply(interaction, { embeds: [embed] });
 
         // Set cooldown after success
@@ -71,6 +72,4 @@ module.exports = {
       });
     }
 };
-
-
 

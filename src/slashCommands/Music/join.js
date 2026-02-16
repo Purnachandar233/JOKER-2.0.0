@@ -3,6 +3,7 @@ const safeReply = require('../../utils/safeReply');
 const musicChecks = require('../../utils/musicChecks');
 const safePlayer = require('../../utils/safePlayer');
 
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
   name: "join",
   description: "Join voice channel",
@@ -14,17 +15,17 @@ module.exports = {
   wl: true,
 
   /**
-   * 
-   * @param {Client} client 
-   * @param {CommandInteraction} interaction 
+   *
+   * @param {Client} client
+   * @param {CommandInteraction} interaction
    */
 
   run: async (client, interaction) => {
     return await client.errorHandler.executeWithErrorHandling(interaction, async (interaction) => {
       await safeReply.safeDeferReply(interaction);
-      
-      let ok = client.emoji.ok;
-      let no = client.emoji.no;
+
+      let ok = EMOJIS.ok;
+      let no = EMOJIS.no;
 
       const { channel } = interaction.member.voice;
       if (!channel) {

@@ -1,13 +1,7 @@
 const { EmbedBuilder } = require("discord.js");
+const { getActionGif } = require("../../../utils/actionGifProvider");
 
-// Valid anime love/ship GIF URLs - Updated working sources
-const shipGifs = [
-    "https://media1.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.gif",
-    "https://media2.giphy.com/media/l0MYt5j31ESjHf7bG/giphy.gif",
-    "https://media3.giphy.com/media/l0Iy1FZAt0oVHcsQw/giphy.gif",
-    "https://media4.giphy.com/media/l0IykYQh0u1QNxTHy/giphy.gif",
-    "https://media1.giphy.com/media/iKBAAfYNgnXSozLVyn/giphy.gif"
-];
+const romanceActions = ["kiss", "cuddle", "hug"];
 
 module.exports = {
     name: "ship",
@@ -17,7 +11,7 @@ module.exports = {
     usage: "ship @user1 @user2",
     execute: async (message, args, client, prefix) => {
         const mentions = message.mentions.users;
-        
+
         if (mentions.size < 2) {
             return message.channel.send("Please mention two people to ship! 💕");
         }
@@ -32,7 +26,7 @@ module.exports = {
 
         const percentage = Math.floor(Math.random() * 100) + 1;
         let rating = "";
-        
+
         if (percentage >= 80) {
             rating = "A match made in heaven! 💕💕💕";
         } else if (percentage >= 60) {
@@ -47,7 +41,8 @@ module.exports = {
 
         const shipName = `${user1.username.slice(0, Math.ceil(user1.username.length / 2))}${user2.username.slice(Math.floor(user2.username.length / 2))}`;
 
-        const randomGif = shipGifs[Math.floor(Math.random() * shipGifs.length)];
+        const romanceAction = romanceActions[Math.floor(Math.random() * romanceActions.length)];
+        const randomGif = await getActionGif(romanceAction, "romance");
 
         const embed = new EmbedBuilder()
             .setColor("#ff1493")

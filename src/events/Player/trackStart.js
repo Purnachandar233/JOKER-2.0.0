@@ -1,101 +1,111 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder } = require("discord.js");
-const { convertTime } = require('../../utils/convert.js');
-const dbtrack = require('../../schema/trackinfoSchema.js')
+const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require("discord.js");
+const { convertTime } = require("../../utils/convert.js");
+const EMOJIS = require("../../utils/emoji.json");
 
-module.exports = async (client, player, track, res) => {
+const EMBED_COLOR = "#ff0051";
+
+module.exports = async (client, player, track) => {
+  try {
     try {
-        // Log track start attempt (safely handle undefined player.state)
-        const stateInfo = (typeof player?.state === 'undefined' || player?.state === null) ? 'unknown' : player.state;
-        // TrackStart event fired
+      const suppressUntil = typeof player.get === "function" ? player.get("suppressUntil") : null;
+      if (suppressUntil && Date.now() < suppressUntil) {
+        await new Promise((resolve) => setTimeout(resolve, suppressUntil - Date.now()));
+      }
+    } catch (e) {}
 
-        // If a recent play command set a suppression timestamp, wait until it's expired
-        try {
-            const suppressUntil = typeof player.get === 'function' ? player.get('suppressUntil') : null;
-            if (suppressUntil && Date.now() < suppressUntil) {
-                const wait = suppressUntil - Date.now();
-                // Suppressing trackStart message for brief period
-                await new Promise(resolve => setTimeout(resolve, wait));
-            }
-        } catch (e) {
-            // ignore any errors accessing player metadata
-        }
-
-        const channel = client.channels.cache.get(player.textChannelId);
-        if (!channel) {
-            client.logger?.log(`Channel not found for textChannelId: ${player.textChannelId} in guild ${player.guildId}`, 'error');
-            return;
-        }
-
-        // Track metadata
-        const title = track.info?.title || track.title || 'Unknown';
-        const uri = track.info?.uri || track.uri || '';
-        const duration = track.info?.duration || track.duration || 0;
-        const isStream = track.info?.isStream || track.isStream || false;
-
-        const thing = new EmbedBuilder()
-            .setAuthor({ name: 'Now Playing', iconURL: client.user.displayAvatarURL() })
-            .setDescription(`[${title}](${uri}) - \`${isStream ? 'LIVE' : convertTime(duration)}\``)
-            .setColor((typeof client !== 'undefined' && client?.embedColor) ? client.embedColor : '#ff0051');
-
-        // More professional button styling with labels + emojis
-        const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('prtrack').setStyle(2).setLabel('Pause'),
-            new ButtonBuilder().setCustomId('skiptrack').setStyle(2).setLabel('Skip'),
-            new ButtonBuilder().setCustomId('showqueue').setStyle(2).setLabel('Queue'),
-            new ButtonBuilder().setCustomId('stop').setStyle(4).setLabel('Stop')
-        );
-
-        try {
-            // Do NOT mutate lavalink internals (player.queue). Keep last track in
-            // player metadata only. `addprevious` and similar features should
-            // read from `player.get('lastTrack')` instead of touching `player.queue`.
-            try {
-                if (typeof player.set === 'function') player.set('lastTrack', player.get && player.get('lastTrack') ? player.get('lastTrack') : track);
-            } catch (qerr) {
-                // ignore metadata set failure
-            }
-
-            const oldMsg = player.get(`playingsongmsg`);
-            if (oldMsg) {
-              await oldMsg.delete().catch(err => {
-                try {
-                  console.warn('Failed to delete old track start message:', err?.message);
-                } catch (e) {}
-              });
-            }
-        } catch (e) {
-          try {
-            console.warn('trackStart message cleanup error:', e?.message);
-          } catch (logErr) {}
-        }
-
-        const msg = await channel.send({ embeds: [thing], components: [row] }).catch(async (error) => {
-            client.logger?.log(`Failed to send track start embed in guild ${player.guildId}: ${error.message}`, 'error');
-            // Try sending a simple text message as fallback
-            try {
-                const simpleMsg = await channel.send(`🎵 Now Playing: ${title}`).catch(err => {
-                  console.warn('Failed to send simple fallback message:', err?.message);
-                  return null;
-                });
-                if (simpleMsg) {
-                    player.set(`playingsongmsg`, simpleMsg);
-                    // Sent fallback simple track start message
-                }
-            } catch (simpleError) {
-                client.logger?.log(`Failed to send simple message too: ${simpleError.message}`, 'error');
-            }
-            return null;
-        });
-
-        if (msg) {
-            player.set(`playingsongmsg`, msg);
-            // Save lastTrack metadata so we can reference it on the next start
-            try { player.set('lastTrack', track); } catch (e) {}
-            // Track start message sent successfully
-        } else {
-            client.logger?.log(`Track start message failed to send in guild ${player.guildId}`, 'error');
-        }
-    } catch (error) {
-        client.logger?.log(`[ERROR] trackStart: ${error.message}`, 'error');
+    const channel = client.channels.cache.get(player.textChannelId);
+    if (!channel) {
+      client.logger?.log(
+        `Channel not found for textChannelId: ${player.textChannelId} in guild ${player.guildId}`,
+        "error"
+      );
+      return;
     }
+
+    const title = track?.info?.title || track?.title || "Unknown";
+    const uri = track?.info?.uri || track?.uri || "";
+    const duration = track?.info?.duration || track?.duration || 0;
+    const isStream = track?.info?.isStream || track?.isStream || false;
+
+    const oldMsg = typeof player.get === "function" ? player.get("playingsongmsg") : null;
+    if (oldMsg) await oldMsg.delete().catch(() => {});
+
+    const pauseBtn = new ButtonBuilder()
+      .setCustomId("music_prtrack")
+      .setStyle(ButtonStyle.Secondary)
+      .setLabel("Pause");
+
+    const skipBtn = new ButtonBuilder()
+      .setCustomId("music_skiptrack")
+      .setStyle(ButtonStyle.Secondary)
+      .setLabel("Skip");
+
+    const queueBtn = new ButtonBuilder()
+      .setCustomId("music_showqueue")
+      .setStyle(ButtonStyle.Secondary)
+      .setLabel("Queue");
+
+    const stopBtn = new ButtonBuilder()
+      .setCustomId("music_stop")
+      .setStyle(ButtonStyle.Danger)
+      .setLabel("Stop");
+
+    const row = new ActionRowBuilder().addComponents(pauseBtn, skipBtn, queueBtn, stopBtn);
+
+    const songLine = uri ? `**[${title}](${uri})**` : `**${title}**`;
+    const playerRequester = typeof player.get === "function" ? player.get("requester") : null;
+    const playerRequesterId = typeof player.get === "function" ? player.get("requesterId") : null;
+
+    const requesterId =
+      track?.requester?.id ||
+      track?.requester?.user?.id ||
+      track?.info?.requester?.id ||
+      (typeof track?.requester === "string" ? track.requester : null) ||
+      playerRequester?.id ||
+      playerRequester?.user?.id ||
+      playerRequesterId ||
+      null;
+
+    const requesterTag =
+      track?.requester?.tag ||
+      track?.requester?.user?.tag ||
+      track?.info?.requester?.tag ||
+      playerRequester?.user?.tag ||
+      playerRequester?.tag ||
+      null;
+
+    const requestedBy = requesterId
+      ? `<@${requesterId}>`
+      : requesterTag
+        ? `\`${requesterTag}\``
+        : "`Unknown`";
+
+    const embed = new EmbedBuilder()
+      .setColor(client?.embedColor || EMBED_COLOR)
+      .setAuthor({
+        name:  "Now Playing",
+        iconURL: client.user.displayAvatarURL({ forceStatic: false })
+      })
+      .setDescription(
+        `${songLine}\n\`${isStream ? "LIVE" : convertTime(duration)}\` - Requested by ${requestedBy}`
+      );
+      
+
+    const msg = await channel.send({ embeds: [embed], components: [row] }).catch(async (error) => {
+      client.logger?.log(`Failed to send track start embed in guild ${player.guildId}: ${error.message}`, "error");
+      return channel.send(`${EMOJIS.music || "[M]"} Now Playing: ${title}`).catch(() => null);
+    });
+
+    if (!msg) {
+      client.logger?.log(`Track start message failed to send in guild ${player.guildId}`, "error");
+      return;
+    }
+
+    if (typeof player.set === "function") {
+      player.set("playingsongmsg", msg);
+      player.set("lastTrack", track);
+    }
+  } catch (error) {
+    client.logger?.log(`[ERROR] trackStart: ${error.message}`, "error");
+  }
 };

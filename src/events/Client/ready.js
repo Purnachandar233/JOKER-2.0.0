@@ -9,7 +9,7 @@ module.exports = async (client) => {
     client.user.setPresence({
         status: 'Streaming',
         activities: [{
-            name: `STREAMING QUALITY MUSIC`, 
+            name: `STREAMING QUALITY MUSIC`,
             type: ActivityType.Streaming,
             url: 'https://twitch.tv/musical'
         }]

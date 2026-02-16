@@ -1,6 +1,7 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder } = require("discord.js");
 const twentyfourseven = require("../../schema/twentyfourseven")
 
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
   name: "setdj",
   category: "settings",
@@ -9,10 +10,10 @@ module.exports = {
   premium: true,
   votelock:true,
   wl : true,
-  execute: async (message, args, client, prefix) => {  
-    let ok = client.emoji.ok;
-    let no = client.emoji.no;
-    
+  execute: async (message, args, client, prefix) => {
+    let ok = EMOJIS.ok;
+    let no = EMOJIS.no;
+
 
     if (!message.member.permissions.has('MANAGE_ROLES')) {
         const noperms = new EmbedBuilder()

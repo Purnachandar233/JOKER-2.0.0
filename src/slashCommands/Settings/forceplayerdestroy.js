@@ -1,6 +1,7 @@
 const { CommandInteraction, Client, EmbedBuilder } = require('discord.js');
 const { safeReply, safeDeferReply } = require('../../utils/safeReply');
 
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
   name: 'forceplayerdestroy',
   description: 'Forcefully destroy the player for this guild',
@@ -11,8 +12,8 @@ module.exports = {
     const deferred = await safeDeferReply(interaction, { ephemeral: false });
     if (!deferred) return safeReply(interaction, { content: 'Failed to defer reply.' });
 
-    const ok = client.emoji?.ok;
-    const no = client.emoji?.no;
+    const ok = EMOJIS.ok;
+    const no = EMOJIS.no;
 
     if (!interaction.member.permissions.has('MANAGE_CHANNELS')) {
       const noperms = new EmbedBuilder()

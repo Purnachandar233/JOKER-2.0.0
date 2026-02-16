@@ -11,7 +11,7 @@ module.exports = async (client, player) => {
 		let volumedata = await Schema.findOne({
 			guildID: player.guildId,
 		});
-		
+
 		if (volumedata) {
 			const volumetoset = volumedata.Volume || 100;
 			await safePlayer.safeSetVolume(player, volumetoset);

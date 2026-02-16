@@ -28,7 +28,7 @@ module.exports = {
                 .setColor(message.client?.embedColor || '#ff0051');
             return message.channel.send({ embeds: [embed] });
         }
-       
+
         if (pre.length > 5) {
             const embed = new EmbedBuilder()
                 .setDescription('*The prefix must be 5 characters or less.*')

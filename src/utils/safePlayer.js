@@ -302,14 +302,14 @@ module.exports = {
     try {
       const stopped = await this.safeCall(player, 'stop');
       if (stopped) return true;
-      
+
       // Only attempt to skip if there are tracks in queue
       const queueSize = this.queueSize(player);
       if (queueSize > 0) {
         const skipped = await this.safeCall(player, 'skip');
         if (skipped) return true;
       }
-      
+
       return await this.safeDestroy(player);
     } catch (err) {
       try { console.error('safePlayer.safeStop error:', err); } catch (e) {}
@@ -319,10 +319,10 @@ module.exports = {
   async safeSetVolume(player, volume) {
     try {
       if (!player || typeof volume !== 'number') return false;
-      
+
       // Try setvolume with retry logic
       let result = await this.safeCall(player, 'setVolume', volume);
-      
+
       // If first attempt timed out, wait a moment and retry
       if (!result) {
         try {
@@ -332,7 +332,7 @@ module.exports = {
           console.warn('safePlayer.safeSetVolume retry failed:', e?.message);
         }
       }
-      
+
       return result || false;
     } catch (err) {
       console.error('safePlayer.safeSetVolume error:', err);

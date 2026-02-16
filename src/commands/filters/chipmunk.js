@@ -1,5 +1,6 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder } = require('discord.js')
+const { EmbedBuilder } = require('discord.js')
 
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
   name: 'chipmunk',
   category: 'filters',
@@ -10,8 +11,8 @@ module.exports = {
   djonly: false,
   wl: true,
   execute: async (message, args, client, prefix) => {
-    const ok = client.emoji.ok
-    const no = client.emoji.no
+    const ok = EMOJIS.ok
+    const no = EMOJIS.no
 
     //
     //
@@ -21,13 +22,13 @@ module.exports = {
 
         .setColor(message.client?.embedColor || '#ff0051')
         .setDescription(`${no} You must be connected to a voice channel to use this command.`)
-      return await message.channel.send({ embeds: [noperms], flags: [64] })
+      return await message.channel.send({ embeds: [noperms] })
     }
     if (message.member.voice.selfDeaf) {
       const thing = new EmbedBuilder()
         .setColor(message.client?.embedColor || '#ff0051')
         .setDescription(`${no} <@${message.member.id}> You cannot run this command while deafened.`)
-      return await message.channel.send({ embeds: [thing], flags: [64] })
+      return await message.channel.send({ embeds: [thing] })
     }
         const player = client.lavalink.players.get(message.guild.id)
         const { getQueueArray } = require('../../../src/utils/queue.js');
@@ -36,13 +37,13 @@ module.exports = {
       const noperms = new EmbedBuilder()
         .setColor(message.client?.embedColor || '#ff0051')
         .setDescription(`${no} There is nothing playing in this server.`)
-      return await message.channel.send({ embeds: [noperms], flags: [64] })
+      return await message.channel.send({ embeds: [noperms] })
     }
     if (player && channel.id !== player.voiceChannelId) {
       const noperms = new EmbedBuilder()
         .setColor(message.client?.embedColor || '#ff0051')
         .setDescription(`${no} You must be connected to the same voice channel as me.`)
-      return await message.channel.send({ embeds: [noperms], flags: [64] })
+      return await message.channel.send({ embeds: [noperms] })
     }
     //
 
@@ -120,5 +121,4 @@ module.exports = {
     }
   }
 }
-
 

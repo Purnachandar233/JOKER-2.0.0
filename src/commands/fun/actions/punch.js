@@ -1,13 +1,5 @@
 const { EmbedBuilder } = require("discord.js");
-
-// Valid anime punch GIF URLs - Updated working sources
-const punchGifs = [
-    "https://media1.giphy.com/media/l0CYfENvjZpIeO6IM/giphy.gif",
-    "https://media2.giphy.com/media/l3q2K5jinAlZ19ySm/giphy.gif",
-    "https://media3.giphy.com/media/l0HlE7Q0oPSfyxjDO/giphy.gif",
-    "https://media4.giphy.com/media/l0HlDtKPoZ2QW0lh6/giphy.gif",
-    "https://media2.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.gif"
-];
+const { getActionGif } = require("../../../utils/actionGifProvider");
 
 // Helper function to get first mentioned user from both Collection and Map
 function getFirstMentionedUser(message, args, client) {
@@ -23,13 +15,13 @@ function getFirstMentionedUser(message, args, client) {
 
 module.exports = {
     name: "punch",
-    aliases: ["hit", "slap"],
+    aliases: ["hit"],
     category: "fun",
     description: "Punch someone playfully!",
     usage: "punch @user",
     execute: async (message, args, client, prefix) => {
         const user = getFirstMentionedUser(message, args, client);
-        
+
         if (!user) {
             return message.channel.send("Please mention someone to punch! 👊");
         }
@@ -38,7 +30,7 @@ module.exports = {
             return message.channel.send("You can't punch yourself! 😅");
         }
 
-        const randomGif = punchGifs[Math.floor(Math.random() * punchGifs.length)];
+        const randomGif = await getActionGif("bonk");
 
         const embed = new EmbedBuilder()
             .setColor("#ff4500")

@@ -1,64 +1,61 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder } = require("discord.js");
-const { safeReply, safeDeferReply } = require('../../utils/safeReply');
+const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require("discord.js");
 
+const { safeReply, safeDeferReply } = require("../../utils/safeReply");
+
+const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
-    name: "about",
-    description: "shows about joker music",
-    wl : true,
+  name: "about",
+  description: "About Joker Music",
+  wl: true,
+  run: async (client, interaction) => {
+    const getEmoji = (key, fallback = "") => EMOJIS[key] || fallback;
+    const embedColor = client?.embedColor || "#ff0051";
+    const createEmbed = ({ title, description, fields, author, thumbnail, image, footer, timestamp = false }) => {
+      const embed = new EmbedBuilder().setColor(embedColor);
+      if (title) embed.setTitle(title);
+      if (description) embed.setDescription(description);
+      if (Array.isArray(fields) && fields.length > 0) embed.addFields(fields);
+      if (author) embed.setAuthor(author);
+      if (thumbnail) embed.setThumbnail(thumbnail);
+      if (image) embed.setImage(image);
+return embed;
+    };
+    const createLinkRow = () => {
+      const support = new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel("Support").setURL("https://discord.gg/JQzBqgmwFm");
+      const invite = new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel("Invite").setURL(`https://discord.com/oauth2/authorize?client_id=${client.user.id}&permissions=70510540062032&integration_type=0&scope=bot+applications.commands`);
+      const vote = new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel("Vote").setURL(`https://top.gg/bot/${client.user.id}/vote`);
+      const supportEmoji = getEmoji("support");
+      const inviteEmoji = getEmoji("invite");
+      const voteEmoji = getEmoji("vote");
+      try { if (supportEmoji) support.setEmoji(supportEmoji); } catch (_e) {}
+      try { if (inviteEmoji) invite.setEmoji(inviteEmoji); } catch (_e) {}
+      try { if (voteEmoji) vote.setEmoji(voteEmoji); } catch (_e) {}
+      return new ActionRowBuilder().addComponents(support, invite, vote);
+    };
 
-    /**
-     * 
-     * @param {Client} client 
-     * @param {CommandInteraction} interaction 
-     */
+    const deferred = await safeDeferReply(interaction, { ephemeral: false });
+    if (!deferred) return safeReply(interaction, { content: "Failed to defer reply. Please try again." });
 
-    run: async (client, interaction) => {
-        const deferred = await safeDeferReply(interaction, { ephemeral: false });
-        if (!deferred) {
-            return safeReply(interaction, { content: 'Failed to defer reply. Please try again.' });
-        }
-        
-        let ok = client.emoji.ok;
-        let no = client.emoji.no;
-    
-        const row = new ActionRowBuilder()
-        .addComponents(
-          new ButtonBuilder()
-      .setLabel("Support Server")
-      .setStyle(5)
-      .setURL(`https://discord.gg/JQzBqgmwFm`),
-      new ButtonBuilder()
-      .setLabel("Invite Me")
-      .setStyle(5)
-      .setURL(`https://discord.com/api/oauth2/authorize?client_id=${client.user.id}&permissions=70510540062032&integration_type=0&scope=bot+applications.commands`),
-      new ButtonBuilder()
-      .setLabel("Vote")
-      .setStyle(5)
-      .setURL(`https://top.gg/bot/${client.user.id}/vote`),
-        );
-               
-        const embed = new EmbedBuilder()
-        .setAuthor({ name: "Joker Music" })
-        .setThumbnail(client.user.displayAvatarURL())
-          .setDescription(`Joker is the easiest way to play music in your Discord server. It supports Spotify, Soundcloud [and more!](https://top.gg/bot/${client.user.id}/vote)
+    const embed = createEmbed({
+      title: `${getEmoji("music")} Joker Music`,
+      author: {
+        name: "Professional Discord Music Experience",
+        iconURL: client.user.displayAvatarURL({ forceStatic: false })
+      },
+      description: [
+        "Joker Music is built for high quality playback, stable queue handling, and clean interactions.",
+        "",
+        "**Highlights**",
+        "- Spotify and SoundCloud support",
+        "- Rich controls for queue and playback",
+        "- Premium and voting integrations",
+        "",
+        "Use `/help` to explore commands."
+      ].join("\n"),
+      footer: `${getEmoji("support")} Need assistance? Use Support`
+    });
 
-To get started, join a voice channel and  \`/play\` a song. You can use song names, video links, and playlist links.
-          
-**Why Joker?**
-We provide you the best and updated features without any charges. We provide you 24/7 Mode, Volume control, audio effects and much more for [free](https://top.gg/bot/${client.user.id}/vote).
+    return safeReply(interaction, { embeds: [embed], components: [createLinkRow()] });
+  }
+};
 
-**Commands**
-For full list of commands Type /help\`
-
-**Invite**
-Joker Music can be added to as many server as you want! [Click here to add it to yours](https://discord.com/api/oauth2/authorize?client_id=${client.user.id}&permissions=37088600&redirect_uri=https%3A%2F%2Fdiscord.gg%2FpCj2UBbwST&response_type=code&scope=bot%20applications.commands%20identify)
-
-**Support**
-[Click here](https://discord.gg/JQzBqgmwFm) to talk to our support team if you're having any trouble or have any questions.`)
-          
-        
- 
-.setColor(interaction.client?.embedColor || '#ff0051')
-        await safeReply(interaction, {embeds: [embed], components: [row]});
-    }
-}
