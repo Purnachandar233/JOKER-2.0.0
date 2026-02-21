@@ -3,6 +3,7 @@ const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require("
 const EMOJIS = require("../../utils/emoji.json");
 const EMBED_COLOR = "#ff0051";
 
+
 function getEmoji(client, key, fallback = "") {
   return EMOJIS[key] || fallback;
 }
@@ -195,35 +196,33 @@ module.exports = async (client, message) => {
   }
 
   if (command.premium) {
-    const pUser = await Premium.findOne({ Id: message.author.id, Type: "user" });
-    const pGuild = await Premium.findOne({ Id: message.guild.id, Type: "guild" });
+  const pUser = await Premium.findOne({ Id: message.author.id, Type: "user" });
+  const pGuild = await Premium.findOne({ Id: message.guild.id, Type: "guild" });
 
-    const isUserPremium = pUser && (pUser.Permanent || pUser.Expire > Date.now());
-    const isGuildPremium = pGuild && (pGuild.Permanent || pGuild.Expire > Date.now());
+  const isUserPremium = pUser && (pUser.Permanent || pUser.Expire > Date.now());
+  const isGuildPremium = pGuild && (pGuild.Permanent || pGuild.Expire > Date.now());
 
-    if (pUser && !pUser.Permanent && pUser.Expire <= Date.now()) {
-      await pUser.deleteOne();
-    }
-    if (pGuild && !pGuild.Permanent && pGuild.Expire <= Date.now()) {
-      await pGuild.deleteOne();
-    }
+  // auto remove expired user premium
+  if (pUser && !pUser.Permanent && pUser.Expire <= Date.now()) {
+    await pUser.deleteOne().catch(() => {});
+  }
 
-    let isVoted = false;
-    if (client.topgg && typeof client.topgg.hasVoted === "function") {
-      try {
-        isVoted = await client.topgg.hasVoted(message.author.id);
-      } catch (err) {
-        client.logger?.log(`Top.gg vote check error: ${err?.message || err}`, "warn");
-      }
-    }
+  // auto remove expired guild premium
+  if (pGuild && !pGuild.Permanent && pGuild.Expire <= Date.now()) {
+    await pGuild.deleteOne().catch(() => {});
+  }
 
-    if (!isUserPremium && !isGuildPremium && !isVoted) {
-      const embed = createEmbed(client, {
-        title: `${getEmoji(client, "premium")} Premium Required`,
-        description: "This command needs a premium subscription or an active Top.gg vote."
-      });
-      return message.channel.send({ embeds: [embed], components: [createLinkRow(client)] });
-    }
+  if (!isUserPremium && !isGuildPremium) {
+    const embed = createEmbed(client, {
+      title: `${getEmoji(client, "premium")} Premium Required`,
+      description: "This command requires Premium.\n\nVote on Top.gg to receive **12 hours Premium access**."
+    });
+
+    return message.channel.send({
+      embeds: [embed],
+      components: [createLinkRow(client)]
+    });
+  }
   }
 
   try {
@@ -238,4 +237,3 @@ module.exports = async (client, message) => {
     await message.reply({ embeds: [embed] }).catch(() => {});
   }
 };
-
