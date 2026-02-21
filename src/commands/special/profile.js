@@ -1,4 +1,4 @@
- const { EmbedBuilder } = require("discord.js");
+const { EmbedBuilder } = require("discord.js");
 
 const User = require("../../schema/User.js");
 const day = require("dayjs");
@@ -6,6 +6,7 @@ const Premium = require("../../schema/Premium.js");
 const formatDuration = require("../../utils/formatDuration");
 
 const EMOJIS = require("../../utils/emoji.json");
+
 function getBadgeLines(client, data) {
   const map = [
     ["owner", "Owner"],
@@ -51,18 +52,19 @@ module.exports = {
   owneronly: false,
   wl: true,
   execute: async (message, args, client) => {
+
     const getEmoji = (key, fallback = "") => EMOJIS[key] || fallback;
     const embedColor = client?.embedColor || "#ff0051";
-    const createEmbed = ({ title, description, fields, author, thumbnail, image, footer, timestamp = false }) => {
+
+    const createEmbed = ({ title, description, fields, thumbnail }) => {
       const embed = new EmbedBuilder().setColor(embedColor);
       if (title) embed.setTitle(title);
       if (description) embed.setDescription(description);
-      if (Array.isArray(fields) && fields.length > 0) embed.addFields(fields);
-      if (author) embed.setAuthor(author);
+      if (fields?.length) embed.addFields(fields);
       if (thumbnail) embed.setThumbnail(thumbnail);
-      if (image) embed.setImage(image);
-return embed;
+      return embed;
     };
+
     const statField = (label, value, emojiKey, inline = true) => ({
       name: `${emojiKey ? `${getEmoji(emojiKey)} ` : ""}${label}`,
       value: String(value),
@@ -75,35 +77,47 @@ return embed;
       message.member;
 
     let userData = await User.findOne({ userId: member.id });
-    if (!userData) {
-      userData = await User.create({ userId: member.id });
-    }
+    if (!userData) userData = await User.create({ userId: member.id });
 
     const badgeLines = getBadgeLines(client, userData);
     const badgeValue = badgeLines.join("\n");
+
     const premiumDoc = await Premium.findOne({ Id: member.id, Type: "user" });
 
-    let premiumText = `No active premium subscription. Join support to get one.`;
+    // ================= PREMIUM STATUS =================
+    let premiumText = "No active premium subscription.";
+
     if (premiumDoc?.Permanent) {
       premiumText = "Permanent subscription";
     } else if (premiumDoc && premiumDoc.Expire > Date.now()) {
-      premiumText = `Valid for ${formatDuration(premiumDoc.Expire - Date.now(), { verbose: false }).replace(/\s\d+s$/, "")}`;
+      premiumText = `Active for ${formatDuration(
+        premiumDoc.Expire - Date.now(),
+        { verbose: false }
+      ).replace(/\s\d+s$/, "")}`;
     } else if (premiumDoc) {
       const expiredAt = day(premiumDoc.Expire).format("DD/MM/YYYY");
       premiumText = `Expired on ${expiredAt}`;
-      await premiumDoc.deleteOne();
+      await premiumDoc.deleteOne().catch(() => {});
     }
 
-    const voted = client.topgg
-      ? await client.topgg.hasVoted(member.id).catch(() => false)
-      : false;
-    const voteText = voted
-      ? "Voted - premium commands unlocked for 12 hours."
-      : `Not voted - vote on [Top.gg](https://top.gg/bot/${client.user.id}) to unlock premium commands for 12 hours.`;
+    // ================= VOTE STATUS (Webhook Based) =================
+    let voteText = `Not voted - vote on [top.gg](https://top.gg/bot/${client.user.id}/vote) to unlock 12 hours premium.`;
+
+    if (
+      premiumDoc &&
+      !premiumDoc.Permanent &&
+      premiumDoc.Expire > Date.now()
+    ) {
+      const remaining = premiumDoc.Expire - Date.now();
+      voteText = `Voted - Premium active for ${formatDuration(
+        remaining,
+        { verbose: false }
+      ).replace(/\s\d+s$/, "")}.`;
+    }
 
     const embed = createEmbed({
       title: `${getEmoji("users")} Profile - ${member.user.username}`,
-      thumbnail: member.displayAvatarURL({ forceStatic: false, size: 1024 }),
+      thumbnail: member.displayAvatarURL({ size: 1024 }),
       fields: [
         statField("Commands Used", `\`${userData.count || 0}\``, "music"),
         {
@@ -123,9 +137,9 @@ return embed;
         }
       ]
     });
+
     restoreBadgeFieldValue(embed, badgeValue);
 
     return message.channel.send({ embeds: [embed] });
   }
 };
-
