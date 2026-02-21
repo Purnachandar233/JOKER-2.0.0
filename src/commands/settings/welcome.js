@@ -18,7 +18,14 @@ module.exports = {
   aliases: ["welcomeset", "welcomeconfig"],
   description: "Configure welcome messages for your server.",
   userPermissions: ["Administrator"],
-  execute: async (message, args, client, prefix) => {
+  execute: async (message, args, client, prefix) => { 
+                    if (!message.member.permissions.has('ManageGuild') && !message.member.permissions.has('Administrator')) {
+            const noperms = new EmbedBuilder()
+                .setColor(message.client?.embedColor || '#ff0051')
+                .setDescription('*You need the `Manage Server` or `Administrator` permission to change the prefix.*');
+            return message.channel.send({ embeds: [noperms] });
+        }
+
     const getEmoji = (key, fallback = "") => EMOJIS[key] || fallback;
     const embedColor = client?.embedColor || "#ff0051";
     const createEmbed = ({ title, description, fields, author, thumbnail, image, footer, timestamp = false }) => {
