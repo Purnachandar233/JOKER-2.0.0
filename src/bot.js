@@ -1,8 +1,9 @@
 require('dotenv').config();
 const { Client, GatewayIntentBits, Partials, WebhookClient, EmbedBuilder, ActionRowBuilder, ButtonBuilder, Collection, ActivityType } = require("discord.js");
 const { readdirSync } = require("fs");
-
-const Topgg = require("@top-gg/sdk")
+const express = require("express");
+const { Webhook } = require("@top-gg/sdk");
+const Premium = require("./schema/Premium");
 const db = require('../src/schema/prefix.js');
 const { patchEmbedEmojiSanitizer } = require("./utils/embedEmojiSanitizer");
 
@@ -61,7 +62,46 @@ if (!token || token === "DISCORD_BOT_TOKEN") {
 }
 
 client.login(token);
+// ================= TOP.GG VOTE PREMIUM SYSTEM =================
 
+const app = express();
+app.use(express.json());
+
+const webhook = new Webhook(process.env.TOPGG_WEBHOOK_AUTH);
+
+app.post("/topgg", webhook.listener(async (vote) => {
+    try {
+        console.log(`User ${vote.user} voted`);
+
+        const expireTime = Date.now() + (12 * 60 * 60 * 1000); // 12 hours
+
+        await Premium.findOneAndUpdate(
+            { Id: vote.user, Type: "user" },
+            {
+                Id: vote.user,
+                Type: "user",
+                Permanent: false,
+                Expire: expireTime
+            },
+            { upsert: true }
+        );
+
+        console.log(`12h premium granted to ${vote.user}`);
+
+        // Optional DM
+        const user = await client.users.fetch(vote.user).catch(() => null);
+        if (user) {
+            user.send("🎉 Thank you for voting! You received 12 hours of Premium access!").catch(() => {});
+        }
+
+    } catch (err) {
+        console.error("Top.gg webhook error:", err);
+    }
+}));
+
+app.listen(12952, () => {
+    console.log("Top.gg webhook running on port 12952");
+});
 process.on('unhandledRejection', (error) => {
   try {
     if (client.logger && typeof client.logger.log === 'function') {
