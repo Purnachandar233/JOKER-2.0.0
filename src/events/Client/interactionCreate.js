@@ -238,43 +238,60 @@ async function runSlashCommand(client, interaction, ownerIds) {
     return interaction.editReply({ embeds: [embed] }).catch(() => {});
   }
 
-  if (slashCommand.premium) {
-    const isVoted = client.topgg && typeof client.topgg.hasVoted === "function"
-      ? await client.topgg.hasVoted(interaction.user.id).catch(err => {
-          if (
-            err &&
-            (err.statusCode === 401 || (err.message && (err.message.includes("401") || err.message.includes("Unauthorized"))))
-          ) {
-            return false;
-          }
-          client.logger?.log(`Top.gg vote check error: ${err?.message || String(err)}`, "warn");
-          return false;
-        })
-      : false;
+const Premium = require("../../schema/Premium");
 
-    const pUser = await Premium.findOne({ Id: interaction.user.id, Type: "user" });
-    const pGuild = interaction.guild?.id
-      ? await Premium.findOne({ Id: interaction.guild.id, Type: "guild" })
-      : null;
+if (!interaction.isChatInputCommand()) return;
 
-    const isUserPremium = pUser && (pUser.Permanent || pUser.Expire > Date.now());
-    const isGuildPremium = pGuild && (pGuild.Permanent || pGuild.Expire > Date.now());
+const slashCommand = client.slashCommands.get(interaction.commandName);
+if (!slashCommand) return;
 
-    if (pUser && !pUser.Permanent && pUser.Expire <= Date.now()) {
-      await pUser.deleteOne();
-    }
-    if (pGuild && !pGuild.Permanent && pGuild.Expire <= Date.now()) {
-      await pGuild.deleteOne();
-    }
+// Premium / Vote Lock Check
+if (slashCommand.voteOnly || slashCommand.premium) {
 
-    if (!isUserPremium && !isGuildPremium && !isVoted) {
-      const embed = createEmbed(client, {
-        title: `${getEmoji(client, "premium")} Premium Required`,
-        description: "This command needs a premium subscription or an active Top.gg vote."
-      });
-      return interaction.editReply({ embeds: [embed], components: [createLinkRow(client)] }).catch(() => {});
+  const pUser = await Premium.findOne({ Id: interaction.user.id, Type: "user" });
+  const pGuild = interaction.guild?.id
+    ? await Premium.findOne({ Id: interaction.guild.id, Type: "guild" })
+    : null;
+
+  let isUserPremium = false;
+  let isGuildPremium = false;
+
+  // USER CHECK
+  if (pUser) {
+    if (pUser.Permanent) {
+      isUserPremium = true;
+    } else if (pUser.Expire > Date.now()) {
+      isUserPremium = true;
+    } else {
+      await pUser.deleteOne().catch(() => {});
     }
   }
+
+  // GUILD CHECK
+  if (pGuild) {
+    if (pGuild.Permanent) {
+      isGuildPremium = true;
+    } else if (pGuild.Expire > Date.now()) {
+      isGuildPremium = true;
+    } else {
+      await pGuild.deleteOne().catch(() => {});
+    }
+  }
+
+  if (!isUserPremium && !isGuildPremium) {
+
+    const embed = createEmbed(client, {
+      title: `${getEmoji(client, "premium")} Premium Required`,
+      description: `You must vote to use this command.\n\nVote here:\nhttps://top.gg/bot/${client.user.id}/vote`
+    });
+
+    return interaction.reply({
+      embeds: [embed],
+      components: [createLinkRow(client)],
+      ephemeral: true
+    }).catch(() => {});
+  }
+}
 
   try {
     await slashCommand.run(client, interaction);
