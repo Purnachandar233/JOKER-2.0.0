@@ -1,0 +1,61 @@
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder } = require('discord.js');
+const EMOJIS = require("../../utils/emoji.json");
+const {
+    format,
+    arrayMove
+  } = require(`../../functions.js`);
+module.exports = {
+  name: 'move',
+  category: 'music',
+  aliases: ["side"],
+  description: 'Change the position of a track in the queue.',
+  owner: false,
+  wl : true,
+  execute: async (message, args, client, prefix) => {
+
+    let ok = EMOJIS.ok;
+    let no = EMOJIS.no;
+
+     const player = client.lavalink.players.get(message.guild.id);
+          const queueTracks = Array.isArray(player?.queue?.tracks) ? player.queue.tracks.slice() : [];
+          const queueSize = queueTracks.length;
+          //if no FROM args return error
+          if (!args[0]) {
+            const emr = new EmbedBuilder()
+
+            .setDescription(` ${no} Wrong Command Usage!\n\nUsage: \`move <from> <to>\`\nExample: \`move ${queueSize - 1 <= 0 ? queueSize : queueSize - 1 } 1\``)
+            return message.channel.send({embeds: [emr]})
+          }
+          //If no TO args return error
+          if (!args[1]) {
+            const ror = new EmbedBuilder()
+
+            .setDescription(`${no} Wrong Command Usage!\n\nUsage: \`move <from> <to>\`\nExample: \`move ${queueSize - 1 <= 0 ? queueSize : queueSize - 1 } 1\``)
+            return message.channel.send({embeds: [ror]})
+          }
+          //if its not a number or too big / too small return error for from
+          if (isNaN(args[0]) || args[0] < 1 || args[0] > queueSize) {
+            const eoer = new EmbedBuilder()
+
+            .setDescription(` ${no} Your Input for 'from' must be a Number between \`1\` and \`${queueSize}\``)
+            return message.channel.send({embeds: [eoer]})
+          }
+          //if its not a number or too big / too small return error for to
+          if (isNaN(args[1]) || args[1] < 1 || args[1] > queueSize) {
+            const eoer = new EmbedBuilder()
+
+            .setDescription(` ${no} Your Input for 'to' must be a Number between \`1\` and \`${queueSize}\``)
+            return message.channel.send({embeds: [eoer]})
+          }
+          const fromIndex = Number(args[0]) - 1;
+          const toIndex = Number(args[1]) - 1;
+          const song = queueTracks[fromIndex];
+          const QueueArray = arrayMove(queueTracks, fromIndex, toIndex);
+          await player.queue.splice(0, player.queue.tracks.length, QueueArray);
+          //send informational message
+          const ifkf = new EmbedBuilder()
+         .setColor(message.client?.embedColor || '#ff0051')
+          .setDescription(` ${ok} Moved the Song in the Queue from Position \`${args[0]}\` to Position: \`${args[1]}\`\n\n${song?.info?.title || song?.title || 'Track'} - \`${format(song?.info?.duration || song?.duration || 0)}\` `)
+          return message.channel.send({embeds: [ifkf]});
+        }
+    }

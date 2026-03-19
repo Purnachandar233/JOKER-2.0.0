@@ -1,0 +1,70 @@
+const { EmbedBuilder, Message } = require("discord.js");
+const { progressbar } = require('../../utils/progressbar.js')
+const EMOJIS = require("../../utils/emoji.json");
+module.exports = {
+  name: 'pause',
+  category: 'music',
+  aliases: ["apu","ruko"],
+  description: 'Pauses the player.',
+  owner: false,
+  djonly : false,
+  wl : true,
+  execute: async (message, args, client, prefix) => {
+
+    let ok = EMOJIS.ok;
+    let no = EMOJIS.no;
+
+     //
+    const { channel } = message.member.voice;
+    if (!channel) {
+                    const noperms = new EmbedBuilder()
+
+         .setColor(message.client?.embedColor || '#ff0051')
+           .setDescription(`${no} You must be connected to a voice channel to use this command.`)
+        return await message.channel.send({embeds: [noperms]});
+    }
+    if(message.member.voice.selfDeaf) {
+      let thing = new EmbedBuilder()
+       .setColor(message.client?.embedColor || '#ff0051')
+
+     .setDescription(`${no} <@${message.member.id}> You cannot run this command while deafened.`)
+       return await message.channel.send({embeds: [thing]});
+     }
+        const player = client.lavalink.players.get(message.guild.id);
+      const tracks = [
+        player?.queue?.current,
+        ...(Array.isArray(player?.queue?.tracks) ? player.queue.tracks : [])
+      ].filter(Boolean);
+      if(!player || !tracks || tracks.length === 0) {
+                    const noperms = new EmbedBuilder()
+
+         .setColor(message.client?.embedColor || '#ff0051')
+         .setDescription(`${no} There is nothing playing in this server.`)
+        return await message.channel.send({embeds: [noperms]});
+    }
+    if(player && channel.id !== player.voiceChannelId) {
+                                const noperms = new EmbedBuilder()
+            .setColor(message.client?.embedColor || '#ff0051')
+        .setDescription(`${no} You must be connected to the same voice channel as me.`)
+        return await message.channel.send({embeds: [noperms]});
+    }
+
+        if (player.paused) {
+            let thing = new EmbedBuilder()
+
+                  .setColor(message.client?.embedColor || '#ff0051')
+                .setDescription(`${no} The player is already paused.`)
+                return message.channel.send({embeds: [thing]});
+        }
+
+        await player.pause();
+
+        const song = tracks[0];
+
+        let thing = new EmbedBuilder()
+            .setColor(message.client?.embedColor || '#ff0051')
+            .setDescription(`${ok} **The player has been paused**`)
+          return message.channel.send({embeds: [thing]});
+
+    }
+}
