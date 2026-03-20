@@ -124,16 +124,6 @@ module.exports = {
         voiceChannelId: interaction.member.voice.channelId,
         selfDeafen: true,
       });
-
-      try {
-        if (!player.connected) {
-          await player.connect();
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-      } catch (error) {
-        client.logger?.log(`Player connection failed: ${error?.message || error}`, 'error');
-        return await interaction.editReply({ embeds: [new EmbedBuilder().setColor((typeof interaction !== 'undefined' && interaction?.client?.embedColor) || (typeof client !== 'undefined' && client?.embedColor) || (typeof client !== 'undefined' && client.config?.embedColor) || '#ff0051').setDescription("Failed to connect to voice channel. Please try again.")] }).catch(() => {});
-      }
     }
 
     const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));

@@ -20,6 +20,7 @@ module.exports = {
     const embed = new EmbedBuilder()
       .setTitle(` Uptime`)
       .setColor(client?.embedColor || "#ff0051")
+      .setAuthor({ name: `uptime!`, iconURL: message.member.displayAvatarURL({ forceStatic: false, size: 256 }) })
       .setDescription(
         `**${days}, ${hours}, ${minutes}, and ${seconds}**.`);
   

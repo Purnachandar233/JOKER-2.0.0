@@ -8,6 +8,49 @@ function getEmoji(client, key, fallback = "") {
   return EMOJIS[key] || fallback;
 }
 
+function toPositiveNumber(value, fallback) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+const BOT_VOICE_DISCONNECT_GRACE_MS = toPositiveNumber(process.env.BOT_VOICE_DISCONNECT_GRACE_MS, 5000);
+const QUEUE_END_IDLE_LEAVE_MS = toPositiveNumber(process.env.QUEUE_END_IDLE_LEAVE_MS, 2 * 60 * 1000);
+const QUEUE_END_IDLE_MINUTES = Math.max(1, Math.round(QUEUE_END_IDLE_LEAVE_MS / 60_000));
+const QUEUE_END_IDLE_LABEL = `${QUEUE_END_IDLE_MINUTES} minute${QUEUE_END_IDLE_MINUTES === 1 ? "" : "s"}`;
+
+function playerHasActiveQueue(player) {
+  return (
+    Boolean(player?.queue?.current) ||
+    Boolean(player?.playing) ||
+    Boolean(player?.paused) ||
+    (Array.isArray(player?.queue?.tracks) && player.queue.tracks.length > 0)
+  );
+}
+
+function clearQueueEndLeaveTimer(client, guildId) {
+  const timers = client.__queueEndLeaveTimers;
+  if (!timers) return;
+
+  const timer = timers.get(guildId);
+  if (!timer) return;
+
+  clearTimeout(timer);
+  timers.delete(guildId);
+}
+
+async function resolveTextChannel(client, channelId) {
+  if (!channelId) return null;
+
+  const cached = client.channels.cache.get(channelId);
+  if (cached) return cached;
+
+  if (typeof client.channels?.fetch === "function") {
+    return client.channels.fetch(channelId).catch(() => null);
+  }
+
+  return null;
+}
+
 module.exports = async (client, oldState, newState) => {
   const player = client.lavalink?.players.get(newState.guild.id);
   if (!player) return;
@@ -33,11 +76,28 @@ module.exports = async (client, oldState, newState) => {
     // Discord can briefly report the bot as not connected while joining or
     // moving voice channels. Re-check once before destroying the player.
     if (!newState.channelId) {
-      await delay(1500);
+      await delay(BOT_VOICE_DISCONNECT_GRACE_MS);
       const refreshedBotChannelId = newState.guild.members.me?.voice?.channelId || null;
-      if (!refreshedBotChannelId) {
-        await player.destroy().catch(() => {});
+      if (refreshedBotChannelId) return;
+
+      const queueEndTimerActive = Boolean(client.__queueEndLeaveTimers?.has?.(newState.guild.id));
+      if (queueEndTimerActive && !playerHasActiveQueue(player)) {
+        clearQueueEndLeaveTimer(client, newState.guild.id);
+
+        const leaveEmbed = new EmbedBuilder()
+          .setColor(client?.embedColor || EMBED_COLOR)
+          .setAuthor({ name: " Leaving Voice Channel ", iconURL: client.user.displayAvatarURL() })
+          .setDescription(`I left the voice channel because the queue ended, 24/7 is disabled, this server has no premium, and no listeners stayed with me for ${QUEUE_END_IDLE_LABEL}.`);
+
+        const textChannel = await resolveTextChannel(client, player.textChannelId);
+        if (textChannel) {
+          await textChannel.send({ embeds: [leaveEmbed] }).catch(async () => {
+            await textChannel.send(`Leaving voice channel: queue ended, no 24/7, no premium, and no listeners stayed for ${QUEUE_END_IDLE_LABEL}.`).catch(() => {});
+          });
+        }
       }
+
+      await player.destroy().catch(() => {});
     }
     return;
   }

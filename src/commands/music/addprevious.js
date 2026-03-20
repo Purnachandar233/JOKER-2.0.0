@@ -87,7 +87,7 @@ return await message.channel.send({embeds: [noperms]});
       return await message.channel.send({embeds: [noperms]});
   }
 
-  const s = await player.search(last.uri, message.user);
+  const s = await player.search(last.uri, message.author);
   if (s.loadType === "LOAD_FAILED") {
     if (player && !player.queue?.current && !(Array.isArray(player.queue?.tracks) && player.queue.tracks.length > 0)) await player.destroy().catch(() => {});
     return await message.channel.send({

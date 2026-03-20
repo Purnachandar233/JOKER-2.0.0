@@ -38,6 +38,16 @@ function getPlayerVolume(player) {
   return Math.max(0, Math.round(volume));
 }
 
+function getRequesterDisplayLabel(requester) {
+  const tag = String(requester?.tag || "").trim();
+  if (tag && tag !== "Unknown") return `\`${tag}\``;
+
+  const id = requester?.id ? String(requester.id) : "";
+  if (id) return `User ${id}`;
+
+  return "Unknown";
+}
+
 module.exports = {
   name: "queue",
   description: "Show the music queue and now playing.",
@@ -111,8 +121,9 @@ module.exports = {
         fallbackRequesterId: requesterFallbackId,
         fallbackTag: safeInteraction?.user?.tag,
       });
+      const currentRequesterLabel = getRequesterDisplayLabel(currentRequester);
       const currentTitle = formatQueueTrackTitle(currentTrack, 80);
-      const currentMeta = formatQueueTrackMeta(currentTrack, currentRequester.label);
+      const currentMeta = formatQueueTrackMeta(currentTrack, currentRequesterLabel);
       const currentThumbnail = getTrackThumbnail(currentTrack);
       const timing = getQueueTiming(player);
 
@@ -123,8 +134,9 @@ module.exports = {
           fallbackRequesterId: requesterFallbackId,
           fallbackTag: safeInteraction?.user?.tag,
         });
+        const requesterLabel = getRequesterDisplayLabel(requester);
         const title = truncateText(track?.info?.title || track?.title || "Unknown Title", 60);
-        const meta = formatQueueTrackMeta(track, requester.label);
+        const meta = formatQueueTrackMeta(track, requesterLabel);
         return `${i + 1}. ${title}\n${meta}`;
       });
 
@@ -194,7 +206,6 @@ module.exports = {
       }
 
       client.cooldownManager.set("queue", safeInteraction.user.id, 1000);
-      client.logger.logCommand("queue", safeInteraction.user.id, safeInteraction.guildId, Date.now() - safeInteraction.createdTimestamp, true);
 
       return ok;
     });

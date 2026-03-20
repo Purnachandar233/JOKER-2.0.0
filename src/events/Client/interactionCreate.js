@@ -5,20 +5,9 @@ const EMBED_COLOR = "#ff0051";
 
 const blacklist = require("../../schema/blacklistSchema.js");
 const { resolvePremiumAccess } = require("../../utils/premiumAccess");
-const { queuepaginationEmbed } = require("../../utils/pagination.js");
-const formatDuration = require("../../utils/formatDuration");
-const {
-  formatDiscordTimestamp,
-  formatDurationLabel,
-  formatQueueTrackMeta,
-  formatQueueTrackTitle,
-  getQueueTiming,
-  getRequesterInfo,
-  getTrackThumbnail,
-  truncateText,
-} = require("../../utils/queue");
 
 const MUSIC_COMPONENT_IDS = new Set(["prevtrack", "prtrack", "skiptrack", "shufflequeue", "looptrack", "showqueue", "stop"]);
+const PREMIUM_COMPONENT_IDS = new Set(["premium_dashboard_activate", "premium_dashboard_deactivate"]);
 const EPHEMERAL_FLAG = 1 << 6;
 
 function toPositiveNumber(value, fallback) {
@@ -109,69 +98,6 @@ async function ensureUsableLavalinkNode(client, { timeoutMs = DEFAULT_LAVALINK_C
       .setColor(client?.embedColor || EMBED_COLOR)
       .setDescription("No Lavalink node is available right now. Please try again in a moment."),
   };
-}
-
-function createPaginationButtons(client, page = 1, total = 1) {
-  const first = new ButtonBuilder()
-    .setCustomId("first")
-    .setLabel("First")
-    .setStyle(ButtonStyle.Secondary)
-    .setDisabled(page <= 1);
-
-  const back = new ButtonBuilder()
-    .setCustomId("back")
-    .setLabel("Back")
-    .setStyle(ButtonStyle.Secondary)
-    .setDisabled(page <= 1);
-
-  const next = new ButtonBuilder()
-    .setCustomId("next")
-    .setLabel("Next")
-    .setStyle(ButtonStyle.Primary)
-    .setDisabled(page >= total);
-
-  const last = new ButtonBuilder()
-    .setCustomId("last")
-    .setLabel("Last")
-    .setStyle(ButtonStyle.Primary)
-    .setDisabled(page >= total);
-
-  try { first.setEmoji(getEmoji(client, "first")); } catch (_e) {}
-  try { back.setEmoji(getEmoji(client, "back")); } catch (_e) {}
-  try { next.setEmoji(getEmoji(client, "next")); } catch (_e) {}
-  try { last.setEmoji(getEmoji(client, "last")); } catch (_e) {}
-
-  return [first, back, next, last];
-}
-
-function chunkArray(list, size) {
-  if (!Array.isArray(list) || size <= 0) return [];
-  const chunks = [];
-  for (let i = 0; i < list.length; i += size) {
-    chunks.push(list.slice(i, i + size));
-  }
-  return chunks;
-}
-
-function getLoopMode(player) {
-  const mode = player?.repeatMode;
-  if (mode === "track" || mode === 1) return "track";
-  if (mode === "queue" || mode === 2) return "queue";
-  return "off";
-}
-
-function getPlayerVolume(player) {
-  const volume = Number(player?.volume ?? (typeof player?.get === "function" ? player.get("volume") : null));
-  if (!Number.isFinite(volume)) return 100;
-  return Math.max(0, Math.round(volume));
-}
-
-function formatTrackLength(track) {
-  const isStream = Boolean(track?.info?.isStream || track?.isStream);
-  if (isStream) return "LIVE";
-  const ms = Number(track?.info?.duration || track?.duration || 0);
-  if (!Number.isFinite(ms) || ms <= 0) return "Unknown";
-  return formatDuration(ms, { verbose: false, unitCount: 2 });
 }
 
 function normalizeInteractionOptions(options, { forEdit = false } = {}) {
@@ -578,147 +504,25 @@ async function runMusicComponent(client, interaction) {
 
     case "showqueue": {
       try {
-        const tracks = [
-          player?.queue?.current,
-          ...(Array.isArray(player?.queue?.tracks) ? player.queue.tracks : [])
-        ].filter(Boolean);
-        if (!tracks.length) {
-          await interaction.editReply({ content: `${no} Queue is empty.` }).catch(() => {});
+        const queueCommand = client.commands?.get?.("queue");
+        if (!queueCommand || typeof queueCommand.execute !== "function") {
+          await interaction.editReply({ content: `${no} Queue command is unavailable right now.` }).catch(() => {});
           return;
         }
 
-        const current = tracks[0] || null;
-        const upcoming = tracks.slice(1);
-        const requesterFallback = typeof player?.get === "function" ? player.get("requester") : null;
-        const requesterFallbackId = typeof player?.get === "function" ? player.get("requesterId") : null;
-        const nowRequester = getRequesterInfo(current, {
-          fallbackRequester: requesterFallback,
-          fallbackRequesterId: requesterFallbackId,
-          fallbackTag: interaction?.user?.tag,
-        });
-        const nowTitle = formatQueueTrackTitle(current, 80);
-        const nowMeta = formatQueueTrackMeta(current, nowRequester.label);
-        const nowThumbnail = getTrackThumbnail(current);
-        const timing = getQueueTiming(player);
-        const loopMode = getLoopMode(player);
-        const volume = getPlayerVolume(player);
-        const queueName = interaction.guild?.name || "Queue";
+        const proxyMessage = {
+          author: interaction.user,
+          member: interaction.member,
+          guild: interaction.guild,
+          channel: interaction.channel,
+          client,
+        };
 
-        const queueLines = upcoming.map((track, index) => {
-          const title = track?.info?.title?.substring(0, 60) || track?.title?.substring(0, 60) || "Unknown Title";
-          const author = track?.info?.author || track?.author || "Unknown";
-          const durationStr = formatTrackLength(track);
-          return `${index + 1}. ${title} — ${author} • ${durationStr}`;
-        });
-
-        const grouped = chunkArray(queueLines, 10);
-        const embeds = [];
-
-        if (true) {
-          const formattedGroups = chunkArray(
-            upcoming.map((track, index) => {
-              const requester = getRequesterInfo(track, {
-                fallbackRequester: requesterFallback,
-                fallbackRequesterId: requesterFallbackId,
-                fallbackTag: interaction?.user?.tag,
-              });
-              const title = truncateText(track?.info?.title || track?.title || "Unknown Title", 60);
-              const meta = formatQueueTrackMeta(track, requester.label);
-              return `${index + 1}. ${title}\n${meta}`;
-            }),
-            10
-          );
-          const totalDurationLabel = timing.hasLive
-            ? `${formatDurationLabel(timing.totalDurationMs)} + live`
-            : formatDurationLabel(timing.totalDurationMs);
-          const remainingLabel = timing.hasLive
-            ? `${formatDurationLabel(timing.remainingKnownMs)} + live`
-            : formatDurationLabel(timing.remainingKnownMs);
-          const finishLabel = timing.finishAt
-            ? formatDiscordTimestamp(timing.finishAt, "t")
-            : (timing.hasLive ? "live/unknown" : "unknown");
-
-          const createQueueEmbed = (pageContent, pageNumber, totalPages) => (
-            new EmbedBuilder()
-              .setColor(client?.embedColor || EMBED_COLOR)
-              .setTitle(`${getEmoji(client, "queue")} Queue ${queueName} (${upcoming.length} tracks)`)
-              .setThumbnail(nowThumbnail)
-              .setDescription(
-                `**Now playing**\n` +
-                `${nowTitle}\n` +
-                `${nowMeta}\n` +
-                `\n**Up next**\n` +
-                `${pageContent}\n` +
-                `\n**Settings**\n` +
-                `Loop: ${loopMode} | Volume: ${volume}%\n` +
-                `Remaining: ${remainingLabel} | Total: ${totalDurationLabel} | Ends: ${finishLabel}`
-              )
-              .setFooter({ text: `Page ${pageNumber}/${totalPages}` })
-          );
-
-          if (!formattedGroups.length) {
-            embeds.push(createQueueEmbed("There are no songs in the queue.", 1, 1));
-          } else {
-            for (let pageIndex = 0; pageIndex < formattedGroups.length; pageIndex++) {
-              embeds.push(
-                createQueueEmbed(
-                  formattedGroups[pageIndex].join("\n\n"),
-                  pageIndex + 1,
-                  formattedGroups.length
-                )
-              );
-            }
-          }
-        } else if (!grouped.length) {
-          embeds.push(
-            new EmbedBuilder()
-              .setColor(client?.embedColor || EMBED_COLOR)
-              .setTitle(`${getEmoji(client, "queue")} Queue`)
-              .setDescription(
-                `Queue: ${queueName} (${upcoming.length} tracks)\n` +
-                `\nNow playing\n` +
-                `${nowTitle}\n` +
-                `by ${nowAuthor} • ${nowDuration} • ${nowRequester}\n` +
-                `\nUp next\n` +
-                `There are no songs in the queue.\n` +
-                `\nSettings\n` +
-                `Loop: ${loopMode} | Volume: ${volume}%`
-              )
-          );
-        } else {
-          for (let pageIndex = 0; pageIndex < grouped.length; pageIndex++) {
-            const pageLines = grouped[pageIndex];
-            embeds.push(
-              new EmbedBuilder()
-                .setColor(client?.embedColor || EMBED_COLOR)
-                .setTitle(`${getEmoji(client, "queue")} Queue`)
-                .setDescription(
-                  `Queue: ${queueName} (${upcoming.length} tracks)\n` +
-                  `\nNow playing\n` +
-                  `${nowTitle}\n` +
-                  `by ${nowAuthor} • ${nowDuration} • ${nowRequester}\n` +
-                  `\nUp next\n` +
-                  `${pageLines.join("\n")}\n` +
-                  `\nSettings\n` +
-                  `Loop: ${loopMode} | Volume: ${volume}%`
-                )
-                .setFooter({ text: `${getEmoji(client, "music")} Page ${pageIndex + 1}/${grouped.length}` })
-            );
-          }
-        }
-
-        if (embeds.length === 1) {
-          await interaction.editReply({ embeds: [embeds[0]] }).catch(() => {});
-          return;
-        }
-
-        const buttonList = createPaginationButtons(client, 1, embeds.length).map(button =>
-          button.setDisabled(false)
-        );
-        await queuepaginationEmbed(interaction, embeds, buttonList, interaction.member.user, 30000);
+        await queueCommand.execute(proxyMessage, [], client);
+        await interaction.editReply({ content: `${ok} Opened queue panel in this channel.` }).catch(() => {});
       } catch (error) {
-        client.logger?.log(`Queue display error: ${error?.message || error}`, "error");
-        await interaction.editReply({ content: `${no} Failed to display queue.` }).catch(() => {});
+        client.logger?.log(`Queue button panel error: ${error?.message || error}`, "error");
+        await interaction.editReply({ content: `${no} Failed to open queue panel.` }).catch(() => {});
       }
       break;
     }
@@ -758,6 +562,81 @@ async function runMusicComponent(client, interaction) {
   }
 }
 
+async function runPremiumComponent(client, interaction) {
+  patchSafeInteractionResponses(interaction);
+
+  if (!PREMIUM_COMPONENT_IDS.has(interaction.customId)) return false;
+
+  const embedColor = client?.embedColor || EMBED_COLOR;
+  const support = new ButtonBuilder()
+    .setStyle(ButtonStyle.Link)
+    .setLabel("Support")
+    .setURL("https://discord.gg/JQzBqgmwFm");
+
+  const vote = new ButtonBuilder()
+    .setStyle(ButtonStyle.Link)
+    .setLabel("Vote")
+    .setURL(`https://top.gg/bot/${client.user.id}/vote`);
+
+  try {
+    const supportEmoji = getEmoji(client, "support");
+    if (supportEmoji) support.setEmoji(supportEmoji);
+  } catch (_e) {}
+
+  try {
+    const voteEmoji = getEmoji(client, "vote");
+    if (voteEmoji) vote.setEmoji(voteEmoji);
+  } catch (_e) {}
+
+  const linkRow = new ActionRowBuilder().addComponents(vote, support);
+
+  try {
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ ephemeral: true }).catch(() => {});
+    }
+  } catch (_err) {}
+
+  let access = {
+    userPremium: false,
+    guildPremium: false,
+    hasAccess: false,
+  };
+
+  try {
+    access = await resolvePremiumAccess(interaction.user.id, interaction.guild?.id, client);
+  } catch (_err) {}
+
+  if (interaction.customId === "premium_dashboard_activate") {
+    const embed = new EmbedBuilder()
+      .setColor(embedColor)
+      .setTitle(`${getEmoji(client, "premium")} Activate Premium`)
+      .setDescription(
+        access.hasAccess
+          ? "Premium is already active for your effective access scope.\nYou can still vote to extend temporary windows."
+          : "Vote on Top.gg for temporary premium access, or join support for long-term premium activation."
+      );
+
+    await interaction.editReply({ embeds: [embed], components: [linkRow] }).catch(() => {});
+    return true;
+  }
+
+  if (interaction.customId === "premium_dashboard_deactivate") {
+    const embed = new EmbedBuilder()
+      .setColor(embedColor)
+      .setTitle(`${getEmoji(client, "warn")} Deactivate Premium`)
+      .setDescription(
+        access.hasAccess
+          ? "Automatic deactivation is intentionally disabled to prevent accidental premium loss.\nOpen support and we will guide safe changes."
+          : "No active premium access is currently detected, so there is nothing to deactivate."
+      );
+
+    await interaction.editReply({ embeds: [embed], components: [linkRow] }).catch(() => {});
+    return true;
+  }
+
+  return false;
+}
+
 module.exports = async (client, interaction) => {
   const ownerIds = Array.isArray(client.config.ownerId)
     ? client.config.ownerId
@@ -775,7 +654,10 @@ module.exports = async (client, interaction) => {
 
   if (interaction.type === InteractionType.MessageComponent) {
     if (!interaction.customId) return;
+    const premiumHandled = await runPremiumComponent(client, interaction);
+    if (premiumHandled) return;
     await runMusicComponent(client, interaction);
   }
 };
+
 

@@ -113,7 +113,7 @@ module.exports = {
     const line = (label, value) => `${label.padEnd(10)} :: ${value}`;
 
     const statsText = [
-      "STATS",
+      
       line("Servers", totals.servers),
       line("Members", totals.members),
       line("Players", `${totals.players} player(s)`),
@@ -121,6 +121,7 @@ module.exports = {
       line("Uptime", formatDuration(client.uptime || 0)),
       line("Server Up", formatDuration((os.uptime() || 0) * 1000)),
       line("CPU Model", cpuModel),
+      line("ping", `${client.ws.ping}ms`),
       line("Bots Usage", `${cpu.botUsage.toFixed(2)}%`),
       line("System", `${cpu.systemPercent.toFixed(2)}%`),
       line("Idle", `${cpu.idlePercent.toFixed(3)}%`),

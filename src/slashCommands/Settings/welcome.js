@@ -1,13 +1,13 @@
-const { ApplicationCommandOptionType, EmbedBuilder } = require("discord.js");
+const { ApplicationCommandOptionType, EmbedBuilder, MessageFlags } = require("discord.js");
 
 const { safeReply, safeDeferReply } = require("../../utils/interactionResponder");
 const EMOJIS = require("../../utils/emoji.json");
 const Schema = require("../../schema/welcome");
 const {
   normalizeWelcomeColor,
-  renderWelcomeTemplate,
-  welcomeVariablesText
+  renderWelcomeTemplate
 } = require("../../welcome/template");
+const { buildWelcomeSetupPanel, resolveDeliveryType } = require("../../welcome/panel");
 
 module.exports = {
   name: "welcome",
@@ -97,6 +97,11 @@ module.exports = {
       type: ApplicationCommandOptionType.Subcommand
     },
     {
+      name: "panel",
+      description: "Show an easy setup panel (V2).",
+      type: ApplicationCommandOptionType.Subcommand
+    },
+    {
       name: "view",
       description: "View welcome settings.",
       type: ApplicationCommandOptionType.Subcommand
@@ -105,6 +110,19 @@ module.exports = {
       name: "test",
       description: "Send a welcome preview.",
       type: ApplicationCommandOptionType.Subcommand
+    },
+    {
+      name: "textmsg",
+      description: "Set welcome delivery mode (text or embed).",
+      type: ApplicationCommandOptionType.Subcommand,
+      options: [
+        {
+          name: "status",
+          description: "Enable text message mode",
+          type: ApplicationCommandOptionType.Boolean,
+          required: true
+        }
+      ]
     },
     {
       name: "toggle",
@@ -132,11 +150,51 @@ module.exports = {
 
     const ok = EMOJIS.ok;
     const no = EMOJIS.no;
-    const deferred = await safeDeferReply(interaction, { ephemeral: false });
-    if (!deferred) return safeReply(interaction, { content: "Failed to process this interaction." });
-
     const sub = interaction.options.getSubcommand();
     const { guildId, guild } = interaction;
+
+    if (!interaction.member.permissions.has("MANAGE_GUILD") && !interaction.member.permissions.has("ADMINISTRATOR")) {
+      const embed = new EmbedBuilder()
+        .setColor(embedColor)
+        .setDescription("*You need the `Manage Server` or `Administrator` permission to configure the welcome system.*");
+      return safeReply(interaction, { embeds: [embed] });
+    }
+
+    const sendSetupPanel = async () => {
+      const data = await Schema.findOne({ guildID: guildId }).lean().catch(() => null);
+      const components = buildWelcomeSetupPanel({
+        data,
+        guild,
+        embedColor,
+        slash: true,
+      });
+
+      const panelMessage = await safeReply(interaction, {
+        flags: MessageFlags.IsComponentsV2,
+        components,
+      });
+      if (panelMessage) return panelMessage;
+
+      const fallback = new EmbedBuilder()
+        .setColor(embedColor)
+        .setTitle(`${getEmoji("server")} Welcome Setup`)
+        .setDescription(
+          `${ok} Use \`/welcome setup\` to configure channel/message.\n` +
+          `Use \`/welcome textmsg status:true\` for text mode.`
+        );
+      return safeReply(interaction, { embeds: [fallback] });
+    };
+
+    if (sub === "panel") {
+      return sendSetupPanel();
+    }
+
+    if (sub === "view") {
+      return sendSetupPanel();
+    }
+
+    const deferred = await safeDeferReply(interaction, { ephemeral: false });
+    if (!deferred) return safeReply(interaction, { content: "Failed to process this interaction." });
 
     if (sub === "setup") {
       const channel = interaction.options.getChannel("channel");
@@ -278,39 +336,6 @@ module.exports = {
       return safeReply(interaction, { embeds: [embed] });
     }
 
-    if (sub === "view") {
-      const data = await Schema.findOne({ guildID: guildId });
-      if (!data) {
-        const embed = new EmbedBuilder().setColor(embedColor);
-        var embedValue0 = `${getEmoji("info")} Welcome Not Configured`;
-        if (embedValue0) embed.setTitle(embedValue0);
-        var embedValue1 = "Use `/welcome setup` to configure it.";
-        if (embedValue1) embed.setDescription(embedValue1);
-        return safeReply(interaction, { embeds: [embed] });
-      }
-
-      const channel = data.channelID ? guild.channels.cache.get(data.channelID) : null;
-      const role = data.roleID ? guild.roles.cache.get(data.roleID) : null;
-      const color = data.embedColor || client.embedColor;
-
-      const embed = new EmbedBuilder().setColor(embedColor);
-      var embedValue0 = `${getEmoji("server")} Welcome Settings`;
-      if (embedValue0) embed.setTitle(embedValue0);
-      var embedValue1 = "Current welcome system configuration.";
-      if (embedValue1) embed.setDescription(embedValue1);
-      var embedValue2 = [
-      statField("Status", data.enabled ? "`Enabled`" : "`Disabled`", data.enabled ? "success" : "error"),
-      statField("Channel", channel ? `<#${channel.id}>` : "`Not set`", "server"),
-      statField("Auto Role", role ? `<@&${role.id}>` : "`Not set`", "users"),
-      statField("Color", `\`${color}\``, "info"),
-      { name: `${getEmoji("info")} Title`, value: `\`${data.title || "Welcome!"}\``, inline: false },
-      { name: `${getEmoji("info")} Message`, value: `\`${data.message || "Welcome {user} to {server}!"}\``, inline: false },
-      { name: `${getEmoji("info")} Variables`, value: welcomeVariablesText(), inline: false }
-      ];
-      if (Array.isArray(embedValue2) && embedValue2.length > 0) embed.addFields(embedValue2);
-      return safeReply(interaction, { embeds: [embed] });
-    }
-
     if (sub === "test") {
       const data = await Schema.findOne({ guildID: guildId });
       if (!data?.channelID) {
@@ -334,26 +359,49 @@ module.exports = {
 
       const previewMember = guild.members.cache.get(interaction.user.id) || interaction.member;
       const preview = renderWelcomeTemplate(data.message, previewMember);
-      const testEmbed = new EmbedBuilder().setColor(embedColor);
-      var embedValue0 = data.title || "Welcome!";
-      if (embedValue0) testEmbed.setTitle(embedValue0);
-      var embedValue1 = preview;
-      if (embedValue1) testEmbed.setDescription(embedValue1);
-      var embedValue2 = interaction.user.displayAvatarURL({ forceStatic: false });
-      if (embedValue2) testEmbed.setThumbnail(embedValue2);
-      var embedValue3 = `Member #${guild.memberCount}`;
-      if (embedValue3) {
-      if (typeof embedValue3 === "string") testEmbed.setFooter({ text: embedValue3 });
-      else testEmbed.setFooter(embedValue3);
+      const deliveryType = resolveDeliveryType(data.deliveryType);
+      if (deliveryType === "text") {
+        await channel.send({ content: preview }).catch(() => {});
+      } else {
+        const testEmbed = new EmbedBuilder().setColor(embedColor);
+        var embedValue0 = data.title || "Welcome!";
+        if (embedValue0) testEmbed.setTitle(embedValue0);
+        var embedValue1 = preview;
+        if (embedValue1) testEmbed.setDescription(embedValue1);
+        var embedValue2 = interaction.user.displayAvatarURL({ forceStatic: false });
+        if (embedValue2) testEmbed.setThumbnail(embedValue2);
+        var embedValue3 = `Member #${guild.memberCount}`;
+        if (embedValue3) {
+        if (typeof embedValue3 === "string") testEmbed.setFooter({ text: embedValue3 });
+        else testEmbed.setFooter(embedValue3);
+        }
+        testEmbed.setColor(data.embedColor || client.embedColor);
+        await channel.send({ embeds: [testEmbed] }).catch(() => {});
       }
-      testEmbed.setColor(data.embedColor || client.embedColor);
-
-      await channel.send({ embeds: [testEmbed] }).catch(() => {});
 
       const embed = new EmbedBuilder().setColor(embedColor);
       var embedValue0 = `${getEmoji("success")} Test Sent`;
       if (embedValue0) embed.setTitle(embedValue0);
       var embedValue1 = `${ok} Welcome preview sent to <#${channel.id}>.`;
+      if (embedValue1) embed.setDescription(embedValue1);
+      return safeReply(interaction, { embeds: [embed] });
+    }
+
+    if (sub === "textmsg") {
+      const status = interaction.options.getBoolean("status");
+      const deliveryType = status ? "text" : "embed";
+      await Schema.findOneAndUpdate(
+        { guildID: guildId },
+        { deliveryType },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+
+      const embed = new EmbedBuilder().setColor(embedColor);
+      var embedValue0 = `${getEmoji("success")} Delivery Mode Updated`;
+      if (embedValue0) embed.setTitle(embedValue0);
+      var embedValue1 = deliveryType === "text"
+        ? `${ok} Welcome will now be sent as plain text messages.`
+        : `${ok} Welcome will now be sent as embeds.`;
       if (embedValue1) embed.setDescription(embedValue1);
       return safeReply(interaction, { embeds: [embed] });
     }

@@ -72,6 +72,10 @@ module.exports = {
 
     const badgeLines = getBadgeLines(client, userData);
     const badgeValue = badgeLines.join("\n");
+    const totalListenTime = formatDuration(userData.totalListenTimeMs || 0, {
+      verbose: false,
+      unitCount: 3
+    });
 
     const premiumDoc = await Premium.findOne({ Id: member.id, Type: "user" });
 
@@ -108,10 +112,13 @@ module.exports = {
 
     const embed = new EmbedBuilder()
       .setColor(embedColor)
-      .setTitle(`${getEmoji("users")} Profile - ${member.user.username}`)
+      .setAuthor({name: `Profile - ${member.user.username}`, iconURL: member.user.displayAvatarURL({ forceStatic: false })})
       .setThumbnail(member.displayAvatarURL({ size: 1024 }))
       .addFields(
         statField("Commands Used", `\`${userData.count || 0}\``, "music"),
+        statField("Total Votes", `\`${userData.totalVotes || 0}\``, "vote"),
+        statField("Songs Listened", `\`${userData.songsListened || 0}\``, "songs"),
+        statField("Listen Time", `\`${totalListenTime}\``, "time"),
         {
           name: `${getEmoji("star")} Achievements`,
           value: badgeValue,

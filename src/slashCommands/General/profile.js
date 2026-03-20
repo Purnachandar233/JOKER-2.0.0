@@ -67,6 +67,10 @@ module.exports = {
 
     const badgeLines = getBadgeLines(client, userData);
     const badgeValue = badgeLines.join("\n");
+    const totalListenTime = formatDuration(userData.totalListenTimeMs || 0, {
+      verbose: false,
+      unitCount: 3
+    });
     const premiumDoc = await Premium.findOne({ Id: member.id, Type: "user" });
 
     let premiumText = "No active premium subscription. Join support to get one.";
@@ -94,6 +98,9 @@ module.exports = {
       .setThumbnail(member.displayAvatarURL({ forceStatic: false, size: 1024 }))
       .addFields(
         statField("Commands Used", `\`${userData.count || 0}\``, "music"),
+        statField("Total Votes", `\`${userData.totalVotes || 0}\``, "vote"),
+        statField("Songs Listened", `\`${userData.songsListened || 0}\``, "songs"),
+        statField("Listen Time", `\`${totalListenTime}\``, "time"),
         {
           name: `${getEmoji("star")} Achievements`,
           value: badgeValue,

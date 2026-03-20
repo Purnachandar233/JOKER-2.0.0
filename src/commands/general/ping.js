@@ -17,10 +17,11 @@ module.exports = {
 
     const embed = new EmbedBuilder()
       .setColor(embedColor)
+      .setAuthor({ name: `Ping!`, iconURL: message.member.displayAvatarURL({ forceStatic: false, size: 256 }) })
       .setDescription(
         [
-          `api: \`${gatewayLatency}ms\``,
-          `message: \`${processingLatency}ms\``
+          `Api latency : \`${gatewayLatency}ms\``,
+          `Message latency: \`${processingLatency}ms\``
         ].join("\n")
       );
 

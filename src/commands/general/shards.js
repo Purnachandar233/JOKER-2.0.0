@@ -51,7 +51,7 @@ module.exports = {
       ].join("\n");
 
       fields.push({
-        name: `${getEmoji("server")} Shard ${i === currentShardId ? `${i} (current)` : i}`,
+        name: ` Shard ${i === currentShardId ? `${i} (current)` : i}`,
         value: `\`\`\`asciidoc\n${shardLines}\n\`\`\``,
         inline: true
       });
@@ -71,16 +71,16 @@ module.exports = {
     ].join("\n");
 
     fields.push({
-      name: `${getEmoji("info")} Global Totals`,
+      name: ` Global Totals`,
       value: `\`\`\`asciidoc\n${summary}\n\`\`\``,
       inline: false
     });
 
     const embed = new EmbedBuilder()
       .setColor(embedColor)
-      .setTitle(`${getEmoji("server")} Shard Diagnostics`)
+      .setAuthor({ name: "Shards" , iconURL: client.user.displayAvatarURL({ forceStatic: false, size: 256 }) })
       .addFields(fields)
-      .setFooter({ text: `Joker Music | Shard Monitor` });
+     
 
     return message.channel.send({ embeds: [embed] });
   }

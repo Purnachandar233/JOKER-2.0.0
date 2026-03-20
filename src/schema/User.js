@@ -3,6 +3,9 @@ const mongoose = require('mongoose')
 const User = new mongoose.Schema({
     userId: { type: String, required: true, unique: true },
     count: { type: Number, default: 0 },
+    totalVotes: { type: Number, default: 0 },
+    songsListened: { type: Number, default: 0 },
+    totalListenTimeMs: { type: Number, default: 0 },
     voted: { type: Boolean, default: false },
     badge: {
 

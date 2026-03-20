@@ -24,7 +24,10 @@ module.exports = {
 
     const embed = new EmbedBuilder()
       .setColor(embedColor)
-      .setTitle(`${getEmoji("spark")} Cluster Runtime`)
+      .setAuthor({
+        name: `${message.guild.name} Cluster View`,
+        iconURL: message.member.user.displayAvatarURL({ forceStatic: false })
+      })
       .setDescription("Live shard and process telemetry for this node.")
       .setAuthor({
         name: `${message.guild.name} Cluster View`,
@@ -38,7 +41,7 @@ module.exports = {
         statField("Ping", `\`${client.ws.ping}ms\``, "ping", true),
         statField("Shard", `\`${message.guild.shardId}\``, "info", true)
       ])
-      .setFooter({ text: `Joker Music | Cluster Diagnostics` });
+      .setFooter({ text: `Joker Music` });
 
     return message.channel.send({ embeds: [embed] });
   }

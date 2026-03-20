@@ -24,7 +24,7 @@ module.exports = {
 
     const embed = new EmbedBuilder()
       .setColor(embedColor)
-      .setTitle(`${getEmoji("vote")} Support Joker Music`)
+      .setAuthor({ name: ` Support Joker Music`, iconURL: message.member.displayAvatarURL({ forceStatic: false, size: 256 }) })
       .setDescription([
         "Vote on bot listing platforms to support development.",
         "",

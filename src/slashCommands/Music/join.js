@@ -60,7 +60,7 @@ module.exports = {
             .setDescription(`${ok} Connected to \`${channel.name}\``);
           return await safeReply.safeReply(interaction, { embeds: [embed] });
         }
-        else if (interaction.guild.me.voice.channel !== channel) {
+        else if (interaction.guild.members.me?.voice?.channelId !== channel.id) {
           const embed = new EmbedBuilder()
             .setColor(interaction.client?.embedColor || '#ff0051')
             .setDescription(`${no} You must be in the same channel as me.`);

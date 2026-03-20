@@ -69,8 +69,10 @@ module.exports = async (client, player) => {
 						else tracks.push(t);
 						return true;
 					},
-					remove(start = 0, end = 1) {
-						return tracks.splice(start, end - start + 1);
+					remove(start = 0, amount = 1) {
+						const index = Number.isFinite(Number(start)) ? Math.max(0, Math.floor(Number(start))) : 0;
+						const deleteCount = Number.isFinite(Number(amount)) ? Math.max(1, Math.floor(Number(amount))) : 1;
+						return tracks.splice(index, deleteCount);
 					},
 					shuffle() {
 						for (let i = tracks.length - 1; i > 0; i--) {

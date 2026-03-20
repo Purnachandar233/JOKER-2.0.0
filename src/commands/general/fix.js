@@ -39,7 +39,7 @@ module.exports = {
     if (message.member.voice.selfDeaf) {
       const embed = new EmbedBuilder()
         .setColor(embedColor)
-        .setTitle(`${getEmoji("error")} Cannot Run While Deafened`)
+        .setAuthor({name: 'Cant run while deafened', iconURL: client.user.displayAvatarURL()})
         .setDescription(`${no} <@${message.member.id}> You cannot run this command while deafened.`);
       return message.channel.send({ embeds: [embed] });
     }

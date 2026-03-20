@@ -1,15 +1,19 @@
-const { EmbedBuilder } = require("discord.js");
+const { EmbedBuilder, MessageFlags } = require("discord.js");
 
 const Schema = require("../../schema/welcome");
 const EMOJIS = require("../../utils/emoji.json");
 const {
   normalizeWelcomeColor,
-  renderWelcomeTemplate,
-  welcomeVariablesText
+  renderWelcomeTemplate
 } = require("../../welcome/template");
+const { buildWelcomeSetupPanel, resolveDeliveryType } = require("../../welcome/panel");
 
 function isOn(value) {
   return ["on", "true", "enable", "enabled", "yes"].includes(String(value || "").toLowerCase());
+}
+
+function isOff(value) {
+  return ["off", "false", "disable", "disabled", "no"].includes(String(value || "").toLowerCase());
 }
 
 module.exports = {
@@ -18,13 +22,13 @@ module.exports = {
   aliases: ["welcomeset", "welcomeconfig"],
   description: "Configure welcome messages for your server.",
   userPermissions: ["Administrator"],
-  execute: async (message, args, client, prefix) => { 
-                    if (!message.member.permissions.has('ManageGuild') && !message.member.permissions.has('Administrator')) {
-            const noperms = new EmbedBuilder()
-                .setColor(message.client?.embedColor || '#ff0051')
-                .setDescription('*You need the `Manage Server` or `Administrator` permission to change the prefix.*');
-            return message.channel.send({ embeds: [noperms] });
-        }
+  execute: async (message, args, client, prefix) => {
+    if (!message.member.permissions.has("ManageGuild") && !message.member.permissions.has("Administrator")) {
+      const noperms = new EmbedBuilder()
+        .setColor(message.client?.embedColor || "#ff0051")
+        .setDescription("*You need the `Manage Server` or `Administrator` permission to configure the welcome system.*");
+      return message.channel.send({ embeds: [noperms] });
+    }
 
     const getEmoji = (key, fallback = "") => EMOJIS[key] || fallback;
     const embedColor = client?.embedColor || "#ff0051";
@@ -38,34 +42,36 @@ module.exports = {
     const no = EMOJIS.no;
     const sub = String(args[0] || "").toLowerCase();
     const { guildId, guild, author } = message;
+    const sendSetupPanel = async () => {
+      const data = await Schema.findOne({ guildID: guildId }).lean().catch(() => null);
+      const components = buildWelcomeSetupPanel({
+        data,
+        guild,
+        embedColor,
+        prefix,
+        slash: false,
+      });
 
-    if (!message.member.permissions.has('ADMINISTRATOR')) {
-        const noperms = new EmbedBuilder()
-       .setColor(message.client?.embedColor || '#ff0051')
-       .setDescription(`You need this required Permissions: \`admin\` to run this command.`)
-       return await message.channel.send({embeds: [noperms]});
-    }
+      try {
+        return await message.reply({
+          flags: MessageFlags.IsComponentsV2,
+          components,
+          allowedMentions: { repliedUser: false },
+        });
+      } catch (_err) {
+        const fallback = new EmbedBuilder()
+          .setColor(embedColor)
+          .setTitle(`${getEmoji("server")} Welcome Setup`)
+          .setDescription(
+            `${ok} Use \`${prefix}welcome setup <#channel> [message]\` to configure.\n` +
+            `Use \`${prefix}welcome textmsg on|off\` to switch text/embed mode.`
+          );
+        return message.reply({ embeds: [fallback], allowedMentions: { repliedUser: false } });
+      }
+    };
 
-    if (!sub) {
-      const embed = new EmbedBuilder().setColor(embedColor);
-      var embedValue0 = `${getEmoji("server")} Welcome System`;
-      if (embedValue0) embed.setTitle(embedValue0);
-      var embedValue1 = "Configure welcome message channel, template, role, and status.";
-      if (embedValue1) embed.setDescription(embedValue1);
-      var embedValue2 = [
-      { name: "Setup", value: `\`${prefix}welcome setup <#channel> [message]\``, inline: false },
-      { name: "Message", value: `\`${prefix}welcome message <message>\``, inline: false },
-      { name: "Title", value: `\`${prefix}welcome title <text>\``, inline: false },
-      { name: "Color", value: `\`${prefix}welcome color <hex|default>\``, inline: false },
-      { name: "Role", value: `\`${prefix}welcome role <@role>\``, inline: true },
-      { name: "Clear Role", value: `\`${prefix}welcome clearrole\``, inline: true },
-      { name: "Toggle", value: `\`${prefix}welcome toggle <on/off>\``, inline: true },
-      { name: "View", value: `\`${prefix}welcome view\``, inline: true },
-      { name: "Test", value: `\`${prefix}welcome test\``, inline: true },
-      { name: "Variables", value: welcomeVariablesText(), inline: false }
-      ];
-      if (Array.isArray(embedValue2) && embedValue2.length > 0) embed.addFields(embedValue2);
-      return message.reply({ embeds: [embed], allowedMentions: { repliedUser: false } });
+    if (!sub || sub === "panel") {
+      return sendSetupPanel();
     }
 
     if (sub === "setup") {
@@ -232,35 +238,7 @@ module.exports = {
     }
 
     if (sub === "view") {
-      const data = await Schema.findOne({ guildID: guildId });
-      if (!data) {
-        const embed = new EmbedBuilder().setColor(embedColor);
-        var embedValue0 = `${getEmoji("info")} Welcome Not Configured`;
-        if (embedValue0) embed.setTitle(embedValue0);
-        var embedValue1 = `Use \`${prefix}welcome setup\` to configure it.`;
-        if (embedValue1) embed.setDescription(embedValue1);
-        return message.reply({ embeds: [embed], allowedMentions: { repliedUser: false } });
-      }
-
-      const channel = data.channelID ? guild.channels.cache.get(data.channelID) : null;
-      const role = data.roleID ? guild.roles.cache.get(data.roleID) : null;
-      const color = data.embedColor || client.embedColor;
-
-      const embed = new EmbedBuilder().setColor(embedColor);
-      var embedValue0 = `${getEmoji("server")} Welcome Settings`;
-      if (embedValue0) embed.setTitle(embedValue0);
-      var embedValue1 = "Current welcome system configuration.";
-      if (embedValue1) embed.setDescription(embedValue1);
-      var embedValue2 = [
-      statField("Status", data.enabled ? "`Enabled`" : "`Disabled`", data.enabled ? "success" : "error"),
-      statField("Channel", channel ? `<#${channel.id}>` : "`Not set`", "server"),
-      statField("Auto Role", role ? `<@&${role.id}>` : "`Not set`", "users"),
-      statField("Color", `\`${color}\``, "info"),
-      { name: `${getEmoji("info")} Title`, value: `\`${data.title || "Welcome!"}\``, inline: false },
-      { name: `${getEmoji("info")} Message`, value: `\`${data.message || "Welcome {user} to {server}!"}\``, inline: false }
-      ];
-      if (Array.isArray(embedValue2) && embedValue2.length > 0) embed.addFields(embedValue2);
-      return message.reply({ embeds: [embed], allowedMentions: { repliedUser: false } });
+      return sendSetupPanel();
     }
 
     if (sub === "test") {
@@ -285,21 +263,25 @@ module.exports = {
       }
 
       const preview = renderWelcomeTemplate(data.message, message.member);
-      const testEmbed = new EmbedBuilder().setColor(embedColor);
-      var embedValue0 = data.title || "Welcome!";
-      if (embedValue0) testEmbed.setTitle(embedValue0);
-      var embedValue1 = preview;
-      if (embedValue1) testEmbed.setDescription(embedValue1);
-      var embedValue2 = author.displayAvatarURL({ forceStatic: false });
-      if (embedValue2) testEmbed.setThumbnail(embedValue2);
-      var embedValue3 = `Member #${guild.memberCount}`;
-      if (embedValue3) {
-      if (typeof embedValue3 === "string") testEmbed.setFooter({ text: embedValue3 });
-      else testEmbed.setFooter(embedValue3);
+      const deliveryType = resolveDeliveryType(data.deliveryType);
+      if (deliveryType === "text") {
+        await channel.send({ content: preview }).catch(() => {});
+      } else {
+        const testEmbed = new EmbedBuilder().setColor(embedColor);
+        var embedValue0 = data.title || "Welcome!";
+        if (embedValue0) testEmbed.setTitle(embedValue0);
+        var embedValue1 = preview;
+        if (embedValue1) testEmbed.setDescription(embedValue1);
+        var embedValue2 = author.displayAvatarURL({ forceStatic: false });
+        if (embedValue2) testEmbed.setThumbnail(embedValue2);
+        var embedValue3 = `Member #${guild.memberCount}`;
+        if (embedValue3) {
+        if (typeof embedValue3 === "string") testEmbed.setFooter({ text: embedValue3 });
+        else testEmbed.setFooter(embedValue3);
+        }
+        testEmbed.setColor(data.embedColor || client.embedColor);
+        await channel.send({ embeds: [testEmbed] }).catch(() => {});
       }
-      testEmbed.setColor(data.embedColor || client.embedColor);
-
-      await channel.send({ embeds: [testEmbed] }).catch(() => {});
 
       const embed = new EmbedBuilder().setColor(embedColor);
       var embedValue0 = `${getEmoji("success")} Test Sent`;
@@ -309,11 +291,48 @@ module.exports = {
       return message.reply({ embeds: [embed], allowedMentions: { repliedUser: false } });
     }
 
+    if (sub === "textmsg") {
+      const statusArg = args[1];
+      if (!statusArg || (!isOn(statusArg) && !isOff(statusArg))) {
+        const embed = new EmbedBuilder().setColor(embedColor);
+        var embedValue0 = `${getEmoji("error")} Invalid Text Mode Value`;
+        if (embedValue0) embed.setTitle(embedValue0);
+        var embedValue1 = `${no} Usage: \`${prefix}welcome textmsg <on/off>\``;
+        if (embedValue1) embed.setDescription(embedValue1);
+        return message.reply({ embeds: [embed], allowedMentions: { repliedUser: false } });
+      }
+
+      const deliveryType = isOn(statusArg) ? "text" : "embed";
+      await Schema.findOneAndUpdate(
+        { guildID: guildId },
+        { deliveryType },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+
+      const embed = new EmbedBuilder().setColor(embedColor);
+      var embedValue0 = `${getEmoji("success")} Delivery Mode Updated`;
+      if (embedValue0) embed.setTitle(embedValue0);
+      var embedValue1 = deliveryType === "text"
+        ? `${ok} Welcome will now be sent as plain text messages.`
+        : `${ok} Welcome will now be sent as embeds.`;
+      if (embedValue1) embed.setDescription(embedValue1);
+      return message.reply({ embeds: [embed], allowedMentions: { repliedUser: false } });
+    }
+
     if (sub === "toggle") {
       const statusArg = args[1];
       if (!statusArg) {
         const embed = new EmbedBuilder().setColor(embedColor);
         var embedValue0 = `${getEmoji("error")} Missing Toggle Value`;
+        if (embedValue0) embed.setTitle(embedValue0);
+        var embedValue1 = `${no} Usage: \`${prefix}welcome toggle <on/off>\``;
+        if (embedValue1) embed.setDescription(embedValue1);
+        return message.reply({ embeds: [embed], allowedMentions: { repliedUser: false } });
+      }
+
+      if (!isOn(statusArg) && !isOff(statusArg)) {
+        const embed = new EmbedBuilder().setColor(embedColor);
+        var embedValue0 = `${getEmoji("error")} Invalid Toggle Value`;
         if (embedValue0) embed.setTitle(embedValue0);
         var embedValue1 = `${no} Usage: \`${prefix}welcome toggle <on/off>\``;
         if (embedValue1) embed.setDescription(embedValue1);

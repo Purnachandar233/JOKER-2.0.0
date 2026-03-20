@@ -4,6 +4,22 @@ const parsedCacheMs = Number(process.env.TOPGG_FALLBACK_CACHE_MS || 60000);
 const TOPGG_FALLBACK_CACHE_MS = Number.isFinite(parsedCacheMs) && parsedCacheMs > 0 ? parsedCacheMs : 60000;
 const topggVoteCache = new Map();
 
+function toNumber(value, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function normalizeUserId(userId) {
+  const value = String(userId || "").trim();
+  return value || null;
+}
+
+function calculateMergedVoteExpire(existingDoc, now = Date.now()) {
+  const existingExpire = Math.max(0, toNumber(existingDoc?.Expire, 0));
+  const voteWindowExpire = now + TOPGG_VOTE_WINDOW_MS;
+  return Math.max(existingExpire, voteWindowExpire);
+}
+
 function isPremiumActive(doc, now = Date.now()) {
   if (!doc) return false;
   if (doc.Permanent) return true;
@@ -48,6 +64,58 @@ async function checkTopggVoteFallback(client, userId, now = Date.now()) {
   }
 }
 
+async function grantVotePremiumWindow(userId, options = {}) {
+  const now = Number.isFinite(Number(options.now)) ? Number(options.now) : Date.now();
+  const normalizedUserId = normalizeUserId(userId);
+  if (!normalizedUserId) {
+    return { status: "invalid_user", expire: 0, permanent: false };
+  }
+
+  const existing = await Premium.findOne({ Id: normalizedUserId, Type: "user" }).catch(() => null);
+
+  if (existing?.Permanent) {
+    return {
+      status: "kept_permanent",
+      expire: Math.max(0, toNumber(existing.Expire, 0)),
+      permanent: true,
+    };
+  }
+
+  const nextExpire = calculateMergedVoteExpire(existing, now);
+  const previousExpire = Math.max(0, toNumber(existing?.Expire, 0));
+
+  if (existing && nextExpire <= previousExpire) {
+    return {
+      status: "unchanged",
+      expire: previousExpire,
+      permanent: false,
+    };
+  }
+
+  await Premium.findOneAndUpdate(
+    { Id: normalizedUserId, Type: "user" },
+    {
+      $set: {
+        Expire: nextExpire,
+        Permanent: false,
+      },
+      $setOnInsert: {
+        Id: normalizedUserId,
+        Type: "user",
+        ActivatedAt: now,
+        PlanType: "Standard",
+      },
+    },
+    { upsert: true }
+  ).catch(() => {});
+
+  return {
+    status: existing ? "extended" : "created",
+    expire: nextExpire,
+    permanent: false,
+  };
+}
+
 async function resolvePremiumAccess(userId, guildId, client = null) {
   const now = Date.now();
   const normalizedUserId = userId ? String(userId) : null;
@@ -75,16 +143,7 @@ async function resolvePremiumAccess(userId, guildId, client = null) {
       userPremium = true;
 
       // Backfill DB window when webhook was missed, so later checks stay local.
-      await Premium.findOneAndUpdate(
-        { Id: normalizedUserId, Type: "user" },
-        {
-          Id: normalizedUserId,
-          Type: "user",
-          Permanent: false,
-          Expire: now + TOPGG_VOTE_WINDOW_MS
-        },
-        { upsert: true }
-      ).catch(() => {});
+      await grantVotePremiumWindow(normalizedUserId, { now }).catch(() => {});
     }
   }
 
@@ -99,6 +158,7 @@ async function resolvePremiumAccess(userId, guildId, client = null) {
 }
 
 module.exports = {
+  grantVotePremiumWindow,
   isPremiumActive,
   resolvePremiumAccess
 };

@@ -1,8 +1,51 @@
+const User = require("../../schema/User");
+const { getRequesterInfo, getTrackDurationMs } = require("../../utils/queue");
+
+function shouldCountTrackEnd(payload) {
+    const reason = String(payload?.reason || payload?.type || "")
+        .trim()
+        .toLowerCase();
+
+    if (!reason) return true;
+    return reason === "finished";
+}
+
+function trackListenStats(player, track, payload) {
+    if (!shouldCountTrackEnd(payload)) return;
+
+    const fallbackRequester = typeof player?.get === "function" ? player.get("requester") : null;
+    const fallbackRequesterId = typeof player?.get === "function" ? player.get("requesterId") : null;
+    const requester = getRequesterInfo(track, {
+        fallbackRequester,
+        fallbackRequesterId,
+        fallbackTag: null,
+    });
+
+    const requesterId = requester?.id ? String(requester.id) : null;
+    if (!requesterId) return;
+
+    const durationMs = Number(getTrackDurationMs(track) || 0);
+
+    User.findOneAndUpdate(
+        { userId: requesterId },
+        {
+            $inc: {
+                songsListened: 1,
+                totalListenTimeMs: Number.isFinite(durationMs) && durationMs > 0 ? durationMs : 0,
+            },
+            $setOnInsert: { userId: requesterId },
+        },
+        { upsert: true, setDefaultsOnInsert: true }
+    ).catch(() => {});
+}
+
 module.exports = async (client, player, track, payload) => {
     try {
         const msg = player.get(`playingsongmsg`);
         if (msg) await msg.delete().catch(() => {});
     } catch (e) {}
+
+    trackListenStats(player, track, payload);
 
     const autoplay = player.get("autoplay");
     if (autoplay === true) {

@@ -2,7 +2,8 @@ require('dotenv').config();
 const { Client, GatewayIntentBits, Partials, Collection, ActivityType } = require("discord.js");
 const express = require("express");
 const { Webhook } = require("@top-gg/sdk");
-const Premium = require("./schema/Premium");
+const User = require("./schema/User");
+const { grantVotePremiumWindow } = require("./utils/premiumAccess");
 const Logger = require("./services/Logger");
 
 const client = new Client({
@@ -69,22 +70,33 @@ if (topggWebhookAuth) {
 
     app.post("/topgg", webhook.listener(async (vote) => {
         try {
+            const voteType = String(vote?.type || "upvote").toLowerCase();
+            if (voteType !== "upvote") {
+                console.log(`[TOPGG] Ignored vote webhook type: ${voteType}`);
+                return;
+            }
+
             console.log(`User ${vote.user} voted`);
 
-            const expireTime = Date.now() + (12 * 60 * 60 * 1000); // 12 hours
+            const voteGrant = await grantVotePremiumWindow(vote.user, { now: Date.now() });
 
-            await Premium.findOneAndUpdate(
-                { Id: vote.user, Type: "user" },
+            await User.findOneAndUpdate(
+                { userId: vote.user },
                 {
-                    Id: vote.user,
-                    Type: "user",
-                    Permanent: false,
-                    Expire: expireTime
+                    $inc: { totalVotes: 1 },
+                    $set: { voted: true },
+                    $setOnInsert: { userId: vote.user }
                 },
-                { upsert: true }
-            );
+                { upsert: true, setDefaultsOnInsert: true }
+            ).catch(() => {});
 
-            console.log(`12h premium granted to ${vote.user}`);
+            if (voteGrant.status === "kept_permanent") {
+                console.log(`[TOPGG] Vote recorded for ${vote.user}. Existing permanent premium kept.`);
+            } else if (voteGrant.status === "extended" || voteGrant.status === "created") {
+                console.log(`[TOPGG] Vote premium active for ${vote.user} until ${new Date(voteGrant.expire).toISOString()}`);
+            } else {
+                console.log(`[TOPGG] Vote recorded for ${vote.user}. Premium window unchanged.`);
+            }
 
             const user = await client.users.fetch(vote.user).catch(() => null);
             if (user) {

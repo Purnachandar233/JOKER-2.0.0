@@ -498,7 +498,8 @@ module.exports = {
         const trackTitle = s.tracks[0].info?.title || s.tracks[0].title || 'Unknown';
         const trackUri = s.tracks[0].info?.uri || s.tracks[0].uri || '';
         const queuedMsg = await message.channel.send({
-          embeds: [new EmbedBuilder().setColor(message.client?.embedColor || '#ff0051').setDescription(`Queued [${trackTitle}](${trackUri})\n Requested by: \`${message.member.user.tag}\``)]
+          embeds: [new EmbedBuilder().setColor(message.client?.embedColor || '#ff0051').setAuthor({name:`Track Queued `,iconURL: client.user.displayAvatarURL()
+          }).setDescription(`**Added**[${trackTitle}](${trackUri})\n Requested by: \`${message.member.user.tag}\``)]
         }).catch(() => {});
 
         // Start playback after queued message is sent

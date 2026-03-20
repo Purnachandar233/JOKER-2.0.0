@@ -24,7 +24,7 @@ module.exports = {
 
     const embed = new EmbedBuilder()
       .setColor(embedColor)
-      .setTitle(`${getEmoji("support")} Support Center`)
+      .setAuthor({name: "Joker Music", iconURL: client.user.displayAvatarURL()})
       .setDescription("Need help with setup or commands? Join the support server using the button below.");
 
     return message.channel.send({ embeds: [embed], components: [linkRow] });

@@ -27,7 +27,7 @@ module.exports = {
 
     const embed = new EmbedBuilder()
       .setColor(embedColor)
-      .setTitle(`${getEmoji("support")} Support Center`)
+      .setAuthor({name: "Joker Music", iconURL: client.user.displayAvatarURL()})
       .setDescription("Need help with setup or commands? Open support using the button below.")
       .setFooter({ text: `${getEmoji("support")} Joker Music Support` });
 

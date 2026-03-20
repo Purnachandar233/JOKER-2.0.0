@@ -32,7 +32,9 @@ function isTrackLive(track) {
 }
 
 const SEARCH_SOURCE_ORDER = ["spotify", "soundcloud", "applemusic", "deezer", "bandcamp"];
-const SEARCH_PANEL_PAGE_SIZE = 5;
+const SEARCH_PANEL_MAX_ACTION_ROWS = 5;
+const SEARCH_PANEL_FIXED_ROWS = 2; // tab row + navigation row
+const SEARCH_PANEL_PAGE_SIZE = Math.max(1, SEARCH_PANEL_MAX_ACTION_ROWS - SEARCH_PANEL_FIXED_ROWS);
 
 function normalizeSourceName(source) {
   const value = String(source || "").trim().toLowerCase();
@@ -143,6 +145,27 @@ function getTrackPlaylistName(track) {
   return null;
 }
 
+function dedupeTracks(tracks) {
+  const seen = new Set();
+  const unique = [];
+
+  for (const track of Array.isArray(tracks) ? tracks : []) {
+    if (!track) continue;
+    const identity = String(
+      track?.encoded ||
+      track?.track ||
+      track?.info?.identifier ||
+      `${getTrackTitle(track)}::${getTrackAuthor(track)}::${getTrackDuration(track)}`
+    );
+
+    if (seen.has(identity)) continue;
+    seen.add(identity);
+    unique.push(track);
+  }
+
+  return unique;
+}
+
 function buildSongEntries(tracks) {
   return (Array.isArray(tracks) ? tracks : []).map((track, index) => ({
     id: `song_${index}`,
@@ -177,69 +200,95 @@ function buildArtistEntries(tracks) {
 }
 
 function buildAlbumEntries(tracks) {
-  const seen = new Set();
-  const entries = [];
+  const groupedAlbums = new Map();
 
   for (const track of Array.isArray(tracks) ? tracks : []) {
-    const album = getTrackAlbum(track);
+    const album = String(getTrackAlbum(track) || "").trim();
     if (!album) continue;
 
     const key = album.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
+    if (!groupedAlbums.has(key)) {
+      groupedAlbums.set(key, {
+        album,
+        primaryAuthor: getTrackAuthor(track),
+        tracks: [],
+      });
+    }
 
-    const author = getTrackAuthor(track);
-    entries.push({
-      id: `album_${entries.length}`,
-      type: "album",
-      title: truncateText(album, 80),
-      subtitle: `Artist: ${truncateText(author, 60)}`,
-      url: getTrackUrl(track),
-      query: `${album} ${author}`.trim(),
-    });
+    groupedAlbums.get(key).tracks.push(track);
   }
 
-  return entries;
+  return Array.from(groupedAlbums.values()).map((group, index) => {
+    const albumTracks = dedupeTracks(group.tracks);
+    const artist = truncateText(group.primaryAuthor, 60);
+
+    return {
+      id: `album_${index}`,
+      type: "album",
+      title: truncateText(group.album, 80),
+      subtitle: `Artist: ${artist} | ${albumTracks.length} track(s)`,
+      url: getTrackUrl(albumTracks[0]),
+      tracks: albumTracks,
+      matchName: group.album,
+      query: `${group.album} ${group.primaryAuthor}`.trim(),
+    };
+  });
 }
 
 function buildPlaylistEntries(searchResult) {
   const tracks = Array.isArray(searchResult?.tracks) ? searchResult.tracks : [];
-  const seen = new Set();
   const entries = [];
+  const groupedPlaylists = new Map();
 
   if (searchResult?.loadType === "PLAYLIST_LOADED" && searchResult?.playlist?.name && tracks.length) {
     const playlistName = String(searchResult.playlist.name).trim();
     if (playlistName) {
-      seen.add(playlistName.toLowerCase());
+      const playlistTracks = dedupeTracks(tracks);
       entries.push({
         id: "playlist_loaded",
         type: "playlist",
         title: truncateText(playlistName, 80),
-        subtitle: `${tracks.length} track(s)`,
+        subtitle: `${playlistTracks.length} track(s)`,
         url: null,
-        tracks,
+        tracks: playlistTracks,
+        matchName: playlistName,
         query: playlistName,
       });
     }
   }
 
   for (const track of tracks) {
-    const playlistName = getTrackPlaylistName(track);
+    const playlistName = String(getTrackPlaylistName(track) || "").trim();
     if (!playlistName) continue;
 
     const key = playlistName.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
+    if (!groupedPlaylists.has(key)) {
+      groupedPlaylists.set(key, {
+        playlistName,
+        primaryAuthor: getTrackAuthor(track),
+        tracks: [],
+      });
+    }
 
+    groupedPlaylists.get(key).tracks.push(track);
+  }
+
+  groupedPlaylists.forEach((group, key) => {
+    const alreadyAdded = entries.some((entry) => entry.matchName?.toLowerCase() === key);
+    if (alreadyAdded) return;
+
+    const playlistTracks = dedupeTracks(group.tracks);
     entries.push({
       id: `playlist_${entries.length}`,
       type: "playlist",
-      title: truncateText(playlistName, 80),
-      subtitle: `Track: ${truncateText(getTrackTitle(track), 70)}`,
-      url: getTrackUrl(track),
-      query: `${playlistName} ${getTrackAuthor(track)}`.trim(),
+      title: truncateText(group.playlistName, 80),
+      subtitle: `${playlistTracks.length} track(s) | by ${truncateText(group.primaryAuthor, 45)}`,
+      url: getTrackUrl(playlistTracks[0]),
+      tracks: playlistTracks,
+      matchName: group.playlistName,
+      query: `${group.playlistName} ${group.primaryAuthor}`.trim(),
     });
-  }
+  });
 
   return entries;
 }
@@ -560,7 +609,7 @@ module.exports = {
       const resolveEntryTracks = async (entry) => {
         if (!entry) return [];
         if (entry.track) return [entry.track];
-        if (Array.isArray(entry.tracks) && entry.tracks.length) return entry.tracks;
+        if (Array.isArray(entry.tracks) && entry.tracks.length) return dedupeTracks(entry.tracks);
         if (!entry.query) return [];
 
         const addAttempt = await searchWithAvailableSources(entry.query, interaction.member.user, {
@@ -576,7 +625,17 @@ module.exports = {
         }
 
         if ((entry.type === "album" || entry.type === "playlist") && addAttempt.result.loadType === "PLAYLIST_LOADED") {
-          return addAttempt.result.tracks;
+          return dedupeTracks(addAttempt.result.tracks);
+        }
+
+        if (entry.type === "album" || entry.type === "playlist") {
+          const expectedName = String(entry.matchName || entry.title || "").trim().toLowerCase();
+          const matchingTracks = addAttempt.result.tracks.filter((track) => {
+            const value = entry.type === "album" ? getTrackAlbum(track) : getTrackPlaylistName(track);
+            return String(value || "").trim().toLowerCase() === expectedName;
+          });
+
+          if (matchingTracks.length) return dedupeTracks(matchingTracks);
         }
 
         return [addAttempt.result.tracks[0]];

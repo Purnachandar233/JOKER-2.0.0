@@ -17,6 +17,11 @@ const LAVALINK_RETRY_DELAY_MS = toPositiveNumber(process.env.LAVALINK_RETRY_DELA
 const LAVALINK_RETRY_TIMESPAN_MS = toPositiveNumber(process.env.LAVALINK_RETRY_TIMESPAN_MS, 90000);
 const LAVALINK_HEARTBEAT_MS = toPositiveNumber(process.env.LAVALINK_HEARTBEAT_MS, 30000);
 const LAVALINK_VOICE_BRIDGE_TIMEOUT_MS = toPositiveNumber(process.env.LAVALINK_VOICE_BRIDGE_TIMEOUT_MS, 15000);
+const QUEUE_END_IDLE_LEAVE_MS = toPositiveNumber(process.env.QUEUE_END_IDLE_LEAVE_MS, 2 * 60 * 1000);
+const LAVALINK_EMPTY_QUEUE_DESTROY_MS = toPositiveNumber(
+  process.env.LAVALINK_EMPTY_QUEUE_DESTROY_MS,
+  Math.max(QUEUE_END_IDLE_LEAVE_MS + 60_000, 5 * 60 * 1000)
+);
 
 function oneLine(value) {
   return String(value ?? "").replace(/\s+/g, " ").trim();
@@ -356,8 +361,10 @@ async function setupLavalink(client) {
         autoReconnect: true,
         destroyPlayer: false,
       },
+      // Keep Lavalink's internal empty-queue auto-destroy longer than our
+      // queueEnd grace period so queueEnd.js is the single source of truth.
       onEmptyQueue: {
-        destroyAfterMs: 30_000,
+        destroyAfterMs: LAVALINK_EMPTY_QUEUE_DESTROY_MS,
       },
     },
     advancedOptions: {

@@ -24,7 +24,7 @@ module.exports = {
 
     const embed = new EmbedBuilder()
       .setColor(embedColor)
-      .setTitle("Invite")
+      .setAuthor({ name: "Invite" }, client.user.displayAvatarURL({ forceStatic: false, size: 256 }))
       .setDescription("Use the buttons below to add Joker or join support.")
       .setFooter({ text: " Thank you for using Joker Music" });
 

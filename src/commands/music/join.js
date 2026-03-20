@@ -50,7 +50,7 @@ module.exports = {
                          .setDescription(`${ok} Connected to \`${channel.name}\``)
                          return await message.channel.send({embeds: [thing]});
 
-     } else if (message.guild.members.me?.voice?.channel !== channel) {
+     } else if (message.guild.members.me?.voice?.channelId !== channel.id) {
 
          let thing = new EmbedBuilder()
 

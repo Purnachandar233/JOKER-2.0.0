@@ -37,7 +37,7 @@ module.exports = {
     const createdAt = Math.floor(guild.createdTimestamp / 1000);
     const embed = new EmbedBuilder()
       .setColor(embedColor)
-      .setTitle(`${getEmoji("server")} ${guild.name}`)
+      .setAuthor({ name: guild.name }, guild.iconURL({ forceStatic: false, size: 256 }) || null)
       .setDescription("server information.")
       .setThumbnail(guild.iconURL({ forceStatic: false, size: 256 }) || null)
       .addFields(

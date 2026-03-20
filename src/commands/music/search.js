@@ -7,7 +7,6 @@ const {
   EmbedBuilder,
   MessageFlags,
   SectionBuilder,
-  SeparatorBuilder,
   TextDisplayBuilder,
 } = require("discord.js");
 
@@ -143,6 +142,27 @@ function getTrackPlaylistName(track) {
   return null;
 }
 
+function dedupeTracks(tracks) {
+  const seen = new Set();
+  const unique = [];
+
+  for (const track of Array.isArray(tracks) ? tracks : []) {
+    if (!track) continue;
+    const identity = String(
+      track?.encoded ||
+      track?.track ||
+      track?.info?.identifier ||
+      `${getTrackTitle(track)}::${getTrackAuthor(track)}::${getTrackDuration(track)}`
+    );
+
+    if (seen.has(identity)) continue;
+    seen.add(identity);
+    unique.push(track);
+  }
+
+  return unique;
+}
+
 function buildSongEntries(tracks) {
   return (Array.isArray(tracks) ? tracks : []).map((track, index) => ({
     id: `song_${index}`,
@@ -177,69 +197,95 @@ function buildArtistEntries(tracks) {
 }
 
 function buildAlbumEntries(tracks) {
-  const seen = new Set();
-  const entries = [];
+  const groupedAlbums = new Map();
 
   for (const track of Array.isArray(tracks) ? tracks : []) {
-    const album = getTrackAlbum(track);
+    const album = String(getTrackAlbum(track) || "").trim();
     if (!album) continue;
 
     const key = album.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
+    if (!groupedAlbums.has(key)) {
+      groupedAlbums.set(key, {
+        album,
+        primaryAuthor: getTrackAuthor(track),
+        tracks: [],
+      });
+    }
 
-    const author = getTrackAuthor(track);
-    entries.push({
-      id: `album_${entries.length}`,
-      type: "album",
-      title: truncateText(album, 80),
-      subtitle: `Artist: ${truncateText(author, 60)}`,
-      url: getTrackUrl(track),
-      query: `${album} ${author}`.trim(),
-    });
+    groupedAlbums.get(key).tracks.push(track);
   }
 
-  return entries;
+  return Array.from(groupedAlbums.values()).map((group, index) => {
+    const albumTracks = dedupeTracks(group.tracks);
+    const artist = truncateText(group.primaryAuthor, 60);
+
+    return {
+      id: `album_${index}`,
+      type: "album",
+      title: truncateText(group.album, 80),
+      subtitle: `Artist: ${artist} | ${albumTracks.length} track(s)`,
+      url: getTrackUrl(albumTracks[0]),
+      tracks: albumTracks,
+      matchName: group.album,
+      query: `${group.album} ${group.primaryAuthor}`.trim(),
+    };
+  });
 }
 
 function buildPlaylistEntries(searchResult) {
   const tracks = Array.isArray(searchResult?.tracks) ? searchResult.tracks : [];
-  const seen = new Set();
   const entries = [];
+  const groupedPlaylists = new Map();
 
   if (searchResult?.loadType === "PLAYLIST_LOADED" && searchResult?.playlist?.name && tracks.length) {
     const playlistName = String(searchResult.playlist.name).trim();
     if (playlistName) {
-      seen.add(playlistName.toLowerCase());
+      const playlistTracks = dedupeTracks(tracks);
       entries.push({
         id: "playlist_loaded",
         type: "playlist",
         title: truncateText(playlistName, 80),
-        subtitle: `${tracks.length} track(s)`,
+        subtitle: `${playlistTracks.length} track(s)`,
         url: null,
-        tracks,
+        tracks: playlistTracks,
+        matchName: playlistName,
         query: playlistName,
       });
     }
   }
 
   for (const track of tracks) {
-    const playlistName = getTrackPlaylistName(track);
+    const playlistName = String(getTrackPlaylistName(track) || "").trim();
     if (!playlistName) continue;
 
     const key = playlistName.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
+    if (!groupedPlaylists.has(key)) {
+      groupedPlaylists.set(key, {
+        playlistName,
+        primaryAuthor: getTrackAuthor(track),
+        tracks: [],
+      });
+    }
 
+    groupedPlaylists.get(key).tracks.push(track);
+  }
+
+  groupedPlaylists.forEach((group, key) => {
+    const alreadyAdded = entries.some((entry) => entry.matchName?.toLowerCase() === key);
+    if (alreadyAdded) return;
+
+    const playlistTracks = dedupeTracks(group.tracks);
     entries.push({
       id: `playlist_${entries.length}`,
       type: "playlist",
-      title: truncateText(playlistName, 80),
-      subtitle: `Track: ${truncateText(getTrackTitle(track), 70)}`,
-      url: getTrackUrl(track),
-      query: `${playlistName} ${getTrackAuthor(track)}`.trim(),
+      title: truncateText(group.playlistName, 80),
+      subtitle: `${playlistTracks.length} track(s) | by ${truncateText(group.primaryAuthor, 45)}`,
+      url: getTrackUrl(playlistTracks[0]),
+      tracks: playlistTracks,
+      matchName: group.playlistName,
+      query: `${group.playlistName} ${group.primaryAuthor}`.trim(),
     });
-  }
+  });
 
   return entries;
 }
@@ -287,8 +333,12 @@ function createSearchNavigationRow(pageIndex, totalPages, disabled = false) {
   );
 }
 
-function buildClosedSearchComponents(text) {
-  return [new TextDisplayBuilder().setContent(text)];
+function buildClosedSearchComponents(text, embedColor) {
+  return [
+    new ContainerBuilder()
+      .setAccentColor(resolveAccentColor(embedColor))
+      .addTextDisplayComponents(new TextDisplayBuilder().setContent(text)),
+  ];
 }
 
 function buildSearchPanel(query, tab, pageIndex, searchResult, embedColor, getEmoji, { disabled = false } = {}) {
@@ -298,47 +348,18 @@ function buildSearchPanel(query, tab, pageIndex, searchResult, embedColor, getEm
   const start = safePage * SEARCH_PANEL_PAGE_SIZE;
   const visibleEntries = entries.slice(start, start + SEARCH_PANEL_PAGE_SIZE);
   const container = new ContainerBuilder().setAccentColor(resolveAccentColor(embedColor));
+  const tabLabel = {
+    songs: "Songs",
+    artists: "Artists",
+    albums: "Albums",
+    playlists: "Playlists",
+  }[tab] || "Songs";
 
-  const description = lines.length
-    ? lines.join("\n\n")
-    : `*No ${tab} results were available for \`${escapeLinkLabel(truncateText(query, 60))}\`.*\n\nTry the **Songs** tab for direct track matches.`;
-
-  const content = [
-    `## ${getEmoji("search")} Search Results`,
-    `**${tabLabel}** for \`${truncateText(query, 60)}\``,
-    "",
-    description,
-    "",
-    `Page ${safePage + 1}/${totalPages} • ${entries.length} result(s) • Panel expires in 90 seconds`,
-  ].join("\n");
-
-  return {
-    content,
-    rows: [
-      createSearchTabRow(tab),
-      ...createSearchEntryRows(visibleEntries),
-      createSearchNavigationRow(safePage, totalPages),
-    ],
-    entries,
-    visibleEntries,
-    pageIndex: safePage,
-    totalPages,
-  };
-}
-
-function disableActionRows(rows) {
-  return rows.map((row) => new ActionRowBuilder().addComponents(
-    row.components.map((component) => ButtonBuilder.from(component).setDisabled(true))
-  ));
-}
-
-function buildSearchPanel(query, tab, pageIndex, searchResult, embedColor, getEmoji, { disabled = false } = {}) {
-  const entries = getEntriesForTab(searchResult, tab);
-  const totalPages = Math.max(1, Math.ceil(entries.length / SEARCH_PANEL_PAGE_SIZE));
-  const safePage = Math.min(Math.max(0, pageIndex), totalPages - 1);
-  const start = safePage * SEARCH_PANEL_PAGE_SIZE;
-  const visibleEntries = entries.slice(start, start + SEARCH_PANEL_PAGE_SIZE);
-  const container = new ContainerBuilder().setAccentColor(resolveAccentColor(embedColor));
+  container
+    .addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(`## ${getEmoji("search")} Search Results\n**${tabLabel}** for \`${truncateText(query, 60)}\``)
+    )
+    .addActionRowComponents(createSearchTabRow(tab, disabled));
 
   if (!visibleEntries.length) {
     container.addTextDisplayComponents(
@@ -350,33 +371,27 @@ function buildSearchPanel(query, tab, pageIndex, searchResult, embedColor, getEm
       const title = truncateText(entry.title, 90);
       const linkedTitle = entry.url ? `[${escapeLinkLabel(title)}](${entry.url})` : escapeLinkLabel(title);
 
+      const addButton = new ButtonBuilder()
+        .setCustomId(`search_add_${index}`)
+        .setLabel("Add")
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(disabled);
+
       const section = new SectionBuilder()
         .addTextDisplayComponents(
           new TextDisplayBuilder().setContent(`**${position}.** ${linkedTitle}`),
           new TextDisplayBuilder().setContent(truncateText(entry.subtitle, 120))
         )
-        .setButtonAccessory(
-          new ButtonBuilder()
-            .setCustomId(`search_add_${index}`)
-            .setLabel("Add")
-            .setEmoji("➕")
-            .setStyle(ButtonStyle.Secondary)
-            .setDisabled(disabled)
-        );
+        .setButtonAccessory(addButton);
 
       container.addSectionComponents(section);
-      if (index < visibleEntries.length - 1) {
-        container.addSeparatorComponents(new SeparatorBuilder());
-      }
     });
   }
 
+  container.addActionRowComponents(createSearchNavigationRow(safePage, totalPages, disabled));
+
   return {
-    components: [
-      createSearchTabRow(tab, disabled),
-      container,
-      createSearchNavigationRow(safePage, totalPages, disabled),
-    ],
+    components: [container],
     entries,
     visibleEntries,
     pageIndex: safePage,
@@ -493,6 +508,13 @@ module.exports = {
         Boolean(player?.paused) ||
         (Array.isArray(player?.queue?.tracks) && player.queue.tracks.length > 0)
       );
+      const getQueuedTrackCount = () => {
+        if (Array.isArray(player?.queue?.tracks)) return player.queue.tracks.length;
+        if (Array.isArray(player?.queue?.items)) return player.queue.items.length;
+        if (Number.isFinite(Number(player?.queue?.size))) return Math.max(0, Number(player.queue.size));
+        if (Number.isFinite(Number(player?.queue?.length))) return Math.max(0, Number(player.queue.length));
+        return 0;
+      };
       const searchWithAvailableSources = async (queryText, requester, { preferredSources = SEARCH_SOURCE_ORDER, timeoutMs = 10000, logPrefix = "Search" } = {}) => {
         const availability = getAvailableSearchSources(client, player, preferredSources);
         const attemptedSources = availability.sources.slice();
@@ -607,7 +629,7 @@ module.exports = {
       const resolveEntryTracks = async (entry) => {
         if (!entry) return [];
         if (entry.track) return [entry.track];
-        if (Array.isArray(entry.tracks) && entry.tracks.length) return entry.tracks;
+        if (Array.isArray(entry.tracks) && entry.tracks.length) return dedupeTracks(entry.tracks);
         if (!entry.query) return [];
 
         const addAttempt = await searchWithAvailableSources(entry.query, message.member.user, {
@@ -623,7 +645,17 @@ module.exports = {
         }
 
         if ((entry.type === "album" || entry.type === "playlist") && addAttempt.result.loadType === "PLAYLIST_LOADED") {
-          return addAttempt.result.tracks;
+          return dedupeTracks(addAttempt.result.tracks);
+        }
+
+        if (entry.type === "album" || entry.type === "playlist") {
+          const expectedName = String(entry.matchName || entry.title || "").trim().toLowerCase();
+          const matchingTracks = addAttempt.result.tracks.filter((track) => {
+            const value = entry.type === "album" ? getTrackAlbum(track) : getTrackPlaylistName(track);
+            return String(value || "").trim().toLowerCase() === expectedName;
+          });
+
+          if (matchingTracks.length) return dedupeTracks(matchingTracks);
         }
 
         return [addAttempt.result.tracks[0]];
@@ -659,7 +691,7 @@ module.exports = {
 
         if (buttonInteraction.customId === "search_close") {
           await buttonInteraction.update({
-            components: buildClosedSearchComponents(`${ok} Search panel closed.`),
+            components: buildClosedSearchComponents(`${ok} Search panel closed.`, embedColor),
           }).catch(() => {});
           collector.stop("closed");
           return;
@@ -707,6 +739,8 @@ module.exports = {
 
           try {
             const queueBefore = hasActivePlayback();
+            const queuedCountBefore = getQueuedTrackCount();
+            const hasCurrentBefore = Boolean(player?.queue?.current);
             const tracksToAdd = await resolveEntryTracks(entry);
             const addedCount = await queueTracks(tracksToAdd);
 
@@ -715,15 +749,30 @@ module.exports = {
               if (!started) throw new Error("Failed to start playback.");
             }
 
+            const linkedText = entry.url
+              ? `[${escapeLinkLabel(truncateText(entry.title, 60))}](${entry.url})`
+              : truncateText(entry.title, 60);
+
             const successText = addedCount > 1
-              ? `${ok} Queued **${addedCount}** track(s) from **${truncateText(entry.title, 60)}**.`
-              : `${ok} Queued **${truncateText(entry.title, 60)}**.`;
+              ? `**Added** **${addedCount}** track(s) from ${linkedText}.`
+              : `**Added** ${linkedText}.`;
+            const firstPosition = queuedCountBefore + (hasCurrentBefore ? 2 : 1);
+            const lastPosition = firstPosition + Math.max(0, addedCount - 1);
+            const positionLabel = addedCount > 1
+              ? `#${firstPosition}-#${lastPosition}`
+              : `#${firstPosition}`;
+            const authorLabel = addedCount > 1
+              ? `Tracks Queued  Positions #${positionLabel}`
+              : `Track Queued  Position #${positionLabel}`;
 
             await buttonInteraction.followUp({
               embeds: [
                 new EmbedBuilder()
                   .setColor(embedColor)
-                  .setTitle(`${getEmoji("queue")} Added To Queue`)
+                  .setAuthor({
+                    name: authorLabel,
+                    iconURL: message.member.displayAvatarURL({ size: 64, extension: "png" }),
+                  })
                   .setDescription(successText)
               ],
               ephemeral: true,
@@ -770,3 +819,4 @@ module.exports = {
     }
   }
 };
+

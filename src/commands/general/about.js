@@ -24,7 +24,7 @@ module.exports = {
       .setColor(embedColor)
       .setTitle(`${getEmoji("music")} Joker Music`)
       .setAuthor({
-        name: "Professional Discord Music Experience",
+        name: client.user.username,
         iconURL: client.user.displayAvatarURL({ forceStatic: false })
       })
       .setDescription([

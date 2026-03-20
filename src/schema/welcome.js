@@ -27,6 +27,11 @@ const welcomeSchema = new mongoose.Schema(
       type: String,
       default: null
     },
+    deliveryType: {
+      type: String,
+      enum: ["embed", "text"],
+      default: "embed"
+    },
     enabled: {
       type: Boolean,
       default: false
