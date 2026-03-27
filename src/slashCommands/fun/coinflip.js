@@ -1,6 +1,7 @@
 const { Client, CommandInteraction, EmbedBuilder } = require('discord.js');
 const legacy = require('../../commands/fun/games/coinflip.js');
 
+
 module.exports = {
   name: 'coinflip',
   description: legacy.description || 'Flip a coin and predict the outcome!',
@@ -8,26 +9,9 @@ module.exports = {
   run: async (client, interaction) => {
     await interaction.deferReply({ ephemeral: false }).catch(() => {});
 
-    const replyFunc = async (payload) => {
-      try {
-        if (interaction.replied || interaction.deferred) return interaction.followUp(payload).catch(() => {});
-        return interaction.editReply(payload).catch(() => interaction.followUp(payload).catch(() => {}));
-      } catch(e) {}
-    };
-
-    const message = {
-      member: interaction.member,
-      author: interaction.user,
-      guild: interaction.guild,
-      channel: {
-        send: (p) => replyFunc(typeof p === 'string' ? { content: p } : p),
-      },
-      reply: (p) => replyFunc(typeof p === 'string' ? { content: p } : p),
-    };
-
-    try {
+        try {
       if (typeof legacy.execute === 'function') {
-        await legacy.execute(message, [], client, client.prefix);
+        await legacy.execute(interaction, [], client, client.prefix);
       } else if (typeof legacy.run === 'function') {
         await legacy.run(client, interaction);
       } else {
@@ -39,3 +23,5 @@ module.exports = {
     }
   }
 };
+
+

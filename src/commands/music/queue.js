@@ -10,16 +10,6 @@ const {
   TextDisplayBuilder,
 } = require("discord.js");
 
-const {
-  formatDiscordTimestamp,
-  formatDurationLabel,
-  formatQueueTrackMeta,
-  formatQueueTrackTitle,
-  getQueueArray,
-  getQueueTiming,
-  getRequesterInfo,
-} = require("../../utils/queue.js");
-
 const EMOJIS = require("../../utils/emoji.json");
 
 const QUEUE_PANEL_PAGE_SIZE = 5;
@@ -87,11 +77,20 @@ function buildClosedQueueComponents(text, embedColor) {
   ];
 }
 
-function buildQueuePanel(player, pageIndex, embedColor, getEmoji, {
+function buildQueuePanel(player, pageIndex, embedColor, getEmoji, queueTools, {
   guildName = "Queue",
   userTag = "Unknown",
   disabled = false,
 } = {}) {
+  const {
+    formatDiscordTimestamp,
+    formatDurationLabel,
+    formatQueueTrackMeta,
+    formatQueueTrackTitle,
+    getQueueArray,
+    getQueueTiming,
+    getRequesterInfo,
+  } = queueTools;
   const tracks = getQueueArray(player);
   const current = tracks[0] || null;
   const upcoming = tracks.slice(1);
@@ -207,6 +206,11 @@ module.exports = {
     const embedColor = client?.embedColor || "#ff0051";
     const ok = EMOJIS.ok;
     const no = EMOJIS.no;
+    const queueTools = client.core.queue;
+    const {
+      formatQueueTrackTitle,
+      getQueueArray,
+    } = queueTools;
 
     const { channel } = message.member.voice;
 
@@ -247,7 +251,7 @@ module.exports = {
 
     let currentPage = 0;
     const getPanelState = (disabled = false) => {
-      const state = buildQueuePanel(player, currentPage, embedColor, getEmoji, {
+      const state = buildQueuePanel(player, currentPage, embedColor, getEmoji, queueTools, {
         guildName: message.guild?.name || "Queue",
         userTag: message?.member?.user?.tag,
         disabled,

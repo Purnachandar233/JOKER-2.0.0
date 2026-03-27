@@ -2,6 +2,7 @@ const { Client, CommandInteraction, EmbedBuilder } = require('discord.js');
 const legacy = require('../../commands/fun/games/highererlower.js');
 const { safeReply, safeDeferReply } = require('../../utils/interactionResponder');
 
+
 module.exports = {
   name: 'highererlower',
   description: legacy.description || 'Play Higher or Lower with another player!',
@@ -18,30 +19,9 @@ module.exports = {
     const deferred = await safeDeferReply(interaction, { ephemeral: false });
     if (!deferred) return safeReply(interaction, { content: 'Failed to defer reply.' });
 
-    const replyFunc = async (payload) => {
-      try {
-        return await safeReply(interaction, typeof payload === 'string' ? { content: payload } : payload);
-      } catch (e) { return null; }
-    };
-
-    const message = {
-      member: interaction.member,
-      author: interaction.user,
-      guild: interaction.guild,
-      channel: {
-        send: (p) => replyFunc(typeof p === 'string' ? { content: p } : p),
-      },
-      reply: (p) => replyFunc(typeof p === 'string' ? { content: p } : p),
-      mentions: {
-        users: {
-          first: () => interaction.options.getUser('opponent')
-        }
-      }
-    };
-
-    try {
+        try {
       if (typeof legacy.execute === 'function') {
-        await legacy.execute(message, [], client, client.prefix);
+        await legacy.execute(interaction, [], client, client.prefix);
       } else if (typeof legacy.run === 'function') {
         await legacy.run(client, interaction);
       } else {
@@ -53,3 +33,5 @@ module.exports = {
     }
   }
 };
+
+

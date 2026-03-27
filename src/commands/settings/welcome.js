@@ -3,10 +3,13 @@ const { EmbedBuilder, MessageFlags } = require("discord.js");
 const Schema = require("../../schema/welcome");
 const EMOJIS = require("../../utils/emoji.json");
 const {
+  DEFAULT_WELCOME_EMBED_MESSAGE,
+  DEFAULT_WELCOME_TEXT_MESSAGE,
+  DEFAULT_WELCOME_TITLE,
   normalizeWelcomeColor,
   renderWelcomeTemplate
 } = require("../../welcome/template");
-const { buildWelcomeSetupPanel, resolveDeliveryType } = require("../../welcome/panel");
+const { buildWelcomeSetupPanel } = require("../../welcome/panel");
 
 function isOn(value) {
   return ["on", "true", "enable", "enabled", "yes"].includes(String(value || "").toLowerCase());
@@ -53,18 +56,20 @@ module.exports = {
       });
 
       try {
-        return await message.reply({
+        const panelMsg = await message.reply({
           flags: MessageFlags.IsComponentsV2,
           components,
           allowedMentions: { repliedUser: false },
         });
+
+        return panelMsg;
       } catch (_err) {
         const fallback = new EmbedBuilder()
           .setColor(embedColor)
           .setTitle(`${getEmoji("server")} Welcome Setup`)
           .setDescription(
             `${ok} Use \`${prefix}welcome setup <#channel> [message]\` to configure.\n` +
-            `Use \`${prefix}welcome textmsg on|off\` to switch text/embed mode.`
+            `Use \`${prefix}welcome textmessage <message>\` and \`${prefix}welcome textmsg on|off\` for the text welcome.`
           );
         return message.reply({ embeds: [fallback], allowedMentions: { repliedUser: false } });
       }
@@ -76,7 +81,7 @@ module.exports = {
 
     if (sub === "setup") {
       const channel = message.mentions.channels.first() || guild.channels.cache.get(args[1]);
-      const template = args.slice(2).join(" ").trim() || "Welcome {user} to {server}!";
+      const template = args.slice(2).join(" ").trim() || DEFAULT_WELCOME_EMBED_MESSAGE;
 
       if (!channel || !channel.isTextBased()) {
         const embed = new EmbedBuilder().setColor(embedColor);
@@ -92,9 +97,13 @@ module.exports = {
         {
           channelID: channel.id,
           message: template,
-          enabled: true
+          textMessage: DEFAULT_WELCOME_TEXT_MESSAGE,
+          title: DEFAULT_WELCOME_TITLE,
+          enabled: true,
+          embedEnabled: true,
+          textEnabled: false
         },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
+        { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
       );
 
       const embed = new EmbedBuilder().setColor(embedColor);
@@ -105,7 +114,8 @@ module.exports = {
       var embedValue2 = [
       statField("Channel", `<#${channel.id}>`, "server"),
       statField("Status", "`Enabled`", "success"),
-      { name: `${getEmoji("info")} Message`, value: `\`${template}\``, inline: false }
+      { name: `${getEmoji("info")} Embed Message`, value: `\`${template}\``, inline: false },
+      { name: `${getEmoji("info")} Text Message`, value: `\`${DEFAULT_WELCOME_TEXT_MESSAGE}\``, inline: false }
       ];
       if (Array.isArray(embedValue2) && embedValue2.length > 0) embed.addFields(embedValue2);
       return message.reply({ embeds: [embed], allowedMentions: { repliedUser: false } });
@@ -125,13 +135,40 @@ module.exports = {
       await Schema.findOneAndUpdate(
         { guildID: guildId },
         { message: template },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
+        { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
       );
 
       const embed = new EmbedBuilder().setColor(embedColor);
-      var embedValue0 = `${getEmoji("success")} Welcome Message Updated`;
+      var embedValue0 = `${getEmoji("success")} Embed Message Updated`;
       if (embedValue0) embed.setTitle(embedValue0);
       var embedValue1 = `${ok} New template saved.`;
+      if (embedValue1) embed.setDescription(embedValue1);
+      var embedValue2 = [{ name: `${getEmoji("info")} Template`, value: `\`${template}\``, inline: false }];
+      if (Array.isArray(embedValue2) && embedValue2.length > 0) embed.addFields(embedValue2);
+      return message.reply({ embeds: [embed], allowedMentions: { repliedUser: false } });
+    }
+
+    if (sub === "textmessage" || sub === "texttemplate") {
+      const template = args.slice(1).join(" ").trim();
+      if (!template) {
+        const embed = new EmbedBuilder().setColor(embedColor);
+        var embedValue0 = `${getEmoji("error")} Missing Text Message`;
+        if (embedValue0) embed.setTitle(embedValue0);
+        var embedValue1 = `${no} Usage: \`${prefix}welcome textmessage <message>\``;
+        if (embedValue1) embed.setDescription(embedValue1);
+        return message.reply({ embeds: [embed], allowedMentions: { repliedUser: false } });
+      }
+
+      await Schema.findOneAndUpdate(
+        { guildID: guildId },
+        { textMessage: template },
+        { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
+      );
+
+      const embed = new EmbedBuilder().setColor(embedColor);
+      var embedValue0 = `${getEmoji("success")} Text Message Updated`;
+      if (embedValue0) embed.setTitle(embedValue0);
+      var embedValue1 = `${ok} New text template saved.`;
       if (embedValue1) embed.setDescription(embedValue1);
       var embedValue2 = [{ name: `${getEmoji("info")} Template`, value: `\`${template}\``, inline: false }];
       if (Array.isArray(embedValue2) && embedValue2.length > 0) embed.addFields(embedValue2);
@@ -152,7 +189,7 @@ module.exports = {
       await Schema.findOneAndUpdate(
         { guildID: guildId },
         { title: title.slice(0, 256) },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
+        { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
       );
 
       const embed = new EmbedBuilder().setColor(embedColor);
@@ -187,7 +224,7 @@ module.exports = {
       await Schema.findOneAndUpdate(
         { guildID: guildId },
         { embedColor: parsed },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
+        { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
       );
 
       const embed = new EmbedBuilder().setColor(embedColor);
@@ -212,7 +249,7 @@ module.exports = {
       await Schema.findOneAndUpdate(
         { guildID: guildId },
         { roleID: role.id },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
+        { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
       );
 
       const embed = new EmbedBuilder().setColor(embedColor);
@@ -227,12 +264,22 @@ module.exports = {
       await Schema.findOneAndUpdate(
         { guildID: guildId },
         { roleID: null },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
+        { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
       );
       const embed = new EmbedBuilder().setColor(embedColor);
       var embedValue0 = `${getEmoji("success")} Auto Role Cleared`;
       if (embedValue0) embed.setTitle(embedValue0);
       var embedValue1 = `${ok} Auto-role assignment has been disabled.`;
+      if (embedValue1) embed.setDescription(embedValue1);
+      return message.reply({ embeds: [embed], allowedMentions: { repliedUser: false } });
+    }
+
+    if (sub === "clear") {
+      await Schema.deleteMany({ guildID: guildId }).catch(() => {});
+      const embed = new EmbedBuilder().setColor(embedColor);
+      var embedValue0 = `${getEmoji("success")} Welcome Data Cleared`;
+      if (embedValue0) embed.setTitle(embedValue0);
+      var embedValue1 = `${ok} All welcome settings for this server were deleted.`;
       if (embedValue1) embed.setDescription(embedValue1);
       return message.reply({ embeds: [embed], allowedMentions: { repliedUser: false } });
     }
@@ -262,15 +309,22 @@ module.exports = {
         return message.reply({ embeds: [embed], allowedMentions: { repliedUser: false } });
       }
 
-      const preview = renderWelcomeTemplate(data.message, message.member);
-      const deliveryType = resolveDeliveryType(data.deliveryType);
-      if (deliveryType === "text") {
-        await channel.send({ content: preview }).catch(() => {});
-      } else {
+      const embedPreview = renderWelcomeTemplate(data.message, message.member, DEFAULT_WELCOME_EMBED_MESSAGE);
+      const textPreview = renderWelcomeTemplate(data.textMessage, message.member, DEFAULT_WELCOME_TEXT_MESSAGE);
+      const embedEnabled = data.embedEnabled !== false; // default true
+      const textEnabled = Boolean(data.textEnabled);
+
+      // Send text message if enabled
+      if (textEnabled) {
+        await channel.send({ content: textPreview }).catch(() => {});
+      }
+
+      // Send embed if enabled
+      if (embedEnabled) {
         const testEmbed = new EmbedBuilder().setColor(embedColor);
-        var embedValue0 = data.title || "Welcome!";
+        var embedValue0 = data.title || DEFAULT_WELCOME_TITLE;
         if (embedValue0) testEmbed.setTitle(embedValue0);
-        var embedValue1 = preview;
+        var embedValue1 = embedPreview;
         if (embedValue1) testEmbed.setDescription(embedValue1);
         var embedValue2 = author.displayAvatarURL({ forceStatic: false });
         if (embedValue2) testEmbed.setThumbnail(embedValue2);
@@ -302,19 +356,23 @@ module.exports = {
         return message.reply({ embeds: [embed], allowedMentions: { repliedUser: false } });
       }
 
-      const deliveryType = isOn(statusArg) ? "text" : "embed";
+      const status = isOn(statusArg);
+      const currentData = await Schema.findOne({ guildID: guildId }).lean().catch(() => null);
       await Schema.findOneAndUpdate(
         { guildID: guildId },
-        { deliveryType },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
+        {
+          textEnabled: status,
+          ...(status && !currentData?.textMessage ? { textMessage: DEFAULT_WELCOME_TEXT_MESSAGE } : {})
+        },
+        { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
       );
 
       const embed = new EmbedBuilder().setColor(embedColor);
       var embedValue0 = `${getEmoji("success")} Delivery Mode Updated`;
       if (embedValue0) embed.setTitle(embedValue0);
-      var embedValue1 = deliveryType === "text"
-        ? `${ok} Welcome will now be sent as plain text messages.`
-        : `${ok} Welcome will now be sent as embeds.`;
+      var embedValue1 = status
+        ? `${ok} Text mode enabled. Both embed and text messages will be sent.`
+        : `${ok} Text mode disabled. Only embed will be sent.`;
       if (embedValue1) embed.setDescription(embedValue1);
       return message.reply({ embeds: [embed], allowedMentions: { repliedUser: false } });
     }
@@ -343,7 +401,7 @@ module.exports = {
       await Schema.findOneAndUpdate(
         { guildID: guildId },
         { enabled },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
+        { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
       );
 
       const embed = new EmbedBuilder().setColor(embedColor);

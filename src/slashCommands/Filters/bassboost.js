@@ -61,7 +61,7 @@ module.exports = {
     });;
      }
         const player = client.lavalink.players.get(interaction.guild.id);
-    const { getQueueArray } = require('../../utils/queue.js');
+    const { getQueueArray } = client.core.queue;
     const tracks = getQueueArray(player);
     if(!player || !tracks || tracks.length === 0) {
                     const noperms = new EmbedBuilder()
@@ -124,4 +124,5 @@ module.exports = {
 
 
     }
+
 

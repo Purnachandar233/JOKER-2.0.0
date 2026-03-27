@@ -2,8 +2,13 @@ const { CommandInteraction, Client, EmbedBuilder, ApplicationCommandType } = req
 const track = require('../../schema/trackinfoSchema.js')
 const fetch = require('isomorphic-unfetch');
 const { getData, getPreview, getTracks, getDetails } = require('spotify-url-info')(fetch)
+const { withTimeout } = require('../../utils/promiseHandler.js');
 
 const SEARCH_SOURCE_ORDER = ['spotify', 'soundcloud', 'applemusic', 'deezer', 'bandcamp'];
+const USER_SEARCH_SOURCE_ATTEMPTS = 3;
+const USER_SEARCH_TIMEOUT_MS = 5000;
+const USER_FALLBACK_SEARCH_TIMEOUT_MS = 4500;
+const SPOTIFY_DIRECT_LOAD_TIMEOUT_MS = 7000;
 
 function normalizeSourceName(source) {
   const value = String(source || '').trim().toLowerCase();
@@ -22,8 +27,21 @@ function uniqueSources(list) {
   return [...new Set((Array.isArray(list) ? list : [list]).map(normalizeSourceName).filter(Boolean))];
 }
 
+function orderSourcesForPlayer(player, preferredSources = SEARCH_SOURCE_ORDER) {
+  const ordered = uniqueSources(preferredSources);
+  const preferred = normalizeSourceName(
+    typeof player?.get === 'function' ? player.get('preferredSearchSource') : null
+  );
+
+  if (!preferred || !ordered.includes(preferred)) {
+    return ordered;
+  }
+
+  return [preferred, ...ordered.filter((source) => source !== preferred)];
+}
+
 function getAvailableSearchSources(client, player, preferredSources = SEARCH_SOURCE_ORDER) {
-  const preferred = uniqueSources(preferredSources);
+  const preferred = orderSourcesForPlayer(player, preferredSources);
   const nodes = [];
 
   if (player?.node) nodes.push(player.node);
@@ -167,9 +185,18 @@ module.exports = {
       Boolean(playerInstance?.paused) ||
       (Array.isArray(playerInstance?.queue?.tracks) && playerInstance.queue.tracks.length > 0)
     );
-    const searchWithAvailableSources = async (queryText, requester, { preferredSources = SEARCH_SOURCE_ORDER, timeoutMs = 10000, logPrefix = 'Search' } = {}) => {
+    const searchWithAvailableSources = async (
+      queryText,
+      requester,
+      {
+        preferredSources = SEARCH_SOURCE_ORDER,
+        timeoutMs = USER_SEARCH_TIMEOUT_MS,
+        logPrefix = 'Search',
+        maxSourceAttempts = USER_SEARCH_SOURCE_ATTEMPTS,
+      } = {}
+    ) => {
       const availability = getAvailableSearchSources(client, player, preferredSources);
-      const attemptedSources = availability.sources.slice();
+      const attemptedSources = availability.sources.slice(0, Math.max(1, Number(maxSourceAttempts) || USER_SEARCH_SOURCE_ATTEMPTS));
       let lastError = null;
 
       if (!attemptedSources.length) {
@@ -188,16 +215,20 @@ module.exports = {
 
       for (const source of attemptedSources) {
         try {
-          const result = await Promise.race([
+          const result = await withTimeout(
             player.search({ query: queryText, source }, requester),
-            new Promise((_, reject) => setTimeout(() => reject(new Error(`${source} search timeout`)), timeoutMs)),
-          ]);
+            timeoutMs,
+            `${source} search timeout`
+          );
 
           if (result?.loadType === 'LOAD_FAILED') {
             throw result.exception || new Error(`${source} search failed`);
           }
 
           if (result?.tracks?.length) {
+            if (typeof player?.set === 'function') {
+              player.set('preferredSearchSource', source);
+            }
             return {
               result,
               attemptedSources,
@@ -278,11 +309,8 @@ module.exports = {
     if (query.match(/https?:\/\/(open\.spotify\.com|spotify\.link)/)) {
       // Try direct URL loading first (works for playlists and tracks)
       try {
-        const directLoadPromise = player.search(query, interaction.member.user);
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Direct Spotify load timeout')), 10000)
-        );
-        s = await Promise.race([directLoadPromise, timeoutPromise]);
+        const directLoadPromise = player.search({ query }, interaction.member.user);
+        s = await withTimeout(directLoadPromise, SPOTIFY_DIRECT_LOAD_TIMEOUT_MS, 'Direct Spotify load timeout');
       } catch (directErr) {
         client.logger?.log(`Direct Spotify URL load failed: ${directErr.message}, trying search...`, 'warn');
         // Fallback: try to get track info and search
@@ -295,7 +323,7 @@ module.exports = {
             : SEARCH_SOURCE_ORDER;
           const searchAttempt = await searchWithAvailableSources(searchQuery, interaction.member.user, {
             preferredSources: spotifyPreferred,
-            timeoutMs: 10000,
+            timeoutMs: USER_SEARCH_TIMEOUT_MS,
             logPrefix: 'Spotify preview search',
           });
           s = searchAttempt.result;
@@ -306,7 +334,7 @@ module.exports = {
           try {
             const fallbackAttempt = await searchWithAvailableSources(searchQuery, interaction.member.user, {
               preferredSources: SEARCH_SOURCE_ORDER,
-              timeoutMs: 8000,
+              timeoutMs: USER_FALLBACK_SEARCH_TIMEOUT_MS,
               logPrefix: 'Fallback search',
             });
             s = fallbackAttempt.result;
@@ -327,7 +355,7 @@ module.exports = {
     } else {
       const searchAttempt = await searchWithAvailableSources(query, interaction.member.user, {
         preferredSources: SEARCH_SOURCE_ORDER,
-        timeoutMs: 8000,
+        timeoutMs: USER_SEARCH_TIMEOUT_MS,
         logPrefix: 'Search',
       });
       s = searchAttempt.result;
@@ -364,7 +392,7 @@ module.exports = {
 
     if (s.loadType === "PLAYLIST_LOADED" && s.playlist) {
         try {
-            const { getQueueArray } = require('../../utils/queue.js');
+            const { getQueueArray } = client.core.queue;
             const existing = (getQueueArray(player) || []).map(t => t?.info?.identifier || t?.identifier || t?.id || t?.uri).filter(Boolean);
             const toAdd = [];
             for (const trackItem of s.tracks) {
@@ -411,3 +439,4 @@ module.exports = {
     }
   },
 };
+

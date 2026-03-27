@@ -1,156 +1,204 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
+const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require("discord.js");
+const { safeReply, safeDeferReply } = require("../../../utils/interactionResponder");
 
 module.exports = {
   name: "tictactoe",
+  aliases: ["ttt", "tic-tac-toe"],
   category: "fun",
-  aliases: ["ttt"],
-  description: "Play Tic Tac Toe with another player!",
-  execute: async (message, args, client) => {
-    const opponent = message.mentions.users.first();
-
-    if (!opponent) {
-      return message.reply("Please mention a player to play against! Example: `=tictactoe @user`");
-    }
-
-    if (opponent.id === message.author.id) {
-      return message.reply("You cannot play against yourself.");
-    }
-
-    if (opponent.bot && opponent.id !== client.user.id) {
-      return message.reply("You can only play against real users or me.");
-    }
+  description: "Play a game of Tic-Tac-Toe against the AI.",
+  execute: async (ctx, _args, client) => {
+    const isInteraction = typeof ctx?.isChatInputCommand === "function";
+    const player = isInteraction ? ctx.user : ctx?.author;
+    if (!player) return;
 
     const board = Array(9).fill(null);
-    const player1 = message.author;
-    const player2 = opponent;
-    let currentPlayer = player1;
+    let gameActive = true;
+    let statusText = "Your turn (X).";
 
-    const getCellLabel = index => {
-      if (board[index] === "X") return "X";
-      if (board[index] === "O") return "O";
-      return `${index + 1}`;
-    };
-
-    const boardText = () => `${getCellLabel(0)} ${getCellLabel(1)} ${getCellLabel(2)}\n${getCellLabel(3)} ${getCellLabel(4)} ${getCellLabel(5)}\n${getCellLabel(6)} ${getCellLabel(7)} ${getCellLabel(8)}`;
+    const winLines = [
+      [0, 1, 2],
+      [3, 4, 5],
+      [6, 7, 8],
+      [0, 3, 6],
+      [1, 4, 7],
+      [2, 5, 8],
+      [0, 4, 8],
+      [2, 4, 6]
+    ];
 
     const checkWinner = () => {
-      const lines = [
-        [0, 1, 2],
-        [3, 4, 5],
-        [6, 7, 8],
-        [0, 3, 6],
-        [1, 4, 7],
-        [2, 5, 8],
-        [0, 4, 8],
-        [2, 4, 6]
-      ];
-
-      for (const [a, b, c] of lines) {
-        if (board[a] && board[a] === board[b] && board[a] === board[c]) {
-          return board[a];
-        }
+      for (const [a, b, c] of winLines) {
+        if (board[a] && board[a] === board[b] && board[a] === board[c]) return board[a];
       }
       return null;
     };
 
-    const isBoardFull = () => board.every(cell => cell !== null);
+    const isBoardFull = () => board.every((cell) => cell !== null);
 
-    const createGameEmbed = () => new EmbedBuilder()
-      .setColor(client.embedColor || "#00ff00")
-      .setTitle("Tic Tac Toe")
-      .setDescription(boardText())
-      .addFields(
-        { name: "Player 1 (X)", value: player1.username, inline: true },
-        { name: "Player 2 (O)", value: player2.username, inline: true },
-        { name: "Current Turn", value: currentPlayer.username, inline: false }
-      )
-const createGameButtons = () => {
+    const pickAiMove = () => {
+      const open = board.map((cell, idx) => (cell === null ? idx : -1)).filter((idx) => idx >= 0);
+      if (open.length === 0) return null;
+
+      for (const idx of open) {
+        board[idx] = "O";
+        if (checkWinner() === "O") {
+          board[idx] = null;
+          return idx;
+        }
+        board[idx] = null;
+      }
+
+      for (const idx of open) {
+        board[idx] = "X";
+        if (checkWinner() === "X") {
+          board[idx] = null;
+          return idx;
+        }
+        board[idx] = null;
+      }
+
+      if (board[4] === null) return 4;
+      const corners = [0, 2, 6, 8].filter((idx) => board[idx] === null);
+      if (corners.length) return corners[Math.floor(Math.random() * corners.length)];
+      return open[Math.floor(Math.random() * open.length)];
+    };
+
+    const buildEmbed = () => {
+      const boardText = board
+        .map((cell, idx) => {
+          if (cell === "X") return "X";
+          if (cell === "O") return "O";
+          return String(idx + 1);
+        })
+        .reduce((acc, cell, idx) => `${acc}${cell}${(idx + 1) % 3 === 0 ? "\n" : " | "}`, "");
+
+      return new EmbedBuilder()
+        .setColor(client?.embedColor || "#ff0051")
+        .setTitle("Tic-Tac-Toe")
+        .setDescription(`\`\`\`\n${boardText}\`\`\``)
+        .addFields(
+          { name: "Status", value: statusText, inline: false },
+          { name: "Players", value: `X: ${player.username}\nO: AI`, inline: false }
+        );
+    };
+
+    const buildButtons = (disabled = false) => {
       const rows = [];
-      for (let i = 0; i < 3; i++) {
-        const row = new ActionRowBuilder();
-        for (let j = 0; j < 3; j++) {
-          const index = i * 3 + j;
-          row.addComponents(
+      for (let row = 0; row < 3; row++) {
+        const actionRow = new ActionRowBuilder();
+        for (let col = 0; col < 3; col++) {
+          const idx = row * 3 + col;
+          actionRow.addComponents(
             new ButtonBuilder()
-              .setCustomId(`ttt_${index}`)
-              .setLabel(getCellLabel(index))
-              .setStyle(board[index] ? ButtonStyle.Secondary : ButtonStyle.Primary)
-              .setDisabled(board[index] !== null)
+              .setCustomId(`ttt_${idx}`)
+              .setLabel(board[idx] || String(idx + 1))
+              .setStyle(
+                board[idx] === "X"
+                  ? ButtonStyle.Danger
+                  : board[idx] === "O"
+                    ? ButtonStyle.Primary
+                    : ButtonStyle.Secondary
+              )
+              .setDisabled(disabled || !gameActive || board[idx] !== null)
           );
         }
-        rows.push(row);
+        rows.push(actionRow);
       }
       return rows;
     };
 
-    const gameMsg = await message.channel.send({
-      embeds: [createGameEmbed()],
-      components: createGameButtons()
-    });
+    const messagePayload = {
+      embeds: [buildEmbed()],
+      components: buildButtons(),
+      fetchReply: true
+    };
 
-    const collector = gameMsg.createMessageComponentCollector({
-      filter: i => i.customId.startsWith("ttt_"),
-      time: 60000
-    });
+    let gameMessage = null;
+    if (isInteraction) {
+      const deferred = await safeDeferReply(ctx, { ephemeral: false });
+      if (!deferred) {
+        await safeReply(ctx, { content: "Could not start Tic-Tac-Toe right now." });
+        return;
+      }
+      gameMessage = await safeReply(ctx, messagePayload);
+    } else if (ctx?.channel?.send) {
+      gameMessage = await ctx.channel.send({
+        embeds: messagePayload.embeds,
+        components: messagePayload.components
+      });
+    }
 
-    collector.on("collect", async interaction => {
-      if (interaction.user.id !== player1.id && interaction.user.id !== player2.id) {
-        await interaction.reply({ content: "You are not part of this game.", ephemeral: true }).catch(() => {});
+    if (!gameMessage || typeof gameMessage.createMessageComponentCollector !== "function") {
+      if (isInteraction) await safeReply(ctx, { content: "Could not create the game board." });
+      return;
+    }
+
+    const collector = gameMessage.createMessageComponentCollector({ time: 180000 });
+
+    collector.on("collect", async (buttonInteraction) => {
+      if (buttonInteraction.user.id !== player.id) {
+        await safeReply(buttonInteraction, { content: "This is not your game.", ephemeral: true });
         return;
       }
 
-      if (interaction.user.id !== currentPlayer.id) {
-        await interaction.reply({ content: `It is ${currentPlayer.username}'s turn.`, ephemeral: true }).catch(() => {});
+      const idx = Number.parseInt(buttonInteraction.customId.split("_")[1], 10);
+      if (!Number.isInteger(idx) || idx < 0 || idx > 8 || board[idx] !== null || !gameActive) {
+        await buttonInteraction.deferUpdate().catch(() => {});
         return;
       }
 
-      const index = Number.parseInt(interaction.customId.split("_")[1], 10);
-      if (Number.isNaN(index) || index < 0 || index > 8) {
-        await interaction.reply({ content: "Invalid move.", ephemeral: true }).catch(() => {});
-        return;
-      }
-
-      if (board[index] !== null) {
-        await interaction.reply({ content: "That cell is already taken.", ephemeral: true }).catch(() => {});
-        return;
-      }
-
-      board[index] = currentPlayer.id === player1.id ? "X" : "O";
-      const winner = checkWinner();
-
-      if (winner) {
-        const winnerUser = winner === "X" ? player1 : player2;
-        const winEmbed = new EmbedBuilder()
-          .setColor("#00ff00")
-          .setTitle("Game Over")
-          .setDescription(`${winnerUser.username} wins.`)
-          .addFields({ name: "Final Board", value: boardText() });
-
-        await interaction.update({ embeds: [winEmbed], components: [] }).catch(() => {});
-        collector.stop("completed");
+      board[idx] = "X";
+      let winner = checkWinner();
+      if (winner === "X") {
+        gameActive = false;
+        statusText = "You win.";
+        await buttonInteraction.update({ embeds: [buildEmbed()], components: buildButtons(true) }).catch(() => {});
+        collector.stop("player_win");
         return;
       }
 
       if (isBoardFull()) {
-        const drawEmbed = new EmbedBuilder()
-          .setColor("#ffff00")
-          .setTitle("Game Over")
-          .setDescription("It is a draw.")
-          .addFields({ name: "Final Board", value: boardText() });
-
-        await interaction.update({ embeds: [drawEmbed], components: [] }).catch(() => {});
-        collector.stop("completed");
+        gameActive = false;
+        statusText = "Draw.";
+        await buttonInteraction.update({ embeds: [buildEmbed()], components: buildButtons(true) }).catch(() => {});
+        collector.stop("draw");
         return;
       }
 
-      currentPlayer = currentPlayer.id === player1.id ? player2 : player1;
-      await interaction.update({ embeds: [createGameEmbed()], components: createGameButtons() }).catch(() => {});
+      const aiMove = pickAiMove();
+      if (aiMove !== null) board[aiMove] = "O";
+
+      winner = checkWinner();
+      if (winner === "O") {
+        gameActive = false;
+        statusText = "AI wins.";
+        await buttonInteraction.update({ embeds: [buildEmbed()], components: buildButtons(true) }).catch(() => {});
+        collector.stop("ai_win");
+        return;
+      }
+
+      if (isBoardFull()) {
+        gameActive = false;
+        statusText = "Draw.";
+        await buttonInteraction.update({ embeds: [buildEmbed()], components: buildButtons(true) }).catch(() => {});
+        collector.stop("draw");
+        return;
+      }
+
+      statusText = "Your turn (X).";
+      await buttonInteraction.update({ embeds: [buildEmbed()], components: buildButtons() }).catch(() => {});
     });
 
     collector.on("end", async (_collected, reason) => {
-      if (reason === "time") {
-        await gameMsg.edit({ content: "Game ended due to inactivity.", components: [] }).catch(() => {});
+      if (gameActive && reason === "time") {
+        statusText = "Game timed out.";
       }
+      await gameMessage
+        .edit({
+          embeds: [buildEmbed()],
+          components: buildButtons(true)
+        })
+        .catch(() => {});
     });
   }
 };

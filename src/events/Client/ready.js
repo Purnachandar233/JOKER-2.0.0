@@ -18,6 +18,10 @@ const LAVALINK_RETRY_TIMESPAN_MS = toPositiveNumber(process.env.LAVALINK_RETRY_T
 const LAVALINK_HEARTBEAT_MS = toPositiveNumber(process.env.LAVALINK_HEARTBEAT_MS, 30000);
 const LAVALINK_VOICE_BRIDGE_TIMEOUT_MS = toPositiveNumber(process.env.LAVALINK_VOICE_BRIDGE_TIMEOUT_MS, 15000);
 const QUEUE_END_IDLE_LEAVE_MS = toPositiveNumber(process.env.QUEUE_END_IDLE_LEAVE_MS, 2 * 60 * 1000);
+const LAVALINK_POSITION_UPDATE_INTERVAL_MS = toPositiveNumber(
+  process.env.LAVALINK_POSITION_UPDATE_INTERVAL_MS,
+  250
+);
 const LAVALINK_EMPTY_QUEUE_DESTROY_MS = toPositiveNumber(
   process.env.LAVALINK_EMPTY_QUEUE_DESTROY_MS,
   Math.max(QUEUE_END_IDLE_LEAVE_MS + 60_000, 5 * 60 * 1000)
@@ -50,6 +54,7 @@ function toBoolean(value, fallback = false) {
 }
 
 const LAVALINK_LOG_NO_AUDIO_DEBUG = toBoolean(process.env.LAVALINK_NO_AUDIO_DEBUG, false);
+const LAVALINK_DEBUG_EVENTS = toBoolean(process.env.LAVALINK_DEBUG_EVENTS, false);
 
 function log(client, message, level = "info") {
   const line = oneLine(message);
@@ -355,7 +360,7 @@ async function setupLavalink(client) {
     autoSkip: true,
     playerOptions: {
       applyVolumeAsFilter: false,
-      clientBasedPositionUpdateInterval: 150,
+      clientBasedPositionUpdateInterval: LAVALINK_POSITION_UPDATE_INTERVAL_MS,
       useUnresolvedData: true,
       onDisconnect: {
         autoReconnect: true,
@@ -368,7 +373,7 @@ async function setupLavalink(client) {
       },
     },
     advancedOptions: {
-      enableDebugEvents: true,
+      enableDebugEvents: LAVALINK_DEBUG_EVENTS,
       debugOptions: {
         noAudio: false,
         playerDestroy: {
@@ -543,9 +548,12 @@ module.exports = async (client) => {
 
   await setupLavalink(client);
 
-  setTimeout(() => {
+  const restoreTimer = setTimeout(() => {
     restore247Players(client).catch((error) => {
       log(client, `24/7 restore loop error: ${error?.message || error}`, "error");
     });
   }, 2000);
+  if (typeof restoreTimer.unref === "function") {
+    restoreTimer.unref();
+  }
 };

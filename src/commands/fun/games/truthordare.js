@@ -1,11 +1,31 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
+const { safeReply } = require("../../../utils/interactionResponder");
+
+function isInteraction(ctx) {
+  return Boolean(ctx && typeof ctx.deferReply === "function" && typeof ctx.editReply === "function");
+}
+
+function getAuthor(ctx) {
+  return ctx?.author || ctx?.user || null;
+}
+
+async function sendResponse(ctx, payload) {
+  if (isInteraction(ctx)) {
+    const normalized = typeof payload === "string" ? { content: payload } : payload;
+    return safeReply(ctx, normalized);
+  }
+  return ctx.channel.send(payload);
+}
 
 module.exports = {
   name: "truthordare",
   category: "fun",
   aliases: ["tod"],
   description: "Play a game of Truth or Dare!",
-  execute: async (message, args, client, prefix) => {
+  execute: async (ctx, args, client) => {
+    const author = getAuthor(ctx);
+    if (!author) return sendResponse(ctx, "Unable to resolve command user.");
+
     const truths = [
       "What is your biggest fear?",
       "What is the most embarrassing thing you've ever done?",
@@ -37,56 +57,46 @@ module.exports = {
     ];
 
     const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId('tod_truth')
-        .setLabel('Truth')
-        .setEmoji('🎤')
-        .setStyle(ButtonStyle.Primary),
-      new ButtonBuilder()
-        .setCustomId('tod_dare')
-        .setLabel('Dare')
-        .setEmoji('🎯')
-        .setStyle(ButtonStyle.Danger)
+      new ButtonBuilder().setCustomId("tod_truth").setLabel("Truth").setEmoji("🎤").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId("tod_dare").setLabel("Dare").setEmoji("🎯").setStyle(ButtonStyle.Danger)
     );
 
     const startEmbed = new EmbedBuilder()
       .setTitle("🎭 Truth or Dare")
       .setDescription("Choose your challenge!")
-      .setColor(client.embedColor || '#e74c3c')
-const msg = await message.channel.send({ embeds: [startEmbed], components: [row] });
+      .setColor(client.embedColor || "#e74c3c");
 
-    const filter = (i) => i.customId.startsWith('tod_');
+    const msg = await sendResponse(ctx, { embeds: [startEmbed], components: [row] });
+    if (!msg) return null;
+
+    const filter = (i) => i.customId.startsWith("tod_");
     const collector = msg.createMessageComponentCollector({ filter, time: 20000, max: 1 });
 
-    collector.on('collect', async (interaction) => {
-      if (interaction.user.id !== message.author.id) {
-        await interaction.reply({ content: `Only <@${message.author.id}> can use these buttons.`, ephemeral: true }).catch(() => {});
+    collector.on("collect", async (interaction) => {
+      if (interaction.user.id !== author.id) {
+        await safeReply(interaction, { content: `Only <@${author.id}> can use these buttons.`, ephemeral: true });
         return;
       }
 
-      const choice = interaction.customId.split('_')[1];
-      let content = '';
-      let emoji = '';
-
-      if (choice === 'truth') {
-        content = truths[Math.floor(Math.random() * truths.length)];
-        emoji = '🎤';
-      } else {
-        content = dares[Math.floor(Math.random() * dares.length)];
-        emoji = '🎯';
-      }
+      const choice = interaction.customId.split("_")[1];
+      const isTruth = choice === "truth";
+      const content = isTruth ? truths[Math.floor(Math.random() * truths.length)] : dares[Math.floor(Math.random() * dares.length)];
+      const emoji = isTruth ? "🎤" : "🎯";
 
       const embed = new EmbedBuilder()
         .setTitle(`${emoji} ${choice.charAt(0).toUpperCase() + choice.slice(1)}`)
         .setDescription(content)
-        .setColor(choice === 'truth' ? '#3498db' : '#e74c3c')
-await interaction.update({ embeds: [embed], components: [] });
+        .setColor(isTruth ? "#3498db" : "#e74c3c");
+
+      await interaction.update({ embeds: [embed], components: [] }).catch(() => {});
     });
 
-    collector.on('end', (collected) => {
+    collector.on("end", (collected) => {
       if (collected.size === 0) {
-        msg.edit({ content: 'Game cancelled due to inactivity.', components: [] }).catch(() => {});
+        msg.edit({ content: "Game cancelled due to inactivity.", components: [] }).catch(() => {});
       }
     });
+
+    return null;
   }
 };

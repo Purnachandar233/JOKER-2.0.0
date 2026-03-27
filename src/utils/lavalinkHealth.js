@@ -1,11 +1,10 @@
 const formatDuration = require("./formatDuration");
-const {
-  formatDurationLabel,
-  getQueueArray,
-  getQueueTiming,
-  getRequesterInfo,
-  getTrackUrl,
-} = require("./queue");
+
+function formatDurationLabel(milliseconds) {
+  const raw = Number(milliseconds);
+  if (!Number.isFinite(raw) || raw <= 0) return "0s";
+  return formatDuration(raw, { verbose: false, unitCount: 3 });
+}
 
 function getNodeLabel(node) {
   return String(
@@ -126,6 +125,20 @@ function buildManagerSummary(client) {
 function buildGuildPlayerSummary(client, guildId) {
   const player = client?.lavalink?.players?.get?.(guildId);
   if (!player) return null;
+
+  const queueTools = client?.core?.queue || {};
+  const getQueueArray = typeof queueTools.getQueueArray === "function"
+    ? queueTools.getQueueArray
+    : (() => []);
+  const getQueueTiming = typeof queueTools.getQueueTiming === "function"
+    ? queueTools.getQueueTiming
+    : (() => ({ hasLive: false, remainingKnownMs: 0, finishAt: null }));
+  const getRequesterInfo = typeof queueTools.getRequesterInfo === "function"
+    ? queueTools.getRequesterInfo
+    : (() => ({ label: "Unknown" }));
+  const getTrackUrl = typeof queueTools.getTrackUrl === "function"
+    ? queueTools.getTrackUrl
+    : (() => null);
 
   const queue = getQueueArray(player);
   const current = queue[0] || null;

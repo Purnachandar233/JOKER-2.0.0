@@ -54,7 +54,7 @@ module.exports = async (client, player, oldChannel, newChannel) => {
 
     const movedEmbed = new EmbedBuilder()
       .setColor(client?.embedColor || "#ff0051")
-      .setTitle("Player Moved")
+      .setAuthor({ name: "Player Moved!", iconURL: client.user?.displayAvatarURL?.({ forceStatic: false }) || null })
       .setDescription(`I have been moved from <#${oldChannel.id}> to <#${newChannel.id}>.`);
 
     const notice = await channel.send({ embeds: [movedEmbed] }).catch(() => {});

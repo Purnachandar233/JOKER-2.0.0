@@ -42,7 +42,7 @@ module.exports = {
        return await interaction.editReply({embeds: [thing]});
      }
         const player = client.lavalink.players.get(interaction.guild.id);
-      const { getQueueArray } = require('../../utils/queue.js');
+      const { getQueueArray } = client.core.queue;
       const tracks = getQueueArray(player);
       if(!player || !tracks || tracks.length === 0) {
                     const noperms = new EmbedBuilder()
@@ -57,11 +57,9 @@ module.exports = {
         return await interaction.editReply({embeds: [noperms]});
     }
         //
-
-        const settings = require('../../utils/settings');
-        const filted = await settings.getFilter(interaction.guild.id, 'slowmo');
+        const filted = await client.core.filterSettings.getFilter(interaction.guild.id, 'slowmo');
 if(!filted) {
-  await settings.setFilter(interaction.guild.id, 'slowmo', true);
+  await client.core.filterSettings.setFilter(interaction.guild.id, 'slowmo', true);
   player.node.send({
     op: "filters",
     guildId: interaction.guild.id,
@@ -100,7 +98,7 @@ if(!filted) {
           }, 30000)
       });;
         }else{
-          await settings.setFilter(interaction.guild.id, 'slowmo', false);
+          await client.core.filterSettings.setFilter(interaction.guild.id, 'slowmo', false);
           player.clearEQ();
           player.node.send({
             op: "filters",
@@ -139,4 +137,6 @@ if(!filted) {
 
     }
   }
+
+
 

@@ -1,12 +1,19 @@
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require("discord.js");
 const { convertTime } = require("../../utils/convert.js");
-const { getRequesterInfo, getTrackThumbnail } = require("../../utils/queue");
 const EMOJIS = require("../../utils/emoji.json");
 
 const EMBED_COLOR = "#ff0051";
 
 module.exports = async (client, player, track) => {
   try {
+    const queueTools = client?.core?.queue || {};
+    const getRequesterInfo = typeof queueTools.getRequesterInfo === "function"
+      ? queueTools.getRequesterInfo
+      : (() => ({ mention: null, tag: "Unknown" }));
+    const getTrackThumbnail = typeof queueTools.getTrackThumbnail === "function"
+      ? queueTools.getTrackThumbnail
+      : (() => null);
+
     try {
       const idleLeaveTimer = client.__queueEndLeaveTimers?.get?.(player.guildId);
       if (idleLeaveTimer) {
@@ -43,7 +50,6 @@ module.exports = async (client, player, track) => {
     const isStream = track?.info?.isStream || track?.isStream || false;
 
     const oldMsg = typeof player.get === "function" ? player.get("playingsongmsg") : null;
-    if (oldMsg) await oldMsg.delete().catch(() => {});
 
     const prevBtn = new ButtonBuilder()
       .setCustomId("music_prevtrack")
@@ -102,10 +108,19 @@ module.exports = async (client, player, track) => {
       );
       
 
-    const msg = await channel.send({ embeds: [embed], components: [primaryRow, secondaryRow] }).catch(async (error) => {
-      client.logger?.log(`Failed to send track start embed in guild ${player.guildId}: ${error.message}`, "error");
-      return channel.send(`${EMOJIS.music || "[M]"} Now Playing: ${title}`).catch(() => null);
-    });
+    let msg = null;
+    const oldMessageChannelId = oldMsg?.channelId || oldMsg?.channel?.id || null;
+
+    if (oldMsg && typeof oldMsg.edit === "function" && (!oldMessageChannelId || oldMessageChannelId === channel.id)) {
+      msg = await oldMsg.edit({ embeds: [embed], components: [primaryRow, secondaryRow] }).catch(() => null);
+    }
+
+    if (!msg) {
+      msg = await channel.send({ embeds: [embed], components: [primaryRow, secondaryRow] }).catch(async (error) => {
+        client.logger?.log(`Failed to send track start embed in guild ${player.guildId}: ${error.message}`, "error");
+        return channel.send(`${EMOJIS.music || "[M]"} Now Playing: ${title}`).catch(() => null);
+      });
+    }
 
     if (!msg) {
       client.logger?.log(`Track start message failed to send in guild ${player.guildId}`, "error");

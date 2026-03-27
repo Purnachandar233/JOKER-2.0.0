@@ -1,148 +1,115 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
+const { ContainerBuilder, TextDisplayBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, MessageFlags } = require("discord.js");
+const { safeReply } = require("../../../utils/interactionResponder");
+
+function isInteraction(ctx) {
+  return Boolean(ctx && typeof ctx.deferReply === "function" && typeof ctx.editReply === "function");
+}
+
+function getAuthor(ctx) {
+  return ctx?.author || ctx?.user || null;
+}
+
+async function sendResponse(ctx, payload) {
+  const normalized = typeof payload === "string" ? { content: payload } : { ...(payload || {}) };
+  const usesComponentsV2 = Array.isArray(normalized.components) && normalized.components.some((component) => {
+    const type = component?.data?.type || component?.toJSON?.().type || null;
+    return type !== 1;
+  });
+
+  if (usesComponentsV2 && normalized.flags == null) {
+    normalized.flags = MessageFlags.IsComponentsV2;
+  }
+
+  if (isInteraction(ctx)) {
+    return safeReply(ctx, normalized);
+  }
+  return ctx.channel.send(normalized);
+}
+
+function withActionRows(container, ...rows) {
+  for (const row of rows.flat().filter(Boolean)) {
+    container.addActionRowComponents(row);
+  }
+  return container;
+}
 
 module.exports = {
-    name: "highererlower",
-    category: "fun",
-    aliases: ["hol"],
-    description: "Play Higher or Lower with another player!",
-    execute: async (message, args, client, prefix) => {
-        const opponent = message.mentions.users.first();
+  name: "highererlower",
+  category: "fun",
+  aliases: ["hol"],
+  description: "Guess if the next number is higher or lower!",
+  execute: async (ctx) => {
+    const author = getAuthor(ctx);
+    if (!author) return sendResponse(ctx, "Unable to resolve command user.");
 
-        if (!opponent) {
-            return message.reply("Please mention a player to play against! Example: `=highererlower @user`");
+    let currentNum = Math.floor(Math.random() * 100) + 1;
+    let score = 0;
+    let gameActive = true;
+
+    const getNextNum = () => Math.floor(Math.random() * 100) + 1;
+
+    const createGamePanel = (status = "Make your guess!") => {
+      const container = new ContainerBuilder().setAccentColor(0x3498db);
+      container.addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(`## 🎯 Higher or Lower\nScore: **${score}**`),
+        new TextDisplayBuilder().setContent(`Current Number: **${currentNum}**\n\nWill the next number be higher or lower?`),
+        new TextDisplayBuilder().setContent(status)
+      );
+      return container;
+    };
+
+    const createChoiceButtons = () => new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId("hol_higher").setLabel("Higher").setEmoji("📈").setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId("hol_lower").setLabel("Lower").setEmoji("📉").setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId("hol_quit").setLabel("Quit").setEmoji("❌").setStyle(ButtonStyle.Secondary)
+    );
+
+    const gameMsg = await sendResponse(ctx, { components: [withActionRows(createGamePanel(), createChoiceButtons())] });
+    if (!gameMsg) return null;
+
+    const playRound = () => new Promise((resolve) => {
+      const filter = (i) => i.customId.startsWith("hol_") && i.user.id === author.id;
+      const collector = gameMsg.createMessageComponentCollector({ filter, time: 30000, max: 1 });
+
+      collector.on("collect", async (interaction) => {
+        const choice = interaction.customId.split("_")[1];
+
+        if (choice === "quit") {
+          gameActive = false;
+          const endContainer = new ContainerBuilder().setAccentColor(0x95a5a6);
+          endContainer.addTextDisplayComponents(new TextDisplayBuilder().setContent(`## Game Over\nFinal Score: **${score}**`));
+          await interaction.update({ components: [endContainer] }).catch(() => {});
+          resolve();
+          return;
         }
 
-        if (opponent.id === message.author.id) {
-            return message.reply("You can't play against yourself!");
+        const nextNum = getNextNum();
+        const isCorrect = (choice === "higher" && nextNum > currentNum) || (choice === "lower" && nextNum < currentNum);
+
+        if (isCorrect) {
+          score++;
+          currentNum = nextNum;
+          await interaction.update({
+            components: [withActionRows(createGamePanel(`✅ Correct! The number was **${nextNum}**!\nScore increased to **${score}**!`), createChoiceButtons())]
+          }).catch(() => {});
+        } else {
+          gameActive = false;
+          const endContainer = new ContainerBuilder().setAccentColor(0xe74c3c);
+          endContainer.addTextDisplayComponents(
+            new TextDisplayBuilder().setContent(`## Game Over\n❌ Wrong! The number was **${nextNum}**.\nFinal Score: **${score}**`)
+          );
+          await interaction.update({ components: [endContainer] }).catch(() => {});
         }
 
-        let currentCard = Math.floor(Math.random() * 13) + 1;
-        const cardNames = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
-        let player1Score = 0;
-        let player2Score = 0;
-        let currentPlayer = message.author;
-        let round = 1;
-        const maxRounds = 5;
+        resolve();
+      });
 
-        const getCardEmoji = (card) => {
-            const suits = ['♠️', '♥️', '♦️', '♣️'];
-            const suit = suits[Math.floor(Math.random() * suits.length)];
-            return `${cardNames[card - 1]}${suit}`;
-        };
+      collector.on("end", () => resolve());
+    });
 
-        const playRound = async () => {
-            const nextCard = Math.floor(Math.random() * 13) + 1;
-
-            return new Promise((resolve) => {
-                const createRoundEmbed = () => {
-                    return new EmbedBuilder()
-                        .setColor(client.embedColor || '#3498db')
-                        .setTitle("Higher or Lower")
-                        .setDescription(`Current Card: ${getCardEmoji(currentCard)}`)
-                        .addFields(
-                            { name: "Your Challenge", value: `Is the next card higher or lower?`, inline: false },
-                            { name: "Scores", value: `${message.author.username}: ${player1Score} | ${opponent.username}: ${player2Score}`, inline: false },
-                            { name: "Round", value: `${round}/${maxRounds}`, inline: false }
-                        )
-};
-
-                const roundMsg = message.channel.send({
-                    embeds: [createRoundEmbed()],
-                    components: [
-                        new ActionRowBuilder().addComponents(
-                            new ButtonBuilder()
-                                .setCustomId('hol_higher')
-                                .setLabel('⬆️ Higher')
-                                .setStyle(ButtonStyle.Primary),
-                            new ButtonBuilder()
-                                .setCustomId('hol_lower')
-                                .setLabel('⬇️ Lower')
-                                .setStyle(ButtonStyle.Danger),
-                            new ButtonBuilder()
-                                .setCustomId('hol_equal')
-                                .setLabel('= Equal')
-                                .setStyle(ButtonStyle.Secondary)
-                        )
-                    ]
-                }).then(msg => {
-                    const filter = (i) => i.customId.startsWith('hol_');
-                    const collector = msg.createMessageComponentCollector({ filter, time: 30000, max: 1 });
-
-                    collector.on('collect', async (interaction) => {
-                        if (interaction.user.id !== message.author.id && interaction.user.id !== opponent.id) {
-                            await interaction.reply({ content: "You are not part of this game.", ephemeral: true }).catch(() => {});
-                            return;
-                        }
-
-                        if (interaction.user.id !== currentPlayer.id) {
-                            await interaction.reply({ content: `It is ${currentPlayer.username}'s turn.`, ephemeral: true }).catch(() => {});
-                            return;
-                        }
-
-                        const guess = interaction.customId.split('_')[1];
-                        let correct = false;
-
-                        if (guess === 'higher' && nextCard > currentCard) correct = true;
-                        if (guess === 'lower' && nextCard < currentCard) correct = true;
-                        if (guess === 'equal' && nextCard === currentCard) correct = true;
-
-                        if (correct) {
-                            if (currentPlayer.id === message.author.id) {
-                                player1Score++;
-                            } else {
-                                player2Score++;
-                            }
-                        }
-
-                        const resultEmbed = new EmbedBuilder()
-                            .setColor(correct ? '#00ff00' : '#ff0000')
-                            .setTitle(correct ? "✅ Correct!" : "❌ Wrong!")
-                            .addFields(
-                                { name: "Your Card", value: getCardEmoji(currentCard), inline: true },
-                                { name: "Next Card", value: getCardEmoji(nextCard), inline: true },
-                                { name: "Your Guess", value: guess.charAt(0).toUpperCase() + guess.slice(1), inline: false },
-                                { name: "Scores", value: `${message.author.username}: ${player1Score} | ${opponent.username}: ${player2Score}`, inline: false }
-                            );
-
-                        interaction.update({ embeds: [resultEmbed], components: [] }).then(() => {
-                            currentCard = nextCard;
-                            currentPlayer = currentPlayer.id === message.author.id ? opponent : message.author;
-                            round++;
-                            resolve();
-                        });
-                    });
-
-                    collector.on('end', (collected) => {
-                        if (collected.size === 0) {
-                            msg.edit({ content: "Round skipped due to inactivity.", components: [] });
-                            currentPlayer = currentPlayer.id === message.author.id ? opponent : message.author;
-                            round++;
-                            resolve();
-                        }
-                    });
-                });
-            });
-        };
-
-        while (round <= maxRounds) {
-            await playRound();
-            if (round <= maxRounds) {
-                await new Promise(r => setTimeout(r, 2000));
-            }
-        }
-
-        const winner = player1Score > player2Score ? message.author.username :
-                       player2Score > player1Score ? opponent.username :
-                       "Tie!";
-
-        const finalEmbed = new EmbedBuilder()
-            .setColor('#FFD700')
-            .setTitle("🏆 Game Over!")
-            .setDescription(`Winner: **${winner}**`)
-            .addFields(
-                { name: "Final Scores", value: `${message.author.username}: ${player1Score}\n${opponent.username}: ${player2Score}`, inline: false }
-            );
-
-        message.channel.send({ embeds: [finalEmbed] });
+    while (gameActive) {
+      await playRound();
     }
+    return null;
+  }
 };

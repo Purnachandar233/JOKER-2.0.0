@@ -101,21 +101,29 @@ try {
       return true;
     };
     try {
-
-        res = await player.search({
-          query: search,
-        }, interaction.member);
-
-
-      if (res.loadType === "LOAD_FAILED") throw res.exception;
-      else if (res.loadType === "PLAYLIST_LOADED") throw {
-        message: "${no} Playlists are not supported with this command."
-      };
+      res = await player.search({
+        query: search,
+      }, interaction.member);
     } catch (e) {
       try { client.logger?.log(e.stack || e.toString(), 'error'); } catch (err) { console.log(e); }
-
+      return await interaction.editReply({embeds : [new EmbedBuilder()
+        .setColor(interaction.client?.embedColor || '#ff0051')
+        .setDescription(`${no} Failed to load that query right now.`)]});
     }
-    if (!res.tracks[0])
+
+    if (res?.loadType === "LOAD_FAILED") {
+      return await interaction.editReply({embeds : [new EmbedBuilder()
+        .setColor(interaction.client?.embedColor || '#ff0051')
+        .setDescription(`${no} ${res?.exception?.message || "Failed to load track."}`)]});
+    }
+
+    if (res?.loadType === "PLAYLIST_LOADED") {
+      return await interaction.editReply({embeds : [new EmbedBuilder()
+        .setColor(interaction.client?.embedColor || '#ff0051')
+        .setDescription(`${no} Playlists are not supported with this command.`)]});
+    }
+
+    if (!res?.tracks?.[0])
     return await interaction.editReply({embeds : [new EmbedBuilder()
         .setColor(interaction.client?.embedColor || '#ff0051')
       .setDescription(`${no} No results found.`)]})

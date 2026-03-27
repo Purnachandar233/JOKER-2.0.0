@@ -1,13 +1,18 @@
 {
   "token": "PLACEHOLDER_USE_TOKEN_ENV_VAR",
   "mongourl": "PLACEHOLDER_USE_MONGODB_URL_ENV_VAR",
-  "ownerId": "721629553134403591",
+  "ownerId": "",
   "embedColor": "#ff0051",
   "prefix": "=",
+  "websiteUrl": "https://jokerbot.com",
+  "privacyPolicyUrl": "https://purnachandar233.github.io/jokerbot/privacy.html",
+  "termsOfServiceUrl": "https://purnachandar233.github.io/jokerbot/terms.html",
+  "privacyContactEmail": "privacy@jokerbot.com",
+  "supportServerUrl": "https://discord.gg/JQzBqgmwFm",
   "webhooks": {
-    "guildLogs": "PLACEHOLDER_USE_GUILD_WEBHOOK_URL_ENV_VAR",
-    "ownerCmds": "PLACEHOLDER_USE_OWNER_CMDS_ENV_VAR",
-    "errorLogs": "PLACEHOLDER_USE_ERROR_WEBHOOK_URL_ENV_VAR"
+    "guildLogs": "",
+    "ownerCmds": "",
+    "errorLogs": ""
   },
   "nodes":  [
       {

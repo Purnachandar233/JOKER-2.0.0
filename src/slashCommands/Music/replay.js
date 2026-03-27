@@ -1,6 +1,5 @@
 const { CommandInteraction, Client, EmbedBuilder } = require("discord.js");
 const safeReply = require('../../utils/interactionResponder');
-const musicChecks = require('../../utils/musicChecks');
 
 const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
@@ -35,7 +34,7 @@ module.exports = {
         }
 
         // Run music checks
-        const check = await musicChecks.runMusicChecks(client, interaction, {
+        const check = await client.runMusicChecks(interaction, {
           inVoiceChannel: true,
           botInVoiceChannel: true,
           sameChannel: true,
@@ -77,3 +76,4 @@ module.exports = {
       });
     }
 };
+

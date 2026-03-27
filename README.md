@@ -73,3 +73,20 @@ Default settings in `config.json`:
 
 ## Running the Bot
 The bot runs as a console application using `npm start`. Configure your Discord bot token in secrets before starting.
+
+## Verification Readiness
+
+Before applying for Discord verification, ensure these are set and publicly reachable:
+- Privacy Policy URL: `privacyPolicyUrl` in `config.json` (or `PRIVACY_POLICY_URL` env).
+- Terms of Service URL: `termsOfServiceUrl` in `config.json` (or `TERMS_OF_SERVICE_URL` env).
+- Support Server URL: `supportServerUrl` in `config.json` (or `SUPPORT_SERVER_URL` env).
+
+User legal commands implemented in the bot:
+- `/privacy`, `/terms`
+
+Prefix equivalents are also available:
+- `privacy`, `terms`
+
+Data access/deletion requests are handled through:
+- Support server: `supportServerUrl` (or `SUPPORT_SERVER_URL`)
+- Privacy email: `privacy@jokerbot.com`

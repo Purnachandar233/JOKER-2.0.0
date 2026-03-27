@@ -18,7 +18,7 @@ async function setFilter(guildId, name, value) {
     const doc = await GuildFilters.findOneAndUpdate(
       { guildId },
       { $set: update },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: 'after' }
     );
     return doc;
   } catch (e) {

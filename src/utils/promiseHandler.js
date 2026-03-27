@@ -81,16 +81,28 @@ function withTimeout(promise, timeoutMs = 5000, message = 'Operation timeout') {
     return Promise.reject(new Error('Invalid promise'));
   }
 
-  return Promise.race([
-    promise,
-    new Promise((_, reject) =>
-      setTimeout(() => {
-        const err = new Error(message);
-        err.code = 'TIMEOUT';
-        reject(err);
-      }, timeoutMs)
-    )
-  ]);
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      const err = new Error(message);
+      err.code = 'TIMEOUT';
+      reject(err);
+    }, timeoutMs);
+
+    if (typeof timer.unref === 'function') {
+      timer.unref();
+    }
+
+    Promise.resolve(promise).then(
+      value => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      error => {
+        clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
 }
 
 module.exports = {

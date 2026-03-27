@@ -2,6 +2,8 @@ const Premium = require("../schema/Premium");
 const TOPGG_VOTE_WINDOW_MS = 12 * 60 * 60 * 1000;
 const parsedCacheMs = Number(process.env.TOPGG_FALLBACK_CACHE_MS || 60000);
 const TOPGG_FALLBACK_CACHE_MS = Number.isFinite(parsedCacheMs) && parsedCacheMs > 0 ? parsedCacheMs : 60000;
+const parsedCacheMax = Number(process.env.TOPGG_FALLBACK_CACHE_MAX || 5000);
+const TOPGG_FALLBACK_CACHE_MAX = Number.isFinite(parsedCacheMax) && parsedCacheMax > 0 ? parsedCacheMax : 5000;
 const topggVoteCache = new Map();
 
 function toNumber(value, fallback = 0) {
@@ -45,7 +47,29 @@ function getCachedVoteState(userId, now = Date.now()) {
   return cached.voted;
 }
 
+function pruneVoteCache(now = Date.now()) {
+  if (topggVoteCache.size < TOPGG_FALLBACK_CACHE_MAX) return;
+
+  for (const [key, value] of topggVoteCache.entries()) {
+    if (!value || (now - Number(value.checkedAt || 0)) > TOPGG_FALLBACK_CACHE_MS) {
+      topggVoteCache.delete(key);
+    }
+    if (topggVoteCache.size < TOPGG_FALLBACK_CACHE_MAX) break;
+  }
+
+  if (topggVoteCache.size < TOPGG_FALLBACK_CACHE_MAX) return;
+
+  const overflow = topggVoteCache.size - TOPGG_FALLBACK_CACHE_MAX + 1;
+  let removed = 0;
+  for (const key of topggVoteCache.keys()) {
+    topggVoteCache.delete(key);
+    removed += 1;
+    if (removed >= overflow) break;
+  }
+}
+
 function setCachedVoteState(userId, voted, now = Date.now()) {
+  pruneVoteCache(now);
   topggVoteCache.set(String(userId), { voted: Boolean(voted), checkedAt: now });
 }
 

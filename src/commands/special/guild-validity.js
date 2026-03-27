@@ -1,37 +1,55 @@
 const { EmbedBuilder } = require("discord.js");
-
 const Premium = require("../../schema/Premium.js");
 const formatDuration = require("../../utils/formatDuration");
+const { safeReply } = require("../../utils/interactionResponder");
 
 const EMOJIS = require("../../utils/emoji.json");
+
+function isInteraction(ctx) {
+  return Boolean(ctx && typeof ctx.deferReply === "function" && typeof ctx.editReply === "function");
+}
+
+async function sendResponse(ctx, payload) {
+  if (isInteraction(ctx)) {
+    const normalized = typeof payload === "string" ? { content: payload } : payload;
+    return safeReply(ctx, normalized);
+  }
+  return ctx.channel.send(payload);
+}
+
 module.exports = {
   name: "guild-validity",
   category: "special",
-  aliases: ["server-validity","gv"],
+  aliases: ["server-validity", "gv"],
   wl: true,
   description: "Shows server premium validity",
-  execute: async (message, args, client) => {
+  execute: async (ctx, args, client) => {
     const getEmoji = (key, fallback = "") => EMOJIS[key] || fallback;
     const embedColor = client?.embedColor || "#ff0051";
 
-    const id = args[0] || message.guild.id;
+    const guildId = ctx?.guild?.id;
+    const id = args?.[0] || guildId;
+    if (!id) {
+      return sendResponse(ctx, { content: "Server ID is required." });
+    }
+
     const premium = await Premium.findOne({ Id: id, Type: "guild" });
 
     if (!premium) {
       const embed = new EmbedBuilder()
         .setColor(embedColor)
         .setTitle(`${getEmoji("premium")} Premium Status`)
-        .setDescription("This server has no premium subscription.");
-      return message.channel.send({ embeds: [embed] });
+        .setDescription("This server has no premium access.");
+      return sendResponse(ctx, { embeds: [embed] });
     }
 
     if (!premium.Permanent && premium.Expire < Date.now()) {
-      await premium.deleteOne();
+      await premium.deleteOne().catch(() => {});
       const embed = new EmbedBuilder()
         .setColor(embedColor)
         .setTitle(`${getEmoji("error")} Premium Expired`)
-        .setDescription("The premium subscription has expired.");
-      return message.channel.send({ embeds: [embed] });
+        .setDescription("This premium access has expired.");
+      return sendResponse(ctx, { embeds: [embed] });
     }
 
     const validity = premium.Permanent
@@ -43,6 +61,6 @@ module.exports = {
       .setTitle(`${getEmoji("premium")} Server Premium Validity`)
       .setDescription(`Server: \`${id}\`\nValidity: \`${validity}\``);
 
-    return message.channel.send({ embeds: [embed] });
+    return sendResponse(ctx, { embeds: [embed] });
   }
 };

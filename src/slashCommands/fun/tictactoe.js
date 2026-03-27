@@ -1,54 +1,18 @@
-const { Client, CommandInteraction, EmbedBuilder } = require('discord.js');
 const legacy = require('../../commands/fun/games/tictactoe.js');
-const { safeReply, safeDeferReply } = require('../../utils/interactionResponder');
 
 module.exports = {
   name: 'tictactoe',
-  description: legacy.description || 'Play Tic Tac Toe with another player!',
-  options: [
-    {
-      name: 'opponent',
-      description: 'The user you want to play against',
-      type: 9,
-      required: true
-    }
-  ],
+  description: 'Play Tic-Tac-Toe against the bot AI.',
   run: async (client, interaction) => {
-    const deferred = await safeDeferReply(interaction, { ephemeral: false });
-    if (!deferred) return safeReply(interaction, { content: 'Failed to defer reply.' });
-
-    const replyFunc = async (payload) => {
-      try {
-        return await safeReply(interaction, typeof payload === 'string' ? { content: payload } : payload);
-      } catch (e) { return null; }
-    };
-
-    const message = {
-      member: interaction.member,
-      author: interaction.user,
-      guild: interaction.guild,
-      channel: {
-        send: (p) => replyFunc(typeof p === 'string' ? { content: p } : p),
-      },
-      reply: (p) => replyFunc(typeof p === 'string' ? { content: p } : p),
-      mentions: {
-        users: {
-          first: () => interaction.options.getUser('opponent')
-        }
-      }
-    };
-
-    try {
-      if (typeof legacy.execute === 'function') {
-        await legacy.execute(message, [], client, client.prefix);
-      } else if (typeof legacy.run === 'function') {
-        await legacy.run(client, interaction);
+    if (typeof legacy.execute !== 'function') {
+      if (!interaction.deferred && !interaction.replied) {
+        await interaction.reply({ content: 'TicTacToe command handler is unavailable.', ephemeral: true }).catch(() => {});
       } else {
-        await safeReply(interaction, { content: 'No executable legacy handler found.' }).catch(() => {});
+        await interaction.editReply({ content: 'TicTacToe command handler is unavailable.' }).catch(() => {});
       }
-    } catch (err) {
-      client.logger?.log('Converted slash tictactoe error: ' + (err && (err.stack || err.toString())), 'error');
-      await safeReply(interaction, { content: 'An error occurred running this command.' }).catch(() => {});
+      return;
     }
+
+    await legacy.execute(interaction, [], client);
   }
 };

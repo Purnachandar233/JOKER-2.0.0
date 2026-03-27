@@ -1,6 +1,5 @@
 const { EmbedBuilder, CommandInteraction, Client } = require("discord.js");
 const safeReply = require('../../utils/interactionResponder');
-const musicChecks = require('../../utils/musicChecks');
 
 const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
@@ -81,3 +80,4 @@ module.exports = {
     });
   }
 };
+

@@ -9,6 +9,11 @@ const { withTimeout } = require('../../utils/promiseHandler.js');
 // Common URL shorteners that may redirect to YouTube
 const URL_SHORTENERS = /bit\.ly|tinyurl\.com|ow\.ly|short\.link|youtu\.be|buff\.ly|tiny\.cc|goo\.gl|t\.co/i;
 const SEARCH_SOURCE_ORDER = ['spotify', 'soundcloud', 'applemusic', 'deezer', 'bandcamp'];
+const USER_SEARCH_SOURCE_ATTEMPTS = 3;
+const USER_SEARCH_TIMEOUT_MS = 5000;
+const USER_FALLBACK_SEARCH_TIMEOUT_MS = 4500;
+const SPOTIFY_DIRECT_LOAD_TIMEOUT_MS = 7000;
+const SPOTIFY_PLAYLIST_FALLBACK_TRACK_LIMIT = 12;
 
 function normalizeSourceName(source) {
   const value = String(source || '').trim().toLowerCase();
@@ -27,8 +32,21 @@ function uniqueSources(list) {
   return [...new Set((Array.isArray(list) ? list : [list]).map(normalizeSourceName).filter(Boolean))];
 }
 
+function orderSourcesForPlayer(player, preferredSources = SEARCH_SOURCE_ORDER) {
+  const ordered = uniqueSources(preferredSources);
+  const preferred = normalizeSourceName(
+    typeof player?.get === 'function' ? player.get('preferredSearchSource') : null
+  );
+
+  if (!preferred || !ordered.includes(preferred)) {
+    return ordered;
+  }
+
+  return [preferred, ...ordered.filter((source) => source !== preferred)];
+}
+
 function getAvailableSearchSources(client, player, preferredSources = SEARCH_SOURCE_ORDER) {
-  const preferred = uniqueSources(preferredSources);
+  const preferred = orderSourcesForPlayer(player, preferredSources);
   const nodes = [];
 
   if (player?.node) nodes.push(player.node);
@@ -160,9 +178,18 @@ module.exports = {
       Boolean(player?.paused) ||
       (Array.isArray(player?.queue?.tracks) && player.queue.tracks.length > 0)
     );
-    const searchWithAvailableSources = async (queryText, requester, { preferredSources = SEARCH_SOURCE_ORDER, timeoutMs = 10000, logPrefix = 'Search' } = {}) => {
+    const searchWithAvailableSources = async (
+      queryText,
+      requester,
+      {
+        preferredSources = SEARCH_SOURCE_ORDER,
+        timeoutMs = USER_SEARCH_TIMEOUT_MS,
+        logPrefix = 'Search',
+        maxSourceAttempts = USER_SEARCH_SOURCE_ATTEMPTS,
+      } = {}
+    ) => {
       const availability = getAvailableSearchSources(client, player, preferredSources);
-      const attemptedSources = availability.sources.slice();
+      const attemptedSources = availability.sources.slice(0, Math.max(1, Number(maxSourceAttempts) || USER_SEARCH_SOURCE_ATTEMPTS));
       let lastError = null;
 
       if (!attemptedSources.length) {
@@ -192,6 +219,9 @@ module.exports = {
           }
 
           if (result?.tracks?.length) {
+            if (typeof player?.set === 'function') {
+              player.set('preferredSearchSource', source);
+            }
             return {
               result,
               attemptedSources,
@@ -267,8 +297,8 @@ module.exports = {
     if (query.match(/https?:\/\/(open\.spotify\.com|spotify\.link)/)) {
       // Try direct URL loading first (works for playlists and tracks)
       try {
-        const directLoadPromise = player.search(query, message.member.user);
-        s = await withTimeout(directLoadPromise, 10000, 'Direct Spotify load timeout');
+        const directLoadPromise = player.search({ query }, message.member.user);
+        s = await withTimeout(directLoadPromise, SPOTIFY_DIRECT_LOAD_TIMEOUT_MS, 'Direct Spotify load timeout');
       } catch (directErr) {
         client.logger?.log(`Direct Spotify URL load failed: ${directErr.message}, trying search...`, 'warn');
         // Fallback: try to get playlist tracks via getTracks(), then search each track.
@@ -278,22 +308,17 @@ module.exports = {
           try {
             const tracksInfo = await getTracks(query).catch(() => null);
             if (tracksInfo && Array.isArray(tracksInfo) && tracksInfo.length) {
-              const limit = Math.min(tracksInfo.length, 50);
+              const limit = Math.min(tracksInfo.length, SPOTIFY_PLAYLIST_FALLBACK_TRACK_LIMIT);
               const searchOne = async (q) => {
                 const attempt = await searchWithAvailableSources(q, message.member.user, {
                   preferredSources: SEARCH_SOURCE_ORDER,
-                  timeoutMs: 8000,
+                  timeoutMs: USER_FALLBACK_SEARCH_TIMEOUT_MS,
                   logPrefix: 'Spotify playlist track search',
+                  maxSourceAttempts: 2,
                 });
                 if (attempt.result?.tracks?.length) return attempt.result.tracks[0];
 
                 lastSearchAttempt = attempt;
-                // final attempt without specifying source
-                try {
-                  const p = player.search({ query: q }, message.member.user);
-                  const res = await withTimeout(p, 8000, 'track search timeout');
-                  if (res && res.tracks && res.tracks.length) return res.tracks[0];
-                } catch (e) {}
                 return null;
               };
 
@@ -325,7 +350,7 @@ module.exports = {
                   : SEARCH_SOURCE_ORDER;
                 const searchAttempt = await searchWithAvailableSources(searchQuery, message.member.user, {
                   preferredSources: spotifyPreferred,
-                  timeoutMs: 10000,
+                  timeoutMs: USER_SEARCH_TIMEOUT_MS,
                   logPrefix: 'Spotify preview search',
                 });
                 s = searchAttempt.result;
@@ -342,7 +367,7 @@ module.exports = {
               const fallbackQuery = searchQuery || query;
               const fallbackAttempt = await searchWithAvailableSources(fallbackQuery, message.member.user, {
                 preferredSources: SEARCH_SOURCE_ORDER,
-                timeoutMs: 8000,
+                timeoutMs: USER_FALLBACK_SEARCH_TIMEOUT_MS,
                 logPrefix: 'Fallback search',
               });
               s = fallbackAttempt.result;
@@ -367,14 +392,14 @@ module.exports = {
     } else {
       const searchAttempt = await searchWithAvailableSources(query, message.member.user, {
         preferredSources: SEARCH_SOURCE_ORDER,
-        timeoutMs: 8000,
+        timeoutMs: USER_SEARCH_TIMEOUT_MS,
         logPrefix: 'Search',
       });
       s = searchAttempt.result;
       lastSearchAttempt = searchAttempt;
     }
 
-    const { getQueueArray } = require('../../utils/queue.js');
+    const { getQueueArray } = client.core.queue;
     try {
       if (s) {
         const summary = {
@@ -522,3 +547,4 @@ module.exports = {
     }
   }
 };
+

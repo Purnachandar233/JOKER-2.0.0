@@ -30,7 +30,7 @@ module.exports = {
     }
 
         const player = client.lavalink.players.get(message.guild.id);
-      const { getQueueArray } = require('../../utils/queue.js');
+      const { getQueueArray } = client.core.queue;
       const tracks = getQueueArray(player);
 
       if(!player || !tracks || tracks.length === 0) {
@@ -76,4 +76,5 @@ module.exports = {
     return message.channel.send({ content: "**📪 Check your DMs.**" });
   }
 };
+
 

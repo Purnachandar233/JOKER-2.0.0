@@ -1,8 +1,11 @@
 const { ChannelType, EmbedBuilder } = require("discord.js");
 
 const EMOJIS = require("../../utils/emoji.json");
+const twentyFourSevenSchema = require("../../schema/twentyfourseven.js");
+const Premium = require("../../schema/Premium");
 const EMBED_COLOR = "#ff0051";
-const delay = require("delay").default;
+const delayModule = require("delay");
+const delay = typeof delayModule === "function" ? delayModule : delayModule.default;
 
 function getEmoji(client, key, fallback = "") {
   return EMOJIS[key] || fallback;
@@ -17,13 +20,21 @@ const BOT_VOICE_DISCONNECT_GRACE_MS = toPositiveNumber(process.env.BOT_VOICE_DIS
 const QUEUE_END_IDLE_LEAVE_MS = toPositiveNumber(process.env.QUEUE_END_IDLE_LEAVE_MS, 2 * 60 * 1000);
 const QUEUE_END_IDLE_MINUTES = Math.max(1, Math.round(QUEUE_END_IDLE_LEAVE_MS / 60_000));
 const QUEUE_END_IDLE_LABEL = `${QUEUE_END_IDLE_MINUTES} minute${QUEUE_END_IDLE_MINUTES === 1 ? "" : "s"}`;
+const INACTIVITY_DISCONNECT_MS = toPositiveNumber(process.env.VOICE_EMPTY_DISCONNECT_MS, 3 * 60 * 1000);
+const INACTIVITY_DISCONNECT_MINUTES = Math.max(1, Math.round(INACTIVITY_DISCONNECT_MS / 60_000));
+const INACTIVITY_DISCONNECT_LABEL = `${INACTIVITY_DISCONNECT_MINUTES} minute${INACTIVITY_DISCONNECT_MINUTES === 1 ? "" : "s"}`;
 
 function playerHasActiveQueue(player) {
+  const hasCurrentTrack = Boolean(player?.queue?.current);
+  const hasUpcomingTracks = Array.isArray(player?.queue?.tracks) && player.queue.tracks.length > 0;
+  const isPlaying = Boolean(player?.playing);
+  const isPausedWithTrack = Boolean(player?.paused) && hasCurrentTrack;
+
   return (
-    Boolean(player?.queue?.current) ||
-    Boolean(player?.playing) ||
-    Boolean(player?.paused) ||
-    (Array.isArray(player?.queue?.tracks) && player.queue.tracks.length > 0)
+    hasCurrentTrack ||
+    isPlaying ||
+    isPausedWithTrack ||
+    hasUpcomingTracks
   );
 }
 
@@ -49,6 +60,81 @@ async function resolveTextChannel(client, channelId) {
   }
 
   return null;
+}
+
+async function resolveVoiceChannel(client, guild, channelId) {
+  if (!guild || !channelId) return null;
+
+  const cached = guild.channels.cache.get(channelId) || client.channels.cache.get(channelId);
+  if (cached) return cached;
+
+  if (typeof client.channels?.fetch === "function") {
+    return client.channels.fetch(channelId).catch(() => null);
+  }
+
+  return null;
+}
+
+function getHumanListenerCount(guild, voiceChannelId, voiceChannel = null) {
+  if (!guild || !voiceChannelId) return 0;
+
+  const humansFromVoiceStates = guild.voiceStates?.cache?.filter?.((state) => (
+    state.channelId === voiceChannelId && !state.member?.user?.bot
+  )).size;
+
+  if (Number.isFinite(humansFromVoiceStates) && humansFromVoiceStates > 0) {
+    return humansFromVoiceStates;
+  }
+
+  const memberCollection = voiceChannel?.members;
+  if (memberCollection?.size) {
+    return memberCollection.filter((member) => !member.user?.bot).size;
+  }
+
+  return 0;
+}
+
+async function hasGuildPremium(guildId) {
+  const premiumDoc = await Premium.findOne({ Id: guildId, Type: "guild" }).catch(() => null);
+  if (!premiumDoc) return false;
+  if (premiumDoc.Permanent) return true;
+
+  const expireAt = Number(premiumDoc.Expire || 0);
+  if (expireAt > Date.now()) return true;
+
+  await premiumDoc.deleteOne().catch(() => {});
+  return false;
+}
+
+function buildQueueEndLeaveEmbed(client) {
+  return new EmbedBuilder()
+    .setColor(client?.embedColor || EMBED_COLOR)
+    .setAuthor({ name: " Leaving Voice Channel!", iconURL: client.user.displayAvatarURL() })
+    .setDescription(`Since ${QUEUE_END_IDLE_LABEL} nobody is listening, I've left the voice channel. Want the bot to stay in your channel all the time? Use the /247 command!`);
+}
+
+function buildInactivityEmbed(client) {
+  return new EmbedBuilder()
+    .setColor(client?.embedColor || EMBED_COLOR)
+    .setAuthor({ name: "Disconnected Due To Inactivity!", iconURL: client.user.displayAvatarURL() })
+    .setDescription(`I left the voice channel because no listeners remained for ${INACTIVITY_DISCONNECT_LABEL}.\nEnable 24/7 mode to keep me connected.`);
+}
+
+async function sendLeaveNotice(client, player, embed, fallbackText) {
+  const textChannel = await resolveTextChannel(client, player?.textChannelId);
+  if (!textChannel) return false;
+
+  try {
+    await textChannel.send({ embeds: [embed] });
+    return true;
+  } catch (_embedError) {
+    try {
+      await textChannel.send(fallbackText);
+      return true;
+    } catch (_plainError) {
+      return false;
+    }
+  }
 }
 
 module.exports = async (client, oldState, newState) => {
@@ -83,18 +169,12 @@ module.exports = async (client, oldState, newState) => {
       const queueEndTimerActive = Boolean(client.__queueEndLeaveTimers?.has?.(newState.guild.id));
       if (queueEndTimerActive && !playerHasActiveQueue(player)) {
         clearQueueEndLeaveTimer(client, newState.guild.id);
-
-        const leaveEmbed = new EmbedBuilder()
-          .setColor(client?.embedColor || EMBED_COLOR)
-          .setAuthor({ name: " Leaving Voice Channel ", iconURL: client.user.displayAvatarURL() })
-          .setDescription(`I left the voice channel because the queue ended, 24/7 is disabled, this server has no premium, and no listeners stayed with me for ${QUEUE_END_IDLE_LABEL}.`);
-
-        const textChannel = await resolveTextChannel(client, player.textChannelId);
-        if (textChannel) {
-          await textChannel.send({ embeds: [leaveEmbed] }).catch(async () => {
-            await textChannel.send(`Leaving voice channel: queue ended, no 24/7, no premium, and no listeners stayed for ${QUEUE_END_IDLE_LABEL}.`).catch(() => {});
-          });
-        }
+        await sendLeaveNotice(
+          client,
+          player,
+          buildQueueEndLeaveEmbed(client),
+          `Leaving voice channel: queue ended, no 24/7, no premium, and no listeners stayed for ${QUEUE_END_IDLE_LABEL}.`
+        );
       }
 
       await player.destroy().catch(() => {});
@@ -102,40 +182,64 @@ module.exports = async (client, oldState, newState) => {
     return;
   }
 
-  const currentBotChannelId = newState.guild.members.me?.voice?.channelId || null;
+  if (!oldState.channelId || oldState.channelId === newState.channelId) return;
+
+  const guild = newState.guild || oldState.guild;
+  const currentBotChannelId = guild.members.me?.voice?.channelId || null;
   if (!currentBotChannelId) return;
 
-  const botMemberAtOldState = oldState.guild.members.cache.get(client.user.id);
-  if (!botMemberAtOldState?.voice?.channelId) return;
+  if (currentBotChannelId !== oldState.channelId) return;
 
-  const twentyFourSevenSchema = require("../../schema/twentyfourseven.js");
-  const keepConnected = await twentyFourSevenSchema.findOne({ guildID: oldState.guild.id });
+  const queueEndedWithoutTracks = !playerHasActiveQueue(player);
+  const queueEndTimerActive = Boolean(client.__queueEndLeaveTimers?.has?.(guild.id));
+  if (queueEndedWithoutTracks && queueEndTimerActive) return;
+
+  const keepConnected = await twentyFourSevenSchema.findOne({ guildID: guild.id }).catch(() => null);
   if (keepConnected) return;
 
-  if (botMemberAtOldState.voice.channelId !== oldState.channelId) return;
+  const premiumKeepsQueueAlive = queueEndedWithoutTracks
+    ? await hasGuildPremium(guild.id).catch(() => false)
+    : false;
+  if (premiumKeepsQueueAlive) return;
 
-  const leftChannel = botMemberAtOldState.voice.channel;
+  const leftChannel = await resolveVoiceChannel(client, guild, currentBotChannelId);
   if (!leftChannel) return;
 
-  const hasHumansNow = leftChannel.members.some(member => !member.user.bot);
+  const hasHumansNow = getHumanListenerCount(guild, currentBotChannelId, leftChannel) > 0;
   if (hasHumansNow) return;
 
-  await delay(180000);
+  await delay(queueEndedWithoutTracks ? QUEUE_END_IDLE_LEAVE_MS : INACTIVITY_DISCONNECT_MS);
 
-  const refreshedBotMember = oldState.guild.members.cache.get(client.user.id);
-  if (!refreshedBotMember?.voice?.channel) return;
-  const stillEmpty = !refreshedBotMember.voice.channel.members.some(member => !member.user.bot);
+  const activePlayer = client.lavalink?.players.get(guild.id);
+  if (!activePlayer || activePlayer !== player) return;
+
+  const refreshedBotChannelId = guild.members.me?.voice?.channelId || null;
+  if (!refreshedBotChannelId || refreshedBotChannelId !== currentBotChannelId) return;
+
+  const queueStillEnded = !playerHasActiveQueue(player);
+  const refreshedKeepConnected = await twentyFourSevenSchema.findOne({ guildID: guild.id }).catch(() => null);
+  if (refreshedKeepConnected) return;
+
+  const refreshedPremiumKeepsQueueAlive = queueStillEnded
+    ? await hasGuildPremium(guild.id).catch(() => false)
+    : false;
+  if (refreshedPremiumKeepsQueueAlive) return;
+
+  const refreshedChannel = await resolveVoiceChannel(client, guild, refreshedBotChannelId);
+  if (!refreshedChannel) return;
+
+  const stillEmpty = getHumanListenerCount(guild, refreshedBotChannelId, refreshedChannel) === 0;
   if (!stillEmpty) return;
 
+  if (queueStillEnded && client.__queueEndLeaveTimers?.has?.(guild.id)) return;
+
+  const leaveEmbed = queueStillEnded
+    ? buildQueueEndLeaveEmbed(client)
+    : buildInactivityEmbed(client);
+  const leaveText = queueStillEnded
+    ? `Leaving voice channel: queue ended, no 24/7, no premium, and no listeners stayed for ${QUEUE_END_IDLE_LABEL}.`
+    : `Leaving voice channel because no listeners remained for ${INACTIVITY_DISCONNECT_LABEL}. Enable 24/7 mode to keep me connected.`;
+
+  await sendLeaveNotice(client, player, leaveEmbed, leaveText);
   await player.destroy().catch(() => {});
-
-  const embed = new EmbedBuilder()
-    .setColor(client?.embedColor || EMBED_COLOR)
-    .setTitle(`${getEmoji(client, "info")} Disconnected Due To Inactivity`)
-    .setDescription("I left the voice channel because no listeners remained for 3 minutes.\nEnable 24/7 mode to keep me connected.");
-
-  const textChannel = client.channels.cache.get(player.textChannelId);
-  if (textChannel) {
-    await textChannel.send({ embeds: [embed] }).catch(() => {});
-  }
 };

@@ -1,4 +1,7 @@
 const HEX_COLOR_RE = /^#?[0-9a-fA-F]{6}$/;
+const DEFAULT_WELCOME_TITLE = "Welcome!";
+const DEFAULT_WELCOME_EMBED_MESSAGE = "Welcome {user} to {server}!";
+const DEFAULT_WELCOME_TEXT_MESSAGE = "Welcome {user} to {server}! You are member #{count}.";
 
 function normalizeWelcomeColor(input, fallback = "#ff0051") {
   if (!input) return fallback;
@@ -8,7 +11,12 @@ function normalizeWelcomeColor(input, fallback = "#ff0051") {
   return value.startsWith("#") ? value : `#${value}`;
 }
 
-function renderWelcomeTemplate(template, member) {
+function resolveWelcomeTemplate(template, fallback = DEFAULT_WELCOME_EMBED_MESSAGE) {
+  const value = String(template || "").trim();
+  return value || fallback;
+}
+
+function renderWelcomeTemplate(template, member, fallback = DEFAULT_WELCOME_EMBED_MESSAGE) {
   const guild = member.guild;
   const user = member.user || member;
   const memberId = member.id || user.id || "0";
@@ -24,7 +32,7 @@ function renderWelcomeTemplate(template, member) {
     "{id}": memberId
   };
 
-  let output = String(template || "Welcome {user} to {server}!");
+  let output = resolveWelcomeTemplate(template, fallback);
   for (const [token, value] of Object.entries(replacements)) {
     output = output.replace(new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"), value);
   }
@@ -43,7 +51,11 @@ function welcomeVariablesText() {
 }
 
 module.exports = {
+  DEFAULT_WELCOME_TITLE,
+  DEFAULT_WELCOME_EMBED_MESSAGE,
+  DEFAULT_WELCOME_TEXT_MESSAGE,
   normalizeWelcomeColor,
+  resolveWelcomeTemplate,
   renderWelcomeTemplate,
   welcomeVariablesText
 };

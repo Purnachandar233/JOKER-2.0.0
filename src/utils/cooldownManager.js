@@ -2,9 +2,32 @@
  * Cooldown system - prevent command spam
  */
 
+const COOLDOWN_SWEEP_INTERVAL_MS = 60 * 1000;
+
 class CooldownManager {
   constructor() {
     this.cooldowns = new Map(); // Map<commandName, Map<userId, { expiresAt, remaining }>>
+    this.sweeper = setInterval(() => {
+      this.pruneExpired();
+    }, COOLDOWN_SWEEP_INTERVAL_MS);
+
+    if (typeof this.sweeper.unref === 'function') {
+      this.sweeper.unref();
+    }
+  }
+
+  pruneExpired(now = Date.now()) {
+    for (const [commandName, cmdCooldowns] of this.cooldowns.entries()) {
+      for (const [userId, cooldown] of cmdCooldowns.entries()) {
+        if (!cooldown || now >= Number(cooldown.expiresAt || 0)) {
+          cmdCooldowns.delete(userId);
+        }
+      }
+
+      if (cmdCooldowns.size === 0) {
+        this.cooldowns.delete(commandName);
+      }
+    }
   }
 
   /**
@@ -27,6 +50,9 @@ class CooldownManager {
 
     if (now >= cooldown.expiresAt) {
       cmdCooldowns.delete(userId);
+      if (cmdCooldowns.size === 0) {
+        this.cooldowns.delete(commandName);
+      }
       return { onCooldown: false, remaining: 0 };
     }
 
@@ -48,13 +74,6 @@ class CooldownManager {
     const expiresAt = Date.now() + durationMs;
 
     cmdCooldowns.set(userId, { expiresAt, remaining: durationMs });
-
-    // Auto cleanup after expiry
-    setTimeout(() => {
-      if (cmdCooldowns.has(userId)) {
-        cmdCooldowns.delete(userId);
-      }
-    }, durationMs + 100);
   }
 
   /**
@@ -94,6 +113,7 @@ class CooldownManager {
    * Get cooldown stats for monitoring
    */
   getStats() {
+    this.pruneExpired();
     let totalCooldowns = 0;
     for (const [, cmdCooldowns] of this.cooldowns) {
       totalCooldowns += cmdCooldowns.size;

@@ -4,24 +4,8 @@
  */
 
 const { EmbedBuilder } = require('discord.js');
-const EPHEMERAL_FLAG = 1 << 6;
-
-function normalizeInteractionOptions(options, { forEdit = false } = {}) {
-  if (!options || typeof options !== 'object') return options;
-  const cloned = { ...options };
-
-  if (Object.prototype.hasOwnProperty.call(cloned, 'ephemeral')) {
-    const ephemeral = Boolean(cloned.ephemeral);
-    delete cloned.ephemeral;
-
-    if (!forEdit && ephemeral) {
-      if (typeof cloned.flags === 'number') cloned.flags |= EPHEMERAL_FLAG;
-      else cloned.flags = EPHEMERAL_FLAG;
-    }
-  }
-
-  return cloned;
-}
+const { safeDeferReply, safeReply } = require('../utils/interactionResponder');
+const ERROR_COUNT_MAX = 250;
 
 class CommandErrorHandler {
   constructor(client) {
@@ -29,6 +13,18 @@ class CommandErrorHandler {
     this.errorSampleRate = 0.1; // Log only 10% of errors to reduce noise/I/O
     this.errorCount = new Map();
     this.logSuccessfulCommands = String(process.env.LOG_COMMAND_SUCCESS || 'false').toLowerCase() === 'true';
+  }
+
+  pruneErrorCount() {
+    if (this.errorCount.size < ERROR_COUNT_MAX) return;
+
+    const overflow = this.errorCount.size - ERROR_COUNT_MAX + 1;
+    let removed = 0;
+    for (const key of this.errorCount.keys()) {
+      this.errorCount.delete(key);
+      removed += 1;
+      if (removed >= overflow) break;
+    }
   }
 
   /**
@@ -41,7 +37,14 @@ class CommandErrorHandler {
     const guildId = interaction.guildId;
 
     try {
-      if (!interaction.token || !interaction.application_id) {
+      const applicationId =
+        interaction?.applicationId ||
+        interaction?.application_id ||
+        interaction?.client?.application?.id ||
+        interaction?.client?.user?.id ||
+        null;
+
+      if (!interaction?.token || !applicationId) {
         console.error(`CommandErrorHandler: Invalid interaction state for /${commandName}`);
         return { error: 'interaction_invalid' };
       }
@@ -52,7 +55,7 @@ class CommandErrorHandler {
       }
 
       if (!interaction.deferred) {
-        await interaction.deferReply(normalizeInteractionOptions({ ephemeral: false })).catch(() => {});
+        await safeDeferReply(interaction, { ephemeral: false });
       }
 
       await commandFunction(interaction);
@@ -68,6 +71,7 @@ class CommandErrorHandler {
       const duration = Date.now() - startTime;
 
       if (Math.random() < this.errorSampleRate) {
+        this.pruneErrorCount();
         const count = (this.errorCount.get(commandName) || 0) + 1;
         this.errorCount.set(commandName, count);
         console.error(`Command /${commandName} failed: ${error && (error.message || error)}`);
@@ -87,11 +91,11 @@ class CommandErrorHandler {
       try {
         if (!interaction.replied) {
           if (!interaction.deferred) {
-            await interaction.deferReply(normalizeInteractionOptions({ ephemeral: true })).catch(() => {});
+            await safeDeferReply(interaction, { ephemeral: true });
           }
-          await interaction.editReply(normalizeInteractionOptions({ embeds: [errorEmbed] }, { forEdit: true })).catch(() => {});
+          await interaction.editReply({ embeds: [errorEmbed] }).catch(() => {});
         } else {
-          await interaction.followUp(normalizeInteractionOptions({ embeds: [errorEmbed], ephemeral: true })).catch(() => {});
+          await safeReply(interaction, { embeds: [errorEmbed], ephemeral: true });
         }
       } catch (replyErr) {
         console.error('CommandErrorHandler: Failed to send error embed to user:', replyErr && (replyErr.message || replyErr));
@@ -125,6 +129,9 @@ class CommandErrorHandler {
     }
     if (lower.includes('timeout') || lower.includes('econnrefused')) {
       return 'Connection timeout. Please try again.';
+    }
+    if (lower.includes('fetch failed') || lower.includes('enotfound') || lower.includes('eai_again')) {
+      return 'Network request failed. Please try again in a moment.';
     }
     if (lower.includes('invalid') || lower.includes('malformed')) {
       return 'Invalid input provided. Please check your parameters.';

@@ -1,4 +1,4 @@
-const { ApplicationCommandOptionType, EmbedBuilder, MessageFlags } = require("discord.js");
+const { ApplicationCommandOptionType, EmbedBuilder, MessageFlags, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require("discord.js");
 
 const { safeReply, safeDeferReply } = require("../../utils/interactionResponder");
 const EMOJIS = require("../../utils/emoji.json");
@@ -7,7 +7,7 @@ const {
   normalizeWelcomeColor,
   renderWelcomeTemplate
 } = require("../../welcome/template");
-const { buildWelcomeSetupPanel, resolveDeliveryType } = require("../../welcome/panel");
+const { buildWelcomeSetupPanel } = require("../../welcome/panel");
 
 module.exports = {
   name: "welcome",
@@ -97,6 +97,11 @@ module.exports = {
       type: ApplicationCommandOptionType.Subcommand
     },
     {
+      name: "clear",
+      description: "Delete all welcome configuration for this server.",
+      type: ApplicationCommandOptionType.Subcommand
+    },
+    {
       name: "panel",
       description: "Show an easy setup panel (V2).",
       type: ApplicationCommandOptionType.Subcommand
@@ -150,8 +155,155 @@ module.exports = {
 
     const ok = EMOJIS.ok;
     const no = EMOJIS.no;
-    const sub = interaction.options.getSubcommand();
     const { guildId, guild } = interaction;
+    let data2; // Declare once for reuse
+
+    // Handle string select menus (dropdowns)
+    if (interaction.isStringSelectMenu?.()) {
+      if (!interaction.member.permissions.has("MANAGE_GUILD") && !interaction.member.permissions.has("ADMINISTRATOR")) {
+        const embed = new EmbedBuilder()
+          .setColor(embedColor)
+          .setDescription("*You need the `Manage Server` or `Administrator` permission to configure the welcome system.*");
+        return safeReply(interaction, { embeds: [embed], ephemeral: true });
+      }
+
+      await safeDeferReply(interaction, { ephemeral: true });
+
+      const selectId = interaction.customId;
+      const selectedValue = interaction.values?.[0];
+
+      if (selectId === "welcome_select_channel") {
+        if (selectedValue === "none") {
+          const embed = new EmbedBuilder().setColor(embedColor);
+          embed.setTitle(`${getEmoji("error")} No Channels`);
+          embed.setDescription(`${no} Please create a text channel first.`);
+          return safeReply(interaction, { embeds: [embed] });
+        }
+
+        const channel = guild.channels.cache.get(selectedValue);
+        if (!channel) {
+          const embed = new EmbedBuilder().setColor(embedColor);
+          embed.setTitle(`${getEmoji("error")} Channel Not Found`);
+          embed.setDescription(`${no} This channel no longer exists.`);
+          return safeReply(interaction, { embeds: [embed] });
+        }
+
+        await Schema.findOneAndUpdate(
+          { guildID: guildId },
+          { 
+            channelID: selectedValue,
+            enabled: true,
+            embedEnabled: true,
+            textEnabled: false
+          },
+          { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
+        );
+
+        const embed = new EmbedBuilder().setColor(embedColor);
+        embed.setTitle(`${getEmoji("success")} Channel Set`);
+        embed.setDescription(`${ok} Welcome channel set to <#${selectedValue}>.`);
+        return safeReply(interaction, { embeds: [embed] });
+      }
+
+      if (selectId === "welcome_select_role") {
+        if (selectedValue === "none") {
+          const embed = new EmbedBuilder().setColor(embedColor);
+          embed.setTitle(`${getEmoji("info")} No Roles`);
+          embed.setDescription(`${ok} No auto-role will be assigned.`);
+          return safeReply(interaction, { embeds: [embed] });
+        }
+
+        const role = guild.roles.cache.get(selectedValue);
+        if (!role) {
+          const embed = new EmbedBuilder().setColor(embedColor);
+          embed.setTitle(`${getEmoji("error")} Role Not Found`);
+          embed.setDescription(`${no} This role no longer exists.`);
+          return safeReply(interaction, { embeds: [embed] });
+        }
+
+        await Schema.findOneAndUpdate(
+          { guildID: guildId },
+          { roleID: selectedValue },
+          { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
+        );
+
+        const embed = new EmbedBuilder().setColor(embedColor);
+        embed.setTitle(`${getEmoji("success")} Auto-Role Set`);
+        embed.setDescription(`${ok} New members will receive <@&${selectedValue}>.`);
+        return safeReply(interaction, { embeds: [embed] });
+      }
+
+      return;
+    }
+
+    if (interaction.isModalSubmit?.()) {
+      if (!interaction.member.permissions.has("MANAGE_GUILD") && !interaction.member.permissions.has("ADMINISTRATOR")) {
+        const embed = new EmbedBuilder()
+          .setColor(embedColor)
+          .setDescription("*You need the `Manage Server` or `Administrator` permission to configure the welcome system.*");
+        return safeReply(interaction, { embeds: [embed], ephemeral: true });
+      }
+
+      const modalId = interaction.customId;
+      const data = await Schema.findOne({ guildID: guildId }).catch(() => null);
+
+      if (modalId === "welcome_message_modal") {
+        const messageText = interaction.fields.getTextInputValue("message_input");
+        await Schema.findOneAndUpdate(
+          { guildID: guildId },
+          { message: messageText },
+          { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
+        );
+
+        const embed = new EmbedBuilder().setColor(embedColor);
+        embed.setTitle(`${getEmoji("success")} Message Updated`);
+        embed.setDescription(`${ok} Welcome message template updated.`);
+        embed.addFields({ name: `${getEmoji("info")} New Message`, value: `\`${messageText}\`` });
+        return safeReply(interaction, { embeds: [embed], ephemeral: true });
+      }
+
+      if (modalId === "welcome_title_modal") {
+        const titleText = interaction.fields.getTextInputValue("title_input");
+        await Schema.findOneAndUpdate(
+          { guildID: guildId },
+          { title: titleText },
+          { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
+        );
+
+        const embed = new EmbedBuilder().setColor(embedColor);
+        embed.setTitle(`${getEmoji("success")} Title Updated`);
+        embed.setDescription(`${ok} Embed title updated to \`${titleText}\`.`);
+        return safeReply(interaction, { embeds: [embed], ephemeral: true });
+      }
+
+      if (modalId === "welcome_color_modal") {
+        const colorText = interaction.fields.getTextInputValue("color_input");
+        const { normalizeWelcomeColor } = require("../../welcome/template");
+        const parsed = normalizeWelcomeColor(colorText, embedColor);
+        
+        if (!parsed) {
+          const embed = new EmbedBuilder().setColor(embedColor);
+          embed.setTitle(`${getEmoji("error")} Invalid Color`);
+          embed.setDescription(`${no} Use hex format like \`#ff0051\` or \`default\`.`);
+          return safeReply(interaction, { embeds: [embed], ephemeral: true });
+        }
+
+        await Schema.findOneAndUpdate(
+          { guildID: guildId },
+          { embedColor: parsed },
+          { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
+        );
+
+        const embed = new EmbedBuilder().setColor(embedColor);
+        embed.setTitle(`${getEmoji("success")} Color Updated`);
+        embed.setDescription(`${ok} Embed color set to \`${parsed}\`.`);
+        return safeReply(interaction, { embeds: [embed], ephemeral: true });
+      }
+
+      return;
+    }
+
+    const sub = interaction.options.getSubcommand();
 
     if (!interaction.member.permissions.has("MANAGE_GUILD") && !interaction.member.permissions.has("ADMINISTRATOR")) {
       const embed = new EmbedBuilder()
@@ -227,9 +379,11 @@ module.exports = {
           channelID: channel.id,
           message: template,
           enabled: true,
+          embedEnabled: true,
+          textEnabled: false,
           ...(resolvedColor ? { embedColor: resolvedColor } : {})
         },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
+        { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
       );
 
       const embed = new EmbedBuilder().setColor(embedColor);
@@ -251,7 +405,7 @@ module.exports = {
       await Schema.findOneAndUpdate(
         { guildID: guildId },
         { message: text },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
+        { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
       );
 
       const embed = new EmbedBuilder().setColor(embedColor);
@@ -269,7 +423,7 @@ module.exports = {
       await Schema.findOneAndUpdate(
         { guildID: guildId },
         { title },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
+        { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
       );
 
       const embed = new EmbedBuilder().setColor(embedColor);
@@ -295,7 +449,7 @@ module.exports = {
       await Schema.findOneAndUpdate(
         { guildID: guildId },
         { embedColor: parsed },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
+        { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
       );
 
       const embed = new EmbedBuilder().setColor(embedColor);
@@ -311,7 +465,7 @@ module.exports = {
       await Schema.findOneAndUpdate(
         { guildID: guildId },
         { roleID: role.id },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
+        { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
       );
 
       const embed = new EmbedBuilder().setColor(embedColor);
@@ -326,12 +480,22 @@ module.exports = {
       await Schema.findOneAndUpdate(
         { guildID: guildId },
         { roleID: null },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
+        { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
       );
       const embed = new EmbedBuilder().setColor(embedColor);
       var embedValue0 = `${getEmoji("success")} Auto Role Cleared`;
       if (embedValue0) embed.setTitle(embedValue0);
       var embedValue1 = `${ok} Auto-role assignment has been disabled.`;
+      if (embedValue1) embed.setDescription(embedValue1);
+      return safeReply(interaction, { embeds: [embed] });
+    }
+
+    if (sub === "clear") {
+      await Schema.deleteMany({ guildID: guildId }).catch(() => {});
+      const embed = new EmbedBuilder().setColor(embedColor);
+      var embedValue0 = `${getEmoji("success")} Welcome Data Cleared`;
+      if (embedValue0) embed.setTitle(embedValue0);
+      var embedValue1 = `${ok} All welcome settings for this server were deleted.`;
       if (embedValue1) embed.setDescription(embedValue1);
       return safeReply(interaction, { embeds: [embed] });
     }
@@ -359,10 +523,16 @@ module.exports = {
 
       const previewMember = guild.members.cache.get(interaction.user.id) || interaction.member;
       const preview = renderWelcomeTemplate(data.message, previewMember);
-      const deliveryType = resolveDeliveryType(data.deliveryType);
-      if (deliveryType === "text") {
+      const embedEnabled = data.embedEnabled !== false; // default true
+      const textEnabled = Boolean(data.textEnabled);
+
+      // Send text message if enabled
+      if (textEnabled) {
         await channel.send({ content: preview }).catch(() => {});
-      } else {
+      }
+
+      // Send embed if enabled
+      if (embedEnabled) {
         const testEmbed = new EmbedBuilder().setColor(embedColor);
         var embedValue0 = data.title || "Welcome!";
         if (embedValue0) testEmbed.setTitle(embedValue0);
@@ -389,19 +559,18 @@ module.exports = {
 
     if (sub === "textmsg") {
       const status = interaction.options.getBoolean("status");
-      const deliveryType = status ? "text" : "embed";
       await Schema.findOneAndUpdate(
         { guildID: guildId },
-        { deliveryType },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
+        { textEnabled: status },
+        { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
       );
 
       const embed = new EmbedBuilder().setColor(embedColor);
       var embedValue0 = `${getEmoji("success")} Delivery Mode Updated`;
       if (embedValue0) embed.setTitle(embedValue0);
-      var embedValue1 = deliveryType === "text"
-        ? `${ok} Welcome will now be sent as plain text messages.`
-        : `${ok} Welcome will now be sent as embeds.`;
+      var embedValue1 = status
+        ? `${ok} Text mode enabled. Both embed and text messages will be sent.`
+        : `${ok} Text mode disabled. Only embed will be sent.`;
       if (embedValue1) embed.setDescription(embedValue1);
       return safeReply(interaction, { embeds: [embed] });
     }
@@ -411,7 +580,7 @@ module.exports = {
       await Schema.findOneAndUpdate(
         { guildID: guildId },
         { enabled },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
+        { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
       );
 
       const embed = new EmbedBuilder().setColor(embedColor);

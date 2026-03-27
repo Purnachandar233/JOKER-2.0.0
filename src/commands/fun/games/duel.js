@@ -1,56 +1,102 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
+const { ContainerBuilder, TextDisplayBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, MessageFlags } = require("discord.js");
+const { safeReply } = require("../../../utils/interactionResponder");
+
+function isInteraction(ctx) {
+  return Boolean(ctx && typeof ctx.deferReply === "function" && typeof ctx.editReply === "function");
+}
+
+function getAuthor(ctx) {
+  return ctx?.author || ctx?.user || null;
+}
+
+function getOpponent(ctx, args, client) {
+  if (isInteraction(ctx)) {
+    const optionUser = ctx.options?.getUser?.("opponent");
+    if (optionUser) return optionUser;
+  }
+
+  const users = ctx?.mentions?.users;
+  if (users?.first) return users.first() || (args[0] ? client.users.cache.get(args[0]) : null);
+  if (users instanceof Map) return users.values().next().value || (args[0] ? client.users.cache.get(args[0]) : null);
+  return args[0] ? client.users.cache.get(args[0]) : null;
+}
+
+async function sendResponse(ctx, payload) {
+  const normalized = typeof payload === "string" ? { content: payload } : { ...(payload || {}) };
+  const usesComponentsV2 = Array.isArray(normalized.components) && normalized.components.some((component) => {
+    const type = component?.data?.type || component?.toJSON?.().type || null;
+    return type !== 1;
+  });
+
+  if (usesComponentsV2 && normalized.flags == null) {
+    normalized.flags = MessageFlags.IsComponentsV2;
+  }
+
+  if (isInteraction(ctx)) {
+    return safeReply(ctx, normalized);
+  }
+  return ctx.channel.send(normalized);
+}
+
+function withActionRows(container, ...rows) {
+  for (const row of rows.flat().filter(Boolean)) {
+    container.addActionRowComponents(row);
+  }
+  return container;
+}
 
 module.exports = {
   name: "duel",
   category: "fun",
-  description: "Battle another player in a duel!",
-  execute: async (message, args, client) => {
-    const opponentUser = message.mentions.users.first();
+  description: "Battle another player in an epic duel!",
+  execute: async (ctx, args, client) => {
+    const author = getAuthor(ctx);
+    if (!author) return sendResponse(ctx, "Unable to resolve command user.");
 
+    const opponentUser = getOpponent(ctx, args, client);
     if (!opponentUser) {
-      return message.reply("Please mention a player to duel! Example: `=duel @user`");
+      return sendResponse(ctx, "Please mention a player to duel! Example: `=duel @user`");
+    }
+    if (opponentUser.id === author.id) {
+      return sendResponse(ctx, "You cannot duel yourself.");
     }
 
-    if (opponentUser.id === message.author.id) {
-      return message.reply("You cannot duel yourself.");
-    }
-
-    if (opponentUser.bot && opponentUser.id !== client.user.id) {
-      return message.reply("You can only duel real users or me.");
-    }
-
-    const player1 = { user: message.author, hp: 100, maxHp: 100 };
+    const player1 = { user: author, hp: 100, maxHp: 100 };
     const player2 = { user: opponentUser, hp: 100, maxHp: 100 };
     let currentTurn = player1;
 
     const actions = [
-      { name: "Attack", damage: () => Math.floor(Math.random() * 25) + 10 },
-      { name: "Defend", damage: () => Math.floor(Math.random() * 5) },
-      { name: "Critical", damage: () => (Math.random() > 0.5 ? Math.floor(Math.random() * 35) + 20 : 5) }
+      { name: "⚔️ Attack", id: "attack", damage: () => Math.floor(Math.random() * 25) + 10 },
+      { name: "🛡️ Defend", id: "defend", damage: () => Math.floor(Math.random() * 5) },
+      { name: "💥 Critical", id: "critical", damage: () => (Math.random() > 0.5 ? Math.floor(Math.random() * 35) + 20 : 5) }
     ];
 
     const getHealthBar = (hp, maxHp) => {
-      const filledBars = Math.floor((hp / maxHp) * 10);
-      const emptyBars = 10 - filledBars;
-      return `${"#".repeat(filledBars)}${"-".repeat(emptyBars)} ${hp}/${maxHp}`;
+      const percentage = Math.round((hp / maxHp) * 100);
+      const filled = Math.floor((hp / maxHp) * 10);
+      const empty = 10 - filled;
+      return `${"██".repeat(filled)}${"░░".repeat(empty)} ${hp}/${maxHp} (${percentage}%)`;
     };
 
-    const createDuelEmbed = (description = "") => new EmbedBuilder()
-      .setColor(client.embedColor || "#ff0000")
-      .setTitle("Duel")
-      .addFields(
-        { name: `${player1.user.username} (P1)`, value: getHealthBar(player1.hp, player1.maxHp), inline: false },
-        { name: `${player2.user.username} (P2)`, value: getHealthBar(player2.hp, player2.maxHp), inline: false },
-        { name: "Current Turn", value: `${currentTurn.user.username}'s turn`, inline: false }
-      )
-      .setDescription(description || "Choose your action.");
+    const createDuelPanel = (statusMessage = "") => {
+      const container = new ContainerBuilder().setAccentColor(0xff0000);
+      container.addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(`## ⚔️ DUEL\n${player1.user.username} vs ${player2.user.username}`),
+        new TextDisplayBuilder().setContent(
+          `**${player1.user.username}** (P1)\n${getHealthBar(player1.hp, player1.maxHp)}\n\n` +
+          `**${player2.user.username}** (P2)\n${getHealthBar(player2.hp, player2.maxHp)}`
+        ),
+        new TextDisplayBuilder().setContent(`${"─".repeat(30)}\n**${currentTurn.user.username}'s Turn**\n${statusMessage}`)
+      );
+      return container;
+    };
 
     const createActionButtons = () => {
       const row = new ActionRowBuilder();
-      actions.forEach((action, index) => {
+      actions.forEach((action) => {
         row.addComponents(
           new ButtonBuilder()
-            .setCustomId(`duel_${index}`)
+            .setCustomId(`duel_${action.id}`)
             .setLabel(action.name)
             .setStyle(ButtonStyle.Danger)
         );
@@ -58,69 +104,53 @@ module.exports = {
       return row;
     };
 
-    const duelMsg = await message.channel.send({
-      embeds: [createDuelEmbed()],
-      components: [createActionButtons()]
+    const gameMsg = await sendResponse(ctx, {
+      components: [withActionRows(createDuelPanel("Choose your action..."), createActionButtons())]
+    });
+    if (!gameMsg) return null;
+
+    const playTurn = () => new Promise((resolve) => {
+      const filter = (i) => i.customId.startsWith("duel_") && i.user.id === currentTurn.user.id;
+      const collector = gameMsg.createMessageComponentCollector({ filter, time: 30000, max: 1 });
+
+      collector.on("collect", async (interaction) => {
+        const actionId = interaction.customId.split("_")[1];
+        const action = actions.find((a) => a.id === actionId);
+        const damage = action.damage();
+        const opponent = currentTurn === player1 ? player2 : player1;
+
+        opponent.hp = Math.max(0, opponent.hp - damage);
+
+        let resultMessage = `🎯 **${currentTurn.user.username}** used **${action.name}**!\n`;
+        resultMessage += damage > 0 ? `💥 Dealt **${damage}** damage!` : "Miss!";
+
+        await interaction.deferUpdate().catch(() => {});
+        await gameMsg.edit({ components: [withActionRows(createDuelPanel(resultMessage), createActionButtons())] }).catch(() => {});
+        resolve();
+      });
+
+      collector.on("end", () => resolve());
     });
 
-    const collector = duelMsg.createMessageComponentCollector({
-      filter: i => i.customId.startsWith("duel_"),
-      time: 120000
-    });
+    while (player1.hp > 0 && player2.hp > 0) {
+      currentTurn = player1;
+      await playTurn();
+      if (player2.hp <= 0) break;
 
-    let turnLog = "";
+      currentTurn = player2;
+      await playTurn();
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+    }
 
-    collector.on("collect", async interaction => {
-      if (interaction.user.id !== player1.user.id && interaction.user.id !== player2.user.id) {
-        await interaction.reply({ content: "You are not part of this duel.", ephemeral: true }).catch(() => {});
-        return;
-      }
+    const winner = player1.hp > 0 ? player1.user : player2.user;
+    const container = new ContainerBuilder()
+      .setAccentColor(0x2ecc71)
+      .addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(`## 🏆 VICTORY\n**${winner.username}** wins the duel!`),
+        new TextDisplayBuilder().setContent(`**${player1.user.username}**: ${player1.hp} HP\n**${player2.user.username}**: ${player2.hp} HP`)
+      );
 
-      if (interaction.user.id !== currentTurn.user.id) {
-        await interaction.reply({ content: `It is ${currentTurn.user.username}'s turn.`, ephemeral: true }).catch(() => {});
-        return;
-      }
-
-      const actionIndex = Number.parseInt(interaction.customId.split("_")[1], 10);
-      if (Number.isNaN(actionIndex) || actionIndex < 0 || actionIndex >= actions.length) {
-        await interaction.reply({ content: "Invalid action.", ephemeral: true }).catch(() => {});
-        return;
-      }
-
-      const action = actions[actionIndex];
-      const damage = action.damage();
-      const target = currentTurn === player1 ? player2 : player1;
-
-      target.hp = Math.max(0, target.hp - damage);
-      turnLog = `**${currentTurn.user.username}** used **${action.name}** and dealt **${damage}** damage.`;
-
-      if (target.hp === 0) {
-        const winEmbed = new EmbedBuilder()
-          .setColor(client.embedColor || "#ff0011")
-          .setTitle("Duel Victory")
-          .setDescription(`${currentTurn.user.username} wins the duel.`)
-          .addFields(
-            { name: `${player1.user.username} (P1)`, value: getHealthBar(player1.hp, player1.maxHp), inline: false },
-            { name: `${player2.user.username} (P2)`, value: getHealthBar(player2.hp, player2.maxHp), inline: false },
-            { name: "Last Action", value: turnLog, inline: false }
-          );
-
-        await interaction.update({ embeds: [winEmbed], components: [] }).catch(() => {});
-        collector.stop("completed");
-        return;
-      }
-
-      currentTurn = target;
-      await interaction.update({
-        embeds: [createDuelEmbed(turnLog)],
-        components: [createActionButtons()]
-      }).catch(() => {});
-    });
-
-    collector.on("end", async (_collected, reason) => {
-      if (reason === "time" && player1.hp > 0 && player2.hp > 0) {
-        await duelMsg.edit({ content: "Duel ended due to inactivity.", components: [] }).catch(() => {});
-      }
-    });
+    await gameMsg.edit({ components: [container] }).catch(() => {});
+    return null;
   }
 };

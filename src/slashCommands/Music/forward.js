@@ -2,7 +2,6 @@ const { CommandInteraction, Client, EmbedBuilder } = require("discord.js");
 const { convertTime } = require('../../utils/convert.js');
 const ms = require('ms');
 const safeReply = require('../../utils/interactionResponder');
-const musicChecks = require('../../utils/musicChecks');
 
 const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
@@ -30,8 +29,6 @@ module.exports = {
 
     run: async (client, interaction) => {
       return await client.errorHandler.executeWithErrorHandling(interaction, async (interaction) => {
-        await safeReply.safeDeferReply(interaction);
-
         let ok = EMOJIS.ok;
         let no = EMOJIS.no;
 
@@ -56,7 +53,7 @@ module.exports = {
         }
 
         // Run music checks
-        const check = await musicChecks.runMusicChecks(client, interaction, {
+        const check = await client.runMusicChecks(interaction, {
           inVoiceChannel: true,
           botInVoiceChannel: true,
           sameChannel: true,
@@ -101,3 +98,4 @@ module.exports = {
       });
     }
 };
+

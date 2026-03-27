@@ -10,7 +10,8 @@ module.exports = {
   run: async (client, interaction) => {
     const getEmoji = (key, fallback = "") => EMOJIS[key] || fallback;
     const embedColor = client?.embedColor || "#ff0051";
-    const support = new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel("Support").setURL("https://discord.gg/JQzBqgmwFm");
+    const legal = client?.legalLinks || {};
+    const support = new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel("Support").setURL(legal.supportServerUrl);
     const invite = new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel("Invite").setURL(`https://discord.com/oauth2/authorize?client_id=${client.user.id}&permissions=70510540062032&integration_type=0&scope=bot+applications.commands`);
     const vote = new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel("Vote").setURL(`https://top.gg/bot/${client.user.id}/vote`);
     const supportEmoji = getEmoji("support");
@@ -31,7 +32,7 @@ module.exports = {
       .setDescription([
         "Vote on listing platforms to support development.",
         "",
-        "Voting may unlock premium-style access windows in some commands."
+        "Voting may unlock temporary access windows for some gated commands."
       ].join("\n"))
       .setFooter({ text: `${getEmoji("vote")} Thank you for supporting the Joker` });
 

@@ -101,7 +101,35 @@ return await interaction.editReply({embeds: [noperms]});
         return await interaction.editReply({embeds: [noperms]});
     }
 
-    const s = await player.search(last.uri, interaction.user);
+    const previousQuery =
+      last?.uri ||
+      last?.info?.uri ||
+      last?.identifier ||
+      last?.info?.identifier ||
+      last?.title ||
+      last?.info?.title ||
+      null;
+
+    if (!previousQuery) {
+        const noperms = new EmbedBuilder()
+          .setColor(interaction.client?.embedColor || '#ff0051')
+          .setDescription(`No previous song source found`)
+        return await interaction.editReply({embeds: [noperms]});
+    }
+
+    let s = null;
+    try {
+      s = await player.search({ query: previousQuery }, interaction.user);
+    } catch (_err) {
+      return await interaction.editReply({
+        embeds: [
+          new EmbedBuilder()
+            .setColor(interaction.client?.embedColor || '#ff0051')
+            .setDescription(`${no} Failed to load the previous track right now.`)
+        ]
+      });
+    }
+
     if (s.loadType === "LOAD_FAILED") {
       if (player && !player.queue?.current && !(Array.isArray(player.queue?.tracks) && player.queue.tracks.length > 0)) await player.destroy().catch(() => {});
       return await interaction.editReply({

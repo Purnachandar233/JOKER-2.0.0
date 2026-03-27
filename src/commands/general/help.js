@@ -1,22 +1,7 @@
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require("discord.js");
-const { statSync, readdirSync } = require("fs");
-const path = require("path");
+const { buildPrefixHelpFields } = require("../../utils/helpCatalog");
 
 const EMOJIS = require("../../utils/emoji.json");
-function getAllCommandFiles(dir) {
-  const files = [];
-  const items = readdirSync(dir);
-  for (const item of items) {
-    const filePath = path.join(dir, item);
-    const stats = statSync(filePath);
-    if (stats.isDirectory()) {
-      files.push(...getAllCommandFiles(filePath));
-    } else if (item.endsWith(".js")) {
-      files.push(filePath);
-    }
-  }
-  return files;
-}
 
 module.exports = {
   name: "help",
@@ -26,11 +11,12 @@ module.exports = {
   execute: async (message, args, client, prefix) => {
     const getEmoji = (key, fallback = "") => EMOJIS[key] || fallback;
     const embedColor = client?.embedColor || "#ff0051";
+    const legal = client?.legalLinks || {};
 
     const support = new ButtonBuilder()
       .setStyle(ButtonStyle.Link)
       .setLabel("Support")
-      .setURL("https://discord.gg/JQzBqgmwFm");
+      .setURL(legal.supportServerUrl);
 
     const invite = new ButtonBuilder()
       .setStyle(ButtonStyle.Link)
@@ -42,6 +28,16 @@ module.exports = {
       .setLabel("Vote")
       .setURL(`https://top.gg/bot/${client.user.id}/vote`);
 
+    const privacy = new ButtonBuilder()
+      .setStyle(ButtonStyle.Link)
+      .setLabel("Privacy")
+      .setURL(legal.privacyPolicyUrl);
+
+    const terms = new ButtonBuilder()
+      .setStyle(ButtonStyle.Link)
+      .setLabel("Terms")
+      .setURL(legal.termsOfServiceUrl);
+
     const supportEmoji = getEmoji("support");
     const inviteEmoji = getEmoji("invite");
     const voteEmoji = getEmoji("vote");
@@ -50,88 +46,12 @@ module.exports = {
     try { if (voteEmoji) vote.setEmoji(voteEmoji); } catch (_e) {}
 
     const linkRow = new ActionRowBuilder().addComponents(support, invite, vote);
+    const legalRow = new ActionRowBuilder().addComponents(privacy, terms);
 
     const query = args.join(" ").trim().toLowerCase();
 
     if (!query) {
-      const commandsDir = path.join(__dirname, "../../commands");
-      const categories = [];
-
-      for (const dir of readdirSync(commandsDir)) {
-        if (dir === "owner") continue;
-
-        const dirPath = path.join(commandsDir, dir);
-        let isDirectory = false;
-        try {
-          isDirectory = statSync(dirPath).isDirectory();
-        } catch (_e) {
-          isDirectory = false;
-        }
-        if (!isDirectory) continue;
-
-        if (dir === "fun") {
-          const funActionsDir = path.join(dirPath, "actions");
-          const funGamesDir = path.join(dirPath, "games");
-
-          const getNames = folderPath => {
-            let names = [];
-            try {
-              names = getAllCommandFiles(folderPath)
-                .map(filePath => {
-                  try {
-                    const cmd = require(filePath);
-                    return cmd?.name ? `\`${cmd.name.toLowerCase()}\`` : null;
-                  } catch (_err) {
-                    return null;
-                  }
-                })
-                .filter(Boolean);
-            } catch (_e) {
-              names = [];
-            }
-            return names;
-          };
-
-          const actionNames = getNames(funActionsDir);
-          const gameNames = getNames(funGamesDir);
-          const total = actionNames.length + gameNames.length;
-          if (!total) continue;
-
-          const lines = [];
-          if (gameNames.length) lines.push(`**Games (${gameNames.length})**: ${gameNames.join(", ")}`);
-          if (actionNames.length) lines.push(`**Actions (${actionNames.length})**: ${actionNames.join(", ")}`);
-
-          let value = lines.join("\n");
-          if (value.length > 1020) value = `${value.slice(0, 1017)}...`;
-
-          categories.push({
-            name: `${getEmoji("star")} Fun (${total})`,
-            value,
-            inline: false
-          });
-          continue;
-        }
-
-        const names = getAllCommandFiles(dirPath)
-          .map(filePath => {
-            try {
-              const cmd = require(filePath);
-              return cmd?.name ? `\`${cmd.name.toLowerCase()}\`` : null;
-            } catch (_err) {
-              return null;
-            }
-          })
-          .filter(Boolean);
-
-        if (!names.length) continue;
-
-        const value = names.join(", ");
-        categories.push({
-          name: `${getEmoji("star")} ${dir.charAt(0).toUpperCase()}${dir.slice(1)} (${names.length})`,
-          value: value.length > 1020 ? `${value.slice(0, 1017)}...` : value,
-          inline: false
-        });
-      }
+      const categories = buildPrefixHelpFields(client, getEmoji);
 
       const embed = new EmbedBuilder()
         .setColor(embedColor)
@@ -142,8 +62,8 @@ module.exports = {
         .setAuthor({ name: "Joker Music Help Menu", iconURL: message.member.displayAvatarURL({ forceStatic: false }) }); 
         
         
-if (categories.length > 0) embed.addFields(categories);
-      return message.channel.send({ embeds: [embed], components: [linkRow] });
+      if (categories.length > 0) embed.addFields(categories);
+      return message.channel.send({ embeds: [embed], components: [linkRow, legalRow] });
     }
 
     const command = client.commands.get(query) || client.commands.get(client.aliases.get(query));
@@ -174,3 +94,5 @@ return message.channel.send({ embeds: [notFound] });
 return message.channel.send({ embeds: [detail] });
   }
 };
+
+

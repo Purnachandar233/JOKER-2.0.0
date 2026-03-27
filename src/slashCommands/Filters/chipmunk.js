@@ -44,7 +44,7 @@ module.exports = {
        return await interaction.editReply({embeds: [thing]});
      }
         const player = client.lavalink.players.get(interaction.guild.id);
-      const { getQueueArray } = require('../../utils/queue.js');
+      const { getQueueArray } = client.core.queue;
       const tracks = getQueueArray(player);
       if(!player || !tracks || tracks.length === 0) {
                     const noperms = new EmbedBuilder()
@@ -59,11 +59,9 @@ module.exports = {
         return await interaction.editReply({embeds: [noperms]});
     }
         //
-
-        const settings = require('../../utils/settings');
-        const filted = await settings.getFilter(interaction.guild.id, 'chipmunk');
+        const filted = await client.core.filterSettings.getFilter(interaction.guild.id, 'chipmunk');
   if(!filted) {
-  await settings.setFilter(interaction.guild.id, 'chipmunk', true);
+  await client.core.filterSettings.setFilter(interaction.guild.id, 'chipmunk', true);
   const bandsForEq = Array.isArray(player.bands) ? player.bands : new Array(15).fill(0);
   player.node.send({
     op: "filters",
@@ -103,7 +101,7 @@ module.exports = {
           }, 30000)
       });;
         }else{
-          await settings.setFilter(interaction.guild.id, 'chipmunk', false);
+          await client.core.filterSettings.setFilter(interaction.guild.id, 'chipmunk', false);
           player.clearEQ();
           const bandsForEq2 = Array.isArray(player.bands) ? player.bands : new Array(15).fill(0);
           player.node.send({
@@ -143,4 +141,6 @@ module.exports = {
 
     }
   }
+
+
 

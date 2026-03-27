@@ -1,10 +1,48 @@
 require('dotenv').config();
-const { Client, GatewayIntentBits, Partials, Collection, ActivityType } = require("discord.js");
+const { Client, GatewayIntentBits, Partials, Collection, ActivityType, Options } = require("discord.js");
 const express = require("express");
 const { Webhook } = require("@top-gg/sdk");
 const User = require("./schema/User");
 const { grantVotePremiumWindow } = require("./utils/premiumAccess");
 const Logger = require("./services/Logger");
+
+function normalizeUrl(value, fallback) {
+    const text = String(value || "").trim();
+    return text || fallback;
+}
+
+function trimTrailingSlash(value) {
+    return String(value || "").replace(/\/+$/, "");
+}
+
+function buildLegalLinks(config = {}) {
+    const websiteUrl = trimTrailingSlash(
+        normalizeUrl(process.env.WEBSITE_URL, config.websiteUrl || "https://jokerbot.com")
+    );
+
+    return {
+        websiteUrl,
+        privacyPolicyUrl: normalizeUrl(
+            process.env.PRIVACY_POLICY_URL,
+            config.privacyPolicyUrl || `${websiteUrl}/privacy`
+        ),
+        termsOfServiceUrl: normalizeUrl(
+            process.env.TERMS_OF_SERVICE_URL,
+            config.termsOfServiceUrl || `${websiteUrl}/terms`
+        ),
+        privacyContactEmail: normalizeUrl(
+            process.env.PRIVACY_CONTACT_EMAIL,
+            config.privacyContactEmail || "privacy@jokerbot.com"
+        ),
+        supportServerUrl: normalizeUrl(
+            process.env.SUPPORT_SERVER_URL,
+            config.supportServerUrl || "https://discord.gg/JQzBqgmwFm"
+        ),
+    };
+}
+
+const MESSAGE_SWEEP_INTERVAL_SECONDS = 5 * 60;
+const MESSAGE_CACHE_LIFETIME_SECONDS = 15 * 60;
 
 const client = new Client({
     intents: [
@@ -22,7 +60,27 @@ const client = new Client({
                 type: ActivityType.Listening,
             }]
         },
-    partials: [Partials.Message, Partials.Channel, Partials.Reaction, Partials.GuildMember]
+    partials: [Partials.Message, Partials.Channel, Partials.Reaction, Partials.GuildMember],
+    makeCache: Options.cacheWithLimits({
+        ...Options.DefaultMakeCacheSettings,
+        MessageManager: 100,
+        ReactionManager: 0,
+        PresenceManager: 0,
+        ThreadManager: 50,
+        ThreadMemberManager: 0,
+        UserManager: 1000,
+        GuildMemberManager: {
+            maxSize: 500,
+            keepOverLimit: (member) => member.id === member.client.user?.id,
+        },
+    }),
+    sweepers: {
+        ...Options.DefaultSweeperSettings,
+        messages: {
+            interval: MESSAGE_SWEEP_INTERVAL_SECONDS,
+            lifetime: MESSAGE_CACHE_LIFETIME_SECONDS,
+        },
+    }
 });
 
 // Warn about privileged intents (enable in Developer Portal)
@@ -38,9 +96,10 @@ client.commands = new Collection();
 client.aliases = new Collection();
 client.sls = new Collection();
 client.config = require("../config.json");
-client.owner = client.config.ownerId;
+client.owner = client.config.ownerIds || process.env.ownerid;
 client.prefix = process.env.PREFIX || client.config.prefix;
 client.embedColor = client.config.embedColor;
+client.legalLinks = Object.freeze(buildLegalLinks(client.config));
 client.cooldowns = new Collection();
 client.logger = new Logger(client);
 
@@ -98,10 +157,6 @@ if (topggWebhookAuth) {
                 console.log(`[TOPGG] Vote recorded for ${vote.user}. Premium window unchanged.`);
             }
 
-            const user = await client.users.fetch(vote.user).catch(() => null);
-            if (user) {
-                user.send("Thank you for voting! You received 12 hours of Premium access!").catch(() => {});
-            }
         } catch (err) {
             console.error("Top.gg webhook error:", err);
         }

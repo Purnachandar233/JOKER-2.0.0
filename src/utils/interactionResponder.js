@@ -1,15 +1,12 @@
-/**
- * Interaction responder utility.
- * Replaces legacy safeReply/safeDeferReply helpers with low-noise behavior.
- */
-
-const EPHEMERAL_FLAG = 1 << 6;
+const { MessageFlags } = require("discord.js");
 
 function isAlreadyAcknowledged(error) {
   return (
     error?.code === 40060 ||
+    error?.code === 10062 ||
     /already been acknowledged/i.test(error?.message || "") ||
-    /already been sent or deferred/i.test(error?.message || "")
+    /already been sent or deferred/i.test(error?.message || "") ||
+    /unknown interaction/i.test(error?.message || "")
   );
 }
 
@@ -17,13 +14,14 @@ function normalizeInteractionOptions(options, { forEdit = false } = {}) {
   if (!options || typeof options !== "object") return options;
 
   const cloned = { ...options };
+
+  // Convert ephemeral to flags for Discord.js v14+
   if (Object.prototype.hasOwnProperty.call(cloned, "ephemeral")) {
     const ephemeral = Boolean(cloned.ephemeral);
     delete cloned.ephemeral;
 
     if (!forEdit && ephemeral) {
-      if (typeof cloned.flags === "number") cloned.flags |= EPHEMERAL_FLAG;
-      else cloned.flags = EPHEMERAL_FLAG;
+      cloned.flags = MessageFlags.Ephemeral;
     }
   }
 
@@ -70,7 +68,8 @@ async function reply(interaction, options = {}) {
 
       try {
         if (!interaction.deferred && !interaction.replied) {
-          await interaction.deferReply(normalizeInteractionOptions({ ephemeral: options.ephemeral ?? false }));
+          const deferOptions = options.ephemeral ? { flags: MessageFlags.Ephemeral } : {};
+          await interaction.deferReply(deferOptions);
         }
         return await interaction.editReply(normalizeInteractionOptions(options, { forEdit: true })).catch(() => null);
       } catch (fallbackError) {

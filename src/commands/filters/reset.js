@@ -31,7 +31,7 @@ module.exports = {
       return await message.channel.send({ embeds: [thing] })
     }
         const player = client.lavalink.players.get(message.guild.id)
-      const { getQueueArray } = require('../../../src/utils/queue.js');
+      const { getQueueArray } = client.core.queue;
       const tracks = getQueueArray(player);
       if(!player || !tracks || tracks.length === 0) {
       const noperms = new EmbedBuilder()
@@ -65,4 +65,6 @@ module.exports = {
     })
   }
 }
+
+
 

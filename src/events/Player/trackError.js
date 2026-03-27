@@ -1,9 +1,12 @@
 const { EmbedBuilder } = require("discord.js");
+const { withTimeout } = require("../../utils/promiseHandler");
 
 const FALLBACK_SOURCE_ORDER = ["soundcloud", "applemusic", "deezer", "bandcamp", "spotify"];
-const FALLBACK_TIMEOUT_MS = 8000;
+const FALLBACK_TIMEOUT_MS = 4500;
 const MAX_FALLBACK_HISTORY = 30;
-const FALLBACK_SCAN_LIMIT = 10;
+const FALLBACK_SCAN_LIMIT = 6;
+const MAX_FALLBACK_SOURCE_ATTEMPTS = 2;
+const FALLBACK_ATTEMPT_COOLDOWN_MS = 12000;
 const MIN_FALLBACK_SCORE = 0.46;
 
 const REGION_OR_PRIVATE_PATTERN = /country|region|geo|private|forbidden|403|blocked|copyright|not available|unavailable|removed|restricted/i;
@@ -156,6 +159,11 @@ function formatSourceName(source) {
     return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
+function normalizeSourceName(source) {
+    const value = String(source || "").trim().toLowerCase();
+    return value || null;
+}
+
 function buildFallbackKey(track) {
     const title = normalizeText(getTrackTitle(track), 160).toLowerCase();
     const author = normalizeText(getTrackAuthor(track), 120).toLowerCase();
@@ -169,6 +177,12 @@ function canAttemptFallback(player, track) {
     const key = buildFallbackKey(track);
     if (!key) return false;
 
+    const now = Date.now();
+    const lastAttemptAt = Number(player.get("trackErrorFallbackAttemptAt") || 0);
+    if (Number.isFinite(lastAttemptAt) && lastAttemptAt > 0 && (now - lastAttemptAt) < FALLBACK_ATTEMPT_COOLDOWN_MS) {
+        return false;
+    }
+
     const history = Array.isArray(player.get("trackErrorFallbackHistory"))
         ? player.get("trackErrorFallbackHistory")
         : [];
@@ -180,6 +194,7 @@ function canAttemptFallback(player, track) {
         history.splice(0, history.length - MAX_FALLBACK_HISTORY);
     }
 
+    player.set("trackErrorFallbackAttemptAt", now);
     player.set("trackErrorFallbackHistory", history);
     return true;
 }
@@ -256,18 +271,27 @@ async function searchFallbackTrack(player, track, requester, client) {
 
     const failedSource = getTrackSource(track);
     const failedIdentifier = getTrackIdentifier(track);
-    const sources = failedSource
-        ? FALLBACK_SOURCE_ORDER.filter((source) => source !== failedSource)
+    const preferredSource = normalizeSourceName(
+        typeof player?.get === "function" ? player.get("preferredSearchSource") : null
+    );
+    const candidateSources = preferredSource
+        ? [preferredSource, ...FALLBACK_SOURCE_ORDER]
         : [...FALLBACK_SOURCE_ORDER];
+    const uniqueSources = [...new Set(candidateSources.map(normalizeSourceName).filter(Boolean))];
+    const sources = (failedSource
+        ? uniqueSources.filter((source) => source !== failedSource)
+        : uniqueSources
+    ).slice(0, MAX_FALLBACK_SOURCE_ATTEMPTS);
 
     let bestMatch = null;
 
     for (const source of sources) {
         try {
-            const result = await Promise.race([
+            const result = await withTimeout(
                 player.search({ query, source }, requester),
-                new Promise((_, reject) => setTimeout(() => reject(new Error(`${source} search timeout`)), FALLBACK_TIMEOUT_MS)),
-            ]);
+                FALLBACK_TIMEOUT_MS,
+                `${source} search timeout`
+            );
 
             if (result?.loadType === "LOAD_FAILED" || !Array.isArray(result?.tracks) || !result.tracks.length) {
                 continue;
@@ -304,6 +328,9 @@ async function searchFallbackTrack(player, track, requester, client) {
             `trackError fallback picked ${getTrackTitle(bestMatch.track)} from ${bestMatch.source} (score=${bestMatch.score.toFixed(2)})`,
             "info"
         );
+        if (typeof player?.set === "function") {
+            player.set("preferredSearchSource", bestMatch.source);
+        }
         return { track: bestMatch.track, source: bestMatch.source };
     }
 

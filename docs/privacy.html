@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JOKER Music Bot - Privacy Policy</title>
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --card: #ffffff;
+      --text: #1f2a37;
+      --muted: #4b5563;
+      --brand: #ff0051;
+      --border: #dbe3ef;
+      --ok: #0f766e;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      line-height: 1.6;
+      color: var(--text);
+      background: radial-gradient(circle at top right, #ffe2ec 0%, var(--bg) 45%);
+      padding: 20px;
+    }
+
+    .wrap {
+      max-width: 980px;
+      margin: 0 auto;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 16px 44px rgba(0, 0, 0, 0.08);
+    }
+
+    header {
+      background: linear-gradient(120deg, #ff0051 0%, #ff5d8f 100%);
+      color: #fff;
+      padding: 28px 24px;
+    }
+
+    header h1 {
+      margin: 0 0 8px;
+      font-size: 2rem;
+      letter-spacing: 0.2px;
+    }
+
+    header p {
+      margin: 0;
+      opacity: 0.95;
+    }
+
+    main {
+      padding: 22px;
+    }
+
+    section + section {
+      margin-top: 24px;
+      padding-top: 18px;
+      border-top: 1px solid var(--border);
+    }
+
+    h2 {
+      margin: 0 0 10px;
+      font-size: 1.2rem;
+      color: #0f172a;
+    }
+
+    p, li {
+      color: var(--muted);
+    }
+
+    code {
+      background: #f1f5f9;
+      border: 1px solid #d8e1ec;
+      border-radius: 6px;
+      padding: 1px 6px;
+      font-family: Consolas, monospace;
+      color: #0f172a;
+    }
+
+    .meta {
+      display: grid;
+      gap: 8px;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      margin-top: 12px;
+    }
+
+    .meta div {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      background: #fcfdff;
+      color: #334155;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      margin-top: 10px;
+    }
+
+    th, td {
+      padding: 11px 10px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: #f8fbff;
+      color: #0f172a;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .callout {
+      border-left: 4px solid var(--ok);
+      background: #f0fdfa;
+      padding: 12px 14px;
+      border-radius: 8px;
+      color: #115e59;
+      margin-top: 10px;
+    }
+
+    footer {
+      padding: 18px 22px 26px;
+      border-top: 1px solid var(--border);
+      color: #475569;
+      font-size: 0.92rem;
+    }
+
+    a { color: #c4003d; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>JOKER Music Bot Privacy Policy</h1>
+      <p>How we collect, use, share, and delete data.</p>
+      <div class="meta">
+        <div><strong>Last Updated:</strong> March 23, 2026</div>
+        <div><strong>Policy Version:</strong> 2.0</div>
+      </div>
+    </header>
+
+    <main>
+      <section>
+        <h2>1) Overview</h2>
+        <p>
+          This policy applies to JOKER Music Bot ("JOKER", "bot", "we", "our"). It explains what data we process when you use
+          bot commands in Discord and what controls you have.
+        </p>
+      </section>
+
+      <section>
+        <h2>2) Data We Process</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Data Type</th>
+              <th>Why It Is Used</th>
+              <th>Stored In</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Discord User ID</td>
+              <td>Account-scoped features such as profile stats, premium windows, and moderation flags.</td>
+              <td>MongoDB</td>
+            </tr>
+            <tr>
+              <td>Guild/Server IDs and channel/role IDs</td>
+              <td>Server settings such as welcome configuration, requester mode, DJ role, and prefix settings.</td>
+              <td>MongoDB</td>
+            </tr>
+            <tr>
+              <td>Command usage stats</td>
+              <td>Track feature usage and profile counters (for example: commands used, songs listened, listen time).</td>
+              <td>MongoDB</td>
+            </tr>
+            <tr>
+              <td>Music search queries and track metadata</td>
+              <td>Find and play requested songs via audio/search providers.</td>
+              <td>Lavalink + temporary runtime memory</td>
+            </tr>
+            <tr>
+              <td>Vote and premium state</td>
+              <td>Grant and validate vote/premium gated features.</td>
+              <td>MongoDB + Top.gg API checks</td>
+            </tr>
+            <tr>
+              <td>Error and diagnostic logs</td>
+              <td>Operational monitoring, debugging, and abuse handling.</td>
+              <td>Console + in-memory buffers</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>3) Message Content and Privileged Intents</h2>
+        <p>
+          JOKER uses Discord privileged intents, including Message Content and Guild Members. Message content is processed to run
+          prefix commands and mention-prefix command parsing. Slash command usage does not require message text parsing.
+        </p>
+      </section>
+
+      <section>
+        <h2>4) What We Do Not Collect</h2>
+        <ul>
+          <li>Discord passwords or authentication credentials.</li>
+          <li>Payment card information.</li>
+          <li>Private DMs unrelated to bot interactions.</li>
+          <li>Your IP address directly from Discord clients.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>5) Data Sharing and Third Parties</h2>
+        <p>We only share data when needed for bot operation:</p>
+        <ul>
+          <li><strong>Discord API:</strong> receives command interactions and message events required for bot functionality.</li>
+          <li><strong>MongoDB:</strong> stores persistent bot settings and user records.</li>
+          <li><strong>Lavalink / audio sources:</strong> receives search terms and track metadata to resolve music playback.</li>
+          <li><strong>Top.gg:</strong> used to validate voting status and vote-based premium windows.</li>
+        </ul>
+        <p>We do not sell personal data.</p>
+      </section>
+
+      <section>
+        <h2>6) Retention</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Category</th>
+              <th>Retention</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>User profile stats</td>
+              <td>Kept until user deletion request or internal cleanup decisions.</td>
+            </tr>
+            <tr>
+              <td>Vote-based premium window</td>
+              <td>12 hours from vote grant unless replaced by permanent premium.</td>
+            </tr>
+            <tr>
+              <td>Guild settings</td>
+              <td>Kept while bot is configured in that guild, or until removed/reset.</td>
+            </tr>
+            <tr>
+              <td>In-memory recent logs</td>
+              <td>Runtime-only; cleared on process restart (default buffer: 500 entries).</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>7) Your Rights and Controls</h2>
+        <p>You can request data access, correction, or deletion through our support channels:</p>
+        <ul>
+          <li>Support server: <a href="https://discord.gg/JQzBqgmwFm">discord.gg/JQzBqgmwFm</a></li>
+          <li>Privacy email: <a href="mailto:privacy@jokerbot.com">privacy@jokerbot.com</a></li>
+          <li><code>/privacy</code> and <code>/terms</code> are always available for legal links.</li>
+        </ul>
+        <div class="callout">
+          We process verified privacy requests as quickly as possible. Third-party platform logs are managed by their respective providers.
+        </div>
+      </section>
+
+      <section>
+        <h2>8) Security Practices</h2>
+        <ul>
+          <li>Secrets should be provided through environment variables.</li>
+          <li>Error sanitization is applied to reduce accidental credential leakage in logs.</li>
+          <li>Access controls are enforced for owner-only and permission-gated commands.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>9) Contact</h2>
+        <p>
+          Support server: <a href="https://discord.gg/JQzBqgmwFm">discord.gg/JQzBqgmwFm</a><br>
+          Privacy email: <a href="mailto:privacy@jokerbot.com">privacy@jokerbot.com</a>
+        </p>
+      </section>
+
+      <section>
+        <h2>10) Related Links</h2>
+        <p>
+          Terms of Service: <a href="https://jokerbot.com/terms">https://jokerbot.com/terms</a><br>
+          Privacy Policy: <a href="https://jokerbot.com/privacy">https://jokerbot.com/privacy</a>
+        </p>
+      </section>
+    </main>
+
+    <footer>
+      JOKER Music Bot Privacy Policy &middot; Effective March 23, 2026
+    </footer>
+  </div>
+</body>
+</html>

@@ -1,4 +1,26 @@
 const { getNodeLabel, getNodeHealth, updateNodeHealth } = require("../../utils/lavalinkHealth");
+const NODE_ERROR_HISTORY_TTL_MS = 10 * 60 * 1000;
+const NODE_ERROR_HISTORY_MAX = 1000;
+
+function pruneNodeErrorHistory(store, now = Date.now()) {
+  if (!(store instanceof Map)) return;
+
+  for (const [key, value] of store.entries()) {
+    if (!Number.isFinite(Number(value)) || (now - Number(value)) > NODE_ERROR_HISTORY_TTL_MS) {
+      store.delete(key);
+    }
+  }
+
+  if (store.size <= NODE_ERROR_HISTORY_MAX) return;
+
+  const overflow = store.size - NODE_ERROR_HISTORY_MAX;
+  let removed = 0;
+  for (const key of store.keys()) {
+    store.delete(key);
+    removed += 1;
+    if (removed >= overflow) break;
+  }
+}
 
 module.exports = async (client, node, error) => {
   const label = getNodeLabel(node);
@@ -9,6 +31,7 @@ module.exports = async (client, node, error) => {
   if (!client.__lavalinkNodeErrorHistory) {
     client.__lavalinkNodeErrorHistory = new Map();
   }
+  pruneNodeErrorHistory(client.__lavalinkNodeErrorHistory, now);
 
   const lastSeenAt = client.__lavalinkNodeErrorHistory.get(dedupeKey) || 0;
   if ((now - lastSeenAt) < 10000) return;

@@ -63,16 +63,30 @@ module.exports = async (client, player) => {
 					tracks,
 					// alias for older code paths
 					items: tracks,
-					add(t) {
+					add(t, index = null) {
 						if (!t) return false;
-						if (Array.isArray(t)) tracks.push(...t);
-						else tracks.push(t);
+						const incoming = Array.isArray(t) ? t.flat() : [t];
+						if (!incoming.length) return false;
+
+						if (Number.isFinite(Number(index))) {
+							const insertAt = Math.max(0, Math.min(tracks.length, Math.floor(Number(index))));
+							tracks.splice(insertAt, 0, ...incoming);
+						} else {
+							tracks.push(...incoming);
+						}
+
 						return true;
 					},
 					remove(start = 0, amount = 1) {
 						const index = Number.isFinite(Number(start)) ? Math.max(0, Math.floor(Number(start))) : 0;
 						const deleteCount = Number.isFinite(Number(amount)) ? Math.max(1, Math.floor(Number(amount))) : 1;
 						return tracks.splice(index, deleteCount);
+					},
+					splice(start = 0, deleteCount = tracks.length, ...items) {
+						const index = Number.isFinite(Number(start)) ? Math.max(0, Math.floor(Number(start))) : 0;
+						const amount = Number.isFinite(Number(deleteCount)) ? Math.max(0, Math.floor(Number(deleteCount))) : 0;
+						const normalizedItems = items.flat();
+						return tracks.splice(index, amount, ...normalizedItems);
 					},
 					shuffle() {
 						for (let i = tracks.length - 1; i > 0; i--) {

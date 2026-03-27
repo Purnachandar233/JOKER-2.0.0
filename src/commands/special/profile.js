@@ -67,8 +67,17 @@ module.exports = {
       message.guild.members.cache.get(args[0]) ||
       message.member;
 
-    let userData = await User.findOne({ userId: member.id });
-    if (!userData) userData = await User.create({ userId: member.id });
+    let userData = await User.findOne({ userId: member.id }).lean();
+    if (!userData) {
+      userData = {
+        userId: member.id,
+        count: 0,
+        totalVotes: 0,
+        songsListened: 0,
+        totalListenTimeMs: 0,
+        badge: {}
+      };
+    }
 
     const badgeLines = getBadgeLines(client, userData);
     const badgeValue = badgeLines.join("\n");
@@ -80,10 +89,10 @@ module.exports = {
     const premiumDoc = await Premium.findOne({ Id: member.id, Type: "user" });
 
     // ================= PREMIUM STATUS =================
-    let premiumText = "No active premium subscription.";
+    let premiumText = "No active premium access.";
 
     if (premiumDoc?.Permanent) {
-      premiumText = "Permanent subscription";
+      premiumText = "Permanent access";
     } else if (premiumDoc && premiumDoc.Expire > Date.now()) {
       premiumText = `Active for ${formatDuration(
         premiumDoc.Expire - Date.now(),

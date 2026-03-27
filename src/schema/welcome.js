@@ -19,6 +19,10 @@ const welcomeSchema = new mongoose.Schema(
       type: String,
       default: "Welcome {user} to {server}!"
     },
+    textMessage: {
+      type: String,
+      default: "Welcome {user} to {server}! You are member #{count}."
+    },
     title: {
       type: String,
       default: "Welcome!"
@@ -27,10 +31,13 @@ const welcomeSchema = new mongoose.Schema(
       type: String,
       default: null
     },
-    deliveryType: {
-      type: String,
-      enum: ["embed", "text"],
-      default: "embed"
+    embedEnabled: {
+      type: Boolean,
+      default: true
+    },
+    textEnabled: {
+      type: Boolean,
+      default: false
     },
     enabled: {
       type: Boolean,

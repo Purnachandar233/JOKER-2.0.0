@@ -12,6 +12,7 @@ const {
 } = require("discord.js");
 
 const { convertTime } = require("../../utils/convert.js");
+const { withTimeout } = require("../../utils/promiseHandler.js");
 
 const EMOJIS = require("../../utils/emoji.json");
 function getTrackTitle(track) {
@@ -32,6 +33,8 @@ function isTrackLive(track) {
 }
 
 const SEARCH_SOURCE_ORDER = ["spotify", "soundcloud", "applemusic", "deezer", "bandcamp"];
+const USER_SEARCH_SOURCE_ATTEMPTS = 3;
+const USER_SEARCH_TIMEOUT_MS = 5000;
 const SEARCH_PANEL_MAX_ACTION_ROWS = 5;
 const SEARCH_PANEL_FIXED_ROWS = 2; // tab row + navigation row
 const SEARCH_PANEL_PAGE_SIZE = Math.max(1, SEARCH_PANEL_MAX_ACTION_ROWS - SEARCH_PANEL_FIXED_ROWS);
@@ -53,8 +56,21 @@ function uniqueSources(list) {
   return [...new Set((Array.isArray(list) ? list : [list]).map(normalizeSourceName).filter(Boolean))];
 }
 
+function orderSourcesForPlayer(player, preferredSources = SEARCH_SOURCE_ORDER) {
+  const ordered = uniqueSources(preferredSources);
+  const preferred = normalizeSourceName(
+    typeof player?.get === "function" ? player.get("preferredSearchSource") : null
+  );
+
+  if (!preferred || !ordered.includes(preferred)) {
+    return ordered;
+  }
+
+  return [preferred, ...ordered.filter((source) => source !== preferred)];
+}
+
 function getAvailableSearchSources(client, player, preferredSources = SEARCH_SOURCE_ORDER) {
-  const preferred = uniqueSources(preferredSources);
+  const preferred = orderSourcesForPlayer(player, preferredSources);
   const nodes = [];
 
   if (player?.node) nodes.push(player.node);
@@ -495,9 +511,18 @@ module.exports = {
         Boolean(player?.paused) ||
         (Array.isArray(player?.queue?.tracks) && player.queue.tracks.length > 0)
       );
-      const searchWithAvailableSources = async (queryText, requester, { preferredSources = SEARCH_SOURCE_ORDER, timeoutMs = 10000, logPrefix = "Search" } = {}) => {
+      const searchWithAvailableSources = async (
+        queryText,
+        requester,
+        {
+          preferredSources = SEARCH_SOURCE_ORDER,
+          timeoutMs = USER_SEARCH_TIMEOUT_MS,
+          logPrefix = "Search",
+          maxSourceAttempts = USER_SEARCH_SOURCE_ATTEMPTS,
+        } = {}
+      ) => {
         const availability = getAvailableSearchSources(client, player, preferredSources);
-        const attemptedSources = availability.sources.slice();
+        const attemptedSources = availability.sources.slice(0, Math.max(1, Number(maxSourceAttempts) || USER_SEARCH_SOURCE_ATTEMPTS));
         let lastError = null;
 
         if (!attemptedSources.length) {
@@ -516,16 +541,20 @@ module.exports = {
 
         for (const source of attemptedSources) {
           try {
-            const result = await Promise.race([
+            const result = await withTimeout(
               player.search({ query: queryText, source }, requester),
-              new Promise((_, reject) => setTimeout(() => reject(new Error(`${source} search timeout`)), timeoutMs)),
-            ]);
+              timeoutMs,
+              `${source} search timeout`
+            );
 
             if (result?.loadType === "LOAD_FAILED") {
               throw result.exception || new Error(`${source} search failed`);
             }
 
             if (result?.tracks?.length) {
+              if (typeof player?.set === "function") {
+                player.set("preferredSearchSource", source);
+              }
               return {
                 result,
                 attemptedSources,
@@ -577,11 +606,11 @@ module.exports = {
       try {
         searchAttempt = await searchWithAvailableSources(query, interaction.member.user, {
           preferredSources: SEARCH_SOURCE_ORDER,
-          timeoutMs: 8000,
+          timeoutMs: USER_SEARCH_TIMEOUT_MS,
           logPrefix: "Search",
         });
         searchResult = searchAttempt.result;
-        if (searchResult.loadType === "LOAD_FAILED") throw searchResult.exception;
+        if (searchResult?.loadType === "LOAD_FAILED") throw searchResult.exception;
       } catch (err) {
         client.logger?.log?.(err?.stack || err?.message || String(err), "error");
         const embed = new EmbedBuilder()
@@ -614,8 +643,9 @@ module.exports = {
 
         const addAttempt = await searchWithAvailableSources(entry.query, interaction.member.user, {
           preferredSources: SEARCH_SOURCE_ORDER,
-          timeoutMs: 8000,
+          timeoutMs: USER_SEARCH_TIMEOUT_MS,
           logPrefix: `Search panel ${entry.type}`,
+          maxSourceAttempts: 2,
         });
 
         if (!addAttempt.result?.tracks?.length) {

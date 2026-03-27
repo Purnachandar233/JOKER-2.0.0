@@ -12,6 +12,19 @@ const {
 const EMOJIS = require("../../utils/emoji.json");
 const formatDuration = require("../../utils/formatDuration");
 const { resolvePremiumAccess } = require("../../utils/premiumAccess");
+const { safeReply } = require("../../utils/interactionResponder");
+
+function isInteraction(ctx) {
+  return Boolean(ctx && typeof ctx.deferReply === "function" && typeof ctx.editReply === "function");
+}
+
+async function sendResponse(ctx, payload) {
+  if (isInteraction(ctx)) {
+    const normalized = typeof payload === "string" ? { content: payload } : payload;
+    return safeReply(ctx, normalized);
+  }
+  return ctx.channel.send(payload);
+}
 
 function resolveAccentColor(color) {
   if (typeof color === "number" && Number.isFinite(color)) return color;
@@ -26,16 +39,16 @@ function formatRemainingLabel(expireAt, now = Date.now()) {
 }
 
 function formatPremiumStatusLine(label, { active = false, doc = null, now = Date.now(), voteFallback = false } = {}) {
-  if (!active) return `X ${label}: **Inactive**`;
+  if (!active) return `${getEmoji("no")} ${label}: **Inactive**`;
 
-  if (doc?.Permanent) return `OK ${label}: **Active (Permanent)**`;
+  if (doc?.Permanent) return `${getEmoji("ok")} ${label}: **Active (Permanent)**`;
 
   const remainingLabel = formatRemainingLabel(doc?.Expire, now);
-  if (remainingLabel) return `OK ${label}: **Active (${remainingLabel})**`;
+  if (remainingLabel) return `${getEmoji("ok")} ${label}: **Active (${remainingLabel})**`;
 
-  if (voteFallback) return `OK ${label}: **Active (Vote Window)**`;
+  if (voteFallback) return `${getEmoji("ok")} ${label}: **Active (Vote Window)**`;
 
-  return `OK ${label}: **Active**`;
+  return `${getEmoji("ok")} ${label}: **Active**`;
 }
 
 module.exports = {
@@ -44,11 +57,13 @@ module.exports = {
   description: "Shows premium status and actions.",
   owner: false,
   wl: true,
-  execute: async (message, args, client) => {
+  execute: async (ctx, args, client) => {
     const getEmoji = (key, fallback = "") => EMOJIS[key] || fallback;
     const embedColor = client?.embedColor || "#ff0051";
 
-    const access = await resolvePremiumAccess(message.author.id, message.guild?.id, client);
+    const userId = ctx?.author?.id || ctx?.user?.id;
+    const guildId = ctx?.guild?.id || null;
+    const access = await resolvePremiumAccess(userId, guildId, client);
     const now = Date.now();
 
     const userStatusLine = formatPremiumStatusLine("Your Premium", {
@@ -58,7 +73,7 @@ module.exports = {
       voteFallback: access.topggFallbackVoted,
     });
 
-    const serverStatusLine = message.guild?.id
+    const serverStatusLine = guildId
       ? formatPremiumStatusLine("Server Premium", {
           active: access.guildPremium,
           doc: access.guildDoc,
@@ -79,13 +94,13 @@ module.exports = {
 
     const quickLinkPremium = new ButtonBuilder()
       .setStyle(ButtonStyle.Link)
-      .setLabel("Premium")
-      .setURL(`https://top.gg/bot/${client.user.id}/vote`);
+      .setLabel("Premium Info")
+      .setURL(`https://top.gg/bot/${client.user.id}`);
 
     const quickLinkSupport = new ButtonBuilder()
       .setStyle(ButtonStyle.Link)
       .setLabel("Support Server")
-      .setURL("https://discord.gg/JQzBqgmwFm");
+      .setURL(client?.legalLinks?.supportServerUrl || "https://discord.gg/JQzBqgmwFm");
 
     try {
       const premiumEmoji = getEmoji("premium");
@@ -102,8 +117,8 @@ module.exports = {
         new TextDisplayBuilder().setContent("### Activate Premium"),
         new TextDisplayBuilder().setContent(
           access.hasAccess
-            ? "Premium is already active. You can still vote to extend temporary windows."
-            : "Use Top.gg vote or contact support to activate premium features."
+            ? "Premium is already active. You can still vote to extend premium."
+            : "Use Top.gg vote for temporary access. Support, privacy, and terms links are below for additional premium information."
         )
       )
       .setButtonAccessory(activateButton);
@@ -141,7 +156,7 @@ module.exports = {
       .addActionRowComponents(linkRow);
 
     try {
-      return await message.channel.send({
+      return await sendResponse(ctx, {
         flags: MessageFlags.IsComponentsV2,
         components: [dashboardContainer],
       });
@@ -159,7 +174,7 @@ module.exports = {
               : "Get premium to unlock exclusive features!",
           ].join("\n")
         );
-      return message.channel.send({ embeds: [fallbackEmbed], components: [linkRow] });
+      return sendResponse(ctx, { embeds: [fallbackEmbed], components: [linkRow] });
     }
   },
 };

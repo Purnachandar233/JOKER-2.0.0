@@ -1,14 +1,12 @@
 const { EmbedBuilder } = require("discord.js");
 
-const EMOJIS = require("../../utils/emoji.json");
-const EMBED_COLOR = "#ff0051";
-
-function getEmoji(client, key, fallback = "") {
-  return EMOJIS[key] || fallback;
-}
-
 const Schema = require("../../schema/welcome.js");
-const { renderWelcomeTemplate } = require("../../welcome/template");
+const {
+  DEFAULT_WELCOME_EMBED_MESSAGE,
+  DEFAULT_WELCOME_TEXT_MESSAGE,
+  DEFAULT_WELCOME_TITLE,
+  renderWelcomeTemplate,
+} = require("../../welcome/template");
 
 module.exports = async (client, member) => {
   try {
@@ -39,27 +37,33 @@ module.exports = async (client, member) => {
     const permissions = channel.permissionsFor(botMember);
     if (permissions && !permissions.has("SendMessages")) return;
 
-    const description = renderWelcomeTemplate(data.message, member);
-    const deliveryType = String(data.deliveryType || "embed").toLowerCase() === "text" ? "text" : "embed";
+    const embedDescription = renderWelcomeTemplate(data.message, member, DEFAULT_WELCOME_EMBED_MESSAGE);
+    const textDescription = renderWelcomeTemplate(data.textMessage, member, DEFAULT_WELCOME_TEXT_MESSAGE);
+    const embedEnabled = data.embedEnabled !== false; // default true
+    const textEnabled = Boolean(data.textEnabled);
 
-    if (deliveryType === "text") {
-      await channel.send({ content: description }).catch(() => {});
-      return;
+    // Send text message if enabled
+    if (textEnabled) {
+      await channel.send({ content: textDescription }).catch(() => {});
     }
 
-    if (permissions && !permissions.has("EmbedLinks")) {
-      await channel.send({ content: description }).catch(() => {});
-      return;
+    // Send embed if enabled
+    if (embedEnabled) {
+      if (permissions && !permissions.has("EmbedLinks")) {
+        // Fallback to text if no embed permission
+        await channel.send({ content: textDescription }).catch(() => {});
+        return;
+      }
+
+      const embed = new EmbedBuilder()
+        .setColor(data.embedColor || client.embedColor || "#ff0051")
+        .setTitle(data.title || DEFAULT_WELCOME_TITLE)
+        .setDescription(embedDescription)
+        .setThumbnail(member.user.displayAvatarURL({ forceStatic: false, size: 1024 }))
+        .setFooter({ text: `Member #${member.guild.memberCount}` });
+
+      await channel.send({ embeds: [embed] }).catch(() => {});
     }
-
-    const embed = new EmbedBuilder()
-      .setColor(data.embedColor || client.embedColor || "#ff0051")
-      .setTitle(data.title || `${getEmoji(client, "success")} Welcome!`)
-      .setDescription(description)
-      .setThumbnail(member.user.displayAvatarURL({ forceStatic: false, size: 1024 }))
-      .setFooter({ text: `Member #${member.guild.memberCount}` });
-
-    await channel.send({ embeds: [embed] }).catch(() => {});
   } catch (err) {
     client.logger?.log?.(`guildMemberAdd welcome error in ${member.guild.id}: ${err?.stack || err?.message || err}`, "error");
   }

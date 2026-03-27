@@ -1,13 +1,437 @@
-const { Client } = require("discord.js");
+const { Client, EmbedBuilder } = require("discord.js");
 const mongoose = require('mongoose');
 const { readdirSync } = require("fs");
-const StartupLogger = require('../utils/StartupLogger');
+const formatDuration = require('../utils/formatDuration');
+const GuildFilters = require('../schema/guildFilters');
+const queueToolsModule = require('../utils/queue');
+const filterSettingsModule = require('../utils/settings');
+const musicChecksModule = require('../utils/musicChecks');
 
 // Import all services
 const Logger = require('../services/Logger');
 const CommandErrorHandler = require('../services/CommandErrorHandler');
 const cooldownManager = require('../utils/cooldownManager');
 
+function toPositiveNumber(value, fallback) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
+function normalizeSlashCommandChoice(choice) {
+    if (!choice || typeof choice !== 'object') return null;
+
+    const normalized = {
+        name: String(choice.name || ''),
+        value: choice.value,
+    };
+
+    if (choice.nameLocalizations && typeof choice.nameLocalizations === 'object') {
+        normalized.nameLocalizations = choice.nameLocalizations;
+    }
+
+    return normalized;
+}
+
+function normalizeSlashCommandOption(option) {
+    if (!option || typeof option !== 'object') return null;
+
+    const normalized = {
+        type: Number(option.type || 0),
+        name: String(option.name || ''),
+    };
+
+    if (typeof option.description === 'string' && option.description.length) {
+        normalized.description = option.description;
+    }
+    if (option.required === true) normalized.required = true;
+    if (option.autocomplete === true) normalized.autocomplete = true;
+    if (option.minValue !== undefined) normalized.minValue = option.minValue;
+    if (option.maxValue !== undefined) normalized.maxValue = option.maxValue;
+    if (option.minLength !== undefined) normalized.minLength = option.minLength;
+    if (option.maxLength !== undefined) normalized.maxLength = option.maxLength;
+
+    if (Array.isArray(option.channelTypes) && option.channelTypes.length) {
+        normalized.channelTypes = option.channelTypes.map((type) => Number(type));
+    }
+
+    if (Array.isArray(option.choices) && option.choices.length) {
+        normalized.choices = option.choices
+            .map(normalizeSlashCommandChoice)
+            .filter(Boolean);
+    }
+
+    if (Array.isArray(option.options) && option.options.length) {
+        normalized.options = option.options
+            .map(normalizeSlashCommandOption)
+            .filter(Boolean);
+    }
+
+    return normalized;
+}
+
+function normalizeSlashCommandDefinition(command) {
+    if (!command || typeof command !== 'object' || !command.name) return null;
+
+    const type = Number(command.type || 1);
+    const normalized = {
+        type,
+        name: String(command.name),
+    };
+
+    if (type === 1) {
+        normalized.description = String(command.description || '');
+    }
+
+    if (Array.isArray(command.options) && command.options.length) {
+        normalized.options = command.options
+            .map(normalizeSlashCommandOption)
+            .filter(Boolean);
+    }
+
+    return normalized;
+}
+
+function serializeSlashCommandDefinitions(commands) {
+    const normalized = (Array.isArray(commands) ? commands : [])
+        .map(normalizeSlashCommandDefinition)
+        .filter(Boolean)
+        .sort((left, right) => {
+            const typeDiff = Number(left.type || 0) - Number(right.type || 0);
+            if (typeDiff !== 0) return typeDiff;
+            return String(left.name || '').localeCompare(String(right.name || ''));
+        });
+
+    return JSON.stringify(normalized);
+}
+
+const DEFAULT_CORE_LAVALINK_WAIT_MS = toPositiveNumber(process.env.LAVALINK_COMMAND_WAIT_MS, 2500);
+
+const coreQueueTools = Object.freeze({
+    getQueueArray(player) {
+        if (!player) return [];
+        return [
+            player?.queue?.current,
+            ...(Array.isArray(player?.queue?.tracks) ? player.queue.tracks : [])
+        ].filter(Boolean);
+    },
+
+    truncateText(value, maxLength = 60) {
+        const text = String(value || "");
+        if (text.length <= maxLength) return text;
+        return `${text.slice(0, Math.max(0, maxLength - 3))}...`;
+    },
+
+    escapeLinkLabel(value) {
+        return String(value || "")
+            .replace(/\\/g, "\\\\")
+            .replace(/\[/g, "\\[")
+            .replace(/\]/g, "\\]")
+            .replace(/\(/g, "\\(")
+            .replace(/\)/g, "\\)");
+    },
+
+    getTrackUrl(track) {
+        const url = String(
+            track?.info?.uri ||
+            track?.info?.url ||
+            track?.uri ||
+            track?.url ||
+            ""
+        ).trim();
+
+        return /^https?:\/\//i.test(url) ? url : null;
+    },
+
+    getTrackThumbnail(track) {
+        const candidates = [
+            track?.info?.artworkUrl,
+            track?.pluginInfo?.artworkUrl,
+            track?.info?.thumbnail,
+            track?.thumbnail,
+        ];
+
+        for (const candidate of candidates) {
+            const value = String(candidate || "").trim();
+            if (/^https?:\/\//i.test(value)) return value;
+        }
+
+        return null;
+    },
+
+    isLiveTrack(track) {
+        return Boolean(track?.info?.isStream || track?.isStream);
+    },
+
+    getTrackDurationMs(track) {
+        if (!track || coreQueueTools.isLiveTrack(track)) return null;
+        const ms = Number(track?.info?.duration || track?.duration || 0);
+        if (!Number.isFinite(ms) || ms <= 0) return null;
+        return ms;
+    },
+
+    formatTrackLength(track) {
+        if (coreQueueTools.isLiveTrack(track)) return "LIVE";
+        const ms = coreQueueTools.getTrackDurationMs(track);
+        if (!ms) return "Unknown";
+        return formatDuration(ms, { verbose: false, unitCount: 2 });
+    },
+
+    formatQueueTrackTitle(track, maxLength = 60) {
+        const title = coreQueueTools.truncateText(track?.info?.title || track?.title || "Unknown Title", maxLength);
+        const url = coreQueueTools.getTrackUrl(track);
+        return url ? `[${coreQueueTools.escapeLinkLabel(title)}](${url})` : title;
+    },
+
+    getRequesterInfo(track, options = {}) {
+        const fallbackRequester = options.fallbackRequester || null;
+        const fallbackRequesterId = options.fallbackRequesterId || null;
+        const fallbackTag = options.fallbackTag || null;
+
+        const id =
+            track?.requester?.id ||
+            track?.requester?.user?.id ||
+            track?.info?.requester?.id ||
+            (typeof track?.requester === "string" ? track.requester : null) ||
+            fallbackRequester?.id ||
+            fallbackRequester?.user?.id ||
+            fallbackRequesterId ||
+            null;
+
+        const tag =
+            track?.requester?.tag ||
+            track?.requester?.user?.tag ||
+            track?.info?.requester?.tag ||
+            fallbackRequester?.tag ||
+            fallbackRequester?.user?.tag ||
+            fallbackTag ||
+            "Unknown";
+
+        return {
+            id,
+            tag,
+            mention: id ? `<@${id}>` : null,
+            label: id ? `<@${id}>` : tag,
+        };
+    },
+
+    formatQueueTrackMeta(track, requesterLabel) {
+        const author = coreQueueTools.truncateText(track?.info?.author || track?.author || "Unknown", 40);
+        const duration = coreQueueTools.formatTrackLength(track);
+        return `*by ${author} - ${duration} - ${requesterLabel || "Unknown"}*`;
+    },
+
+    sumTrackDurations(tracks) {
+        const list = Array.isArray(tracks) ? tracks : [tracks];
+        let totalMs = 0;
+        let hasLive = false;
+
+        for (const track of list.filter(Boolean)) {
+            const durationMs = coreQueueTools.getTrackDurationMs(track);
+            if (durationMs == null) {
+                if (coreQueueTools.isLiveTrack(track)) hasLive = true;
+                continue;
+            }
+            totalMs += durationMs;
+        }
+
+        return { totalMs, hasLive };
+    },
+
+    getQueueTiming(player, options = {}) {
+        const now = Number.isFinite(Number(options.now)) ? Number(options.now) : Date.now();
+        const tracks = coreQueueTools.getQueueArray(player);
+        const current = tracks[0] || null;
+        const upcoming = tracks.slice(1);
+
+        const playerPosition = Math.max(0, Number(player?.position || player?.lastPosition || 0));
+        const currentDurationMs = coreQueueTools.getTrackDurationMs(current);
+        const remainingCurrentMs = currentDurationMs == null
+            ? null
+            : Math.max(0, currentDurationMs - Math.min(playerPosition, currentDurationMs));
+
+        const upcomingDurations = coreQueueTools.sumTrackDurations(upcoming);
+        const totalDurations = coreQueueTools.sumTrackDurations(tracks);
+        const remainingKnownMs = (remainingCurrentMs || 0) + upcomingDurations.totalMs;
+        const hasLive = Boolean(
+            (current && coreQueueTools.isLiveTrack(current)) ||
+            upcomingDurations.hasLive
+        );
+
+        return {
+            current,
+            upcoming,
+            totalTracks: tracks.length,
+            upcomingTracks: upcoming.length,
+            currentDurationMs,
+            remainingCurrentMs,
+            upcomingDurationMs: upcomingDurations.totalMs,
+            totalDurationMs: totalDurations.totalMs,
+            remainingKnownMs,
+            hasLive,
+            finishAt: !hasLive && remainingKnownMs > 0 ? now + remainingKnownMs : null,
+        };
+    },
+
+    formatDurationLabel(milliseconds) {
+        const raw = Number(milliseconds);
+        if (!Number.isFinite(raw) || raw <= 0) return "0s";
+        return formatDuration(raw, { verbose: false, unitCount: 3 });
+    },
+
+    formatDiscordTimestamp(timestampMs, style = "t") {
+        const raw = Number(timestampMs);
+        if (!Number.isFinite(raw) || raw <= 0) return null;
+        return `<t:${Math.floor(raw / 1000)}:${style}>`;
+    },
+});
+
+const coreFilterSettings = Object.freeze({
+    async getFilter(guildId, name) {
+        if (!guildId || !name) return false;
+        try {
+            const doc = await GuildFilters.findOne({ guildId }).lean();
+            return !!(doc && doc.filters && doc.filters[name]);
+        } catch (_e) {
+            return false;
+        }
+    },
+
+    async setFilter(guildId, name, value) {
+        if (!guildId || !name) return null;
+        try {
+            const update = {};
+            update[`filters.${name}`] = !!value;
+            return await GuildFilters.findOneAndUpdate(
+                { guildId },
+                { $set: update },
+                { upsert: true, returnDocument: "after" }
+            );
+        } catch (_e) {
+            return null;
+        }
+    },
+});
+
+function buildCoreErrorEmbed(client, text) {
+    return new EmbedBuilder()
+        .setColor(client?.embedColor || '#ff0051')
+        .setDescription(text);
+}
+
+async function runCoreMusicChecks(client, interaction, options = {}) {
+    if (!interaction || !client) {
+        return {
+            valid: false,
+            embed: buildCoreErrorEmbed(client, 'Internal validation error. Please try again.')
+        };
+    }
+
+    const requireInVoice = options.inVoiceChannel !== undefined ? options.inVoiceChannel : true;
+    const requireBotInVoice = options.botInVoiceChannel !== undefined ? options.botInVoiceChannel : true;
+    const requireSameVoice = options.sameChannel !== undefined
+        ? options.sameChannel
+        : (options.sameVoiceChannel !== undefined
+            ? options.sameVoiceChannel
+            : (options.requireSameVoice !== undefined ? options.requireSameVoice : true));
+    const requirePlayerCheck = options.requirePlayer !== undefined ? options.requirePlayer : true;
+    const requireQueue = options.requireQueue !== undefined ? options.requireQueue : false;
+
+    const userChannel = interaction?.member?.voice?.channel || null;
+    if (requireInVoice && !userChannel) {
+        return {
+            valid: false,
+            embed: buildCoreErrorEmbed(client, 'You must be in a voice channel to use this command.')
+        };
+    }
+
+    const guild = interaction?.guild || null;
+    const botMember = guild?.members?.cache?.get?.(client?.user?.id) || null;
+    const botChannel = botMember?.voice?.channel || null;
+
+    if (requireBotInVoice) {
+        if (!guild || !client?.user?.id) {
+            return {
+                valid: false,
+                embed: buildCoreErrorEmbed(client, 'This command can only be used in a server.')
+            };
+        }
+
+        if (!botChannel) {
+            return {
+                valid: false,
+                embed: buildCoreErrorEmbed(client, 'Bot is not in a voice channel.')
+            };
+        }
+    }
+
+    if (requireSameVoice) {
+        if (!userChannel) {
+            return {
+                valid: false,
+                embed: buildCoreErrorEmbed(client, 'You must be in a voice channel.')
+            };
+        }
+
+        if (!botChannel) {
+            return {
+                valid: false,
+                embed: buildCoreErrorEmbed(client, 'Bot is not in a voice channel.')
+            };
+        }
+
+        if (userChannel.id !== botChannel.id) {
+            return {
+                valid: false,
+                embed: buildCoreErrorEmbed(client, 'You must be in the same voice channel as the bot.')
+            };
+        }
+    }
+
+    let player = null;
+    if (requirePlayerCheck || requireQueue) {
+        if (!client?.lavalink) {
+            return {
+                valid: false,
+                embed: buildCoreErrorEmbed(client, 'Lavalink is not initialized.')
+            };
+        }
+
+        if (!client.lavalink.useable && typeof client.waitForLavalinkReady === 'function') {
+            try {
+                await client.waitForLavalinkReady(DEFAULT_CORE_LAVALINK_WAIT_MS);
+            } catch (_err) {}
+        }
+
+        if (!client.lavalink.useable) {
+            return {
+                valid: false,
+                embed: buildCoreErrorEmbed(client, 'No Lavalink node is available right now. Please try again in a moment.')
+            };
+        }
+
+        player = client.lavalink.players.get(interaction.guildId);
+        if (!player) {
+            return {
+                valid: false,
+                embed: buildCoreErrorEmbed(client, 'No player active. Use /play to start music.')
+            };
+        }
+    }
+
+    if (requireQueue) {
+        const queue = coreQueueTools.getQueueArray(player);
+        if (!queue.length) {
+            return {
+                valid: false,
+                embed: buildCoreErrorEmbed(client, 'Queue is empty.')
+            };
+        }
+
+        return { valid: true, player, queue };
+    }
+
+    return { valid: true, player };
+}
 
 
 /**
@@ -19,6 +443,11 @@ module.exports = async (client) => {
     } else {
         client.logger.client = client;
     }
+
+    client.core = client.core || {};
+    client.core.queue = queueToolsModule;
+    client.core.filterSettings = filterSettingsModule;
+    client.runMusicChecks = async (interaction, options = {}) => musicChecksModule.runMusicChecks(client, interaction, options);
 
     client.on("raw", (d) => {
         if (!client.lavalink) return;
@@ -323,43 +752,50 @@ readdirSync("./src/slashCommands/").forEach((dir) => {
     // same initialization for both event names to remain backwards compatible
     // and avoid the deprecation warning.
     client.once("clientReady", async () => {
-        const startup = new StartupLogger();
-
-        startup.sectionStart('DISCORD');
-        startup.success(`Discord connected: ${client.user && client.user.tag ? client.user.tag : client.user}`);
-        startup.sectionEnd();
+        safeLog(`[DISCORD] Connected: ${client.user && client.user.tag ? client.user.tag : client.user}`, 'info');
 
         // Register global slash commands on ready (independent of Lavalink)
         try {
-            startup.sectionStart('COMMANDS');
             if (Array.isArray(data) && data.length > 0) {
                 if (client.application && client.application.commands && typeof client.application.commands.set === 'function') {
-                    // Register slash commands in background to avoid blocking ready.
-                    client.application.commands.set(data).then(() => {
-                        startup.success(`Slash commands registered`, `count=${data.length}`);
-                    }).catch((e) => {
-                        startup.error(`Failed to register commands: ${e && (e.message || e.toString())}`);
+                    const desiredDefinitions = data
+                        .map(normalizeSlashCommandDefinition)
+                        .filter(Boolean);
+
+                    const registerIfChanged = async () => {
+                        const currentCommands = await client.application.commands.fetch().catch(() => null);
+                        const currentDefinitions = currentCommands
+                            ? Array.from(currentCommands.values()).map((command) => normalizeSlashCommandDefinition(command))
+                            : [];
+
+                        if (serializeSlashCommandDefinitions(currentDefinitions) === serializeSlashCommandDefinitions(desiredDefinitions)) {
+                            safeLog(`[COMMANDS] Slash commands already up to date | count=${desiredDefinitions.length}`, 'info');
+                            return;
+                        }
+
+                        await client.application.commands.set(desiredDefinitions);
+                        safeLog(`[COMMANDS] Slash commands registered | count=${desiredDefinitions.length}`, 'info');
+                    };
+
+                    registerIfChanged().catch((e) => {
+                        safeLog(`[COMMANDS] Failed to register slash commands: ${e && (e.message || e.toString())}`, 'error');
                     });
                 } else {
-                    startup.warn('Slash registration skipped: client.application.commands unavailable');
+                    safeLog('[COMMANDS] Slash registration skipped: client.application.commands unavailable', 'warn');
                 }
             } else {
-                startup.info('No slash commands to register');
+                safeLog('[COMMANDS] No slash commands to register', 'info');
             }
-            startup.sectionEnd();
         } catch (e) {
-            startup.error(`Command registration error: ${e && (e.message || e.toString())}`);
+            safeLog(`[COMMANDS] Registration error: ${e && (e.message || e.toString())}`, 'error');
         }
         // Lavalink setup is performed from src/events/Client/ready.js, which
         // also runs on clientReady. This block only handles Discord startup
         // logging and slash command registration.
     });
     client.once("clientReady", async () => {
-        const startup = new StartupLogger();
-
         try {
             // 1. Ensure structured logger is available
-            startup.sectionStart('SERVICES');
             if (!(client.logger instanceof Logger)) {
                 client.logger = new Logger(client);
             } else {
@@ -371,14 +807,10 @@ readdirSync("./src/slashCommands/").forEach((dir) => {
 
             // 3. Attach cooldownManager (singleton pattern, no .start() needed)
             client.cooldownManager = cooldownManager;
-            startup.success('Core services ready');
-            startup.sectionEnd();
-
-            startup.complete('All systems initialized and ready');
+            safeLog('[SERVICES] Core services ready', 'info');
+            safeLog('[READY] All systems initialized and ready', 'info');
 
         } catch (e) {
-            const startup = new StartupLogger();
-            startup.criticalError(`Initialization failed: ${e && (e.message || e.toString())}`);
             safeLog(`Initialization failed: ${e && (e.message || e.toString())}`, 'error');
         }
     });

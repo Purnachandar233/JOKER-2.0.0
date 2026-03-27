@@ -2,8 +2,7 @@
  * Centralized error handler for Discord interactions
  */
 
-const { EmbedBuilder } = require('discord.js');
-const EPHEMERAL_FLAG = 1 << 6;
+const { EmbedBuilder, MessageFlags } = require('discord.js');
 
 /**
  * Send safe error reply to interaction (handles already-replied state)
@@ -19,7 +18,7 @@ async function replyError(interaction, message, client) {
         client?.logger?.log?.(`Failed to edit error reply: ${err?.message}`, 'warn');
       });
     } else {
-      await interaction.reply({ embeds: [embed], flags: EPHEMERAL_FLAG }).catch(err => {
+      await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral }).catch(err => {
         client?.logger?.log?.(`Failed to send error reply: ${err?.message}`, 'warn');
       });
     }

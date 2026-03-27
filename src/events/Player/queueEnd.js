@@ -14,7 +14,8 @@ function toPositiveNumber(value, fallback) {
 const IDLE_LEAVE_DELAY_MS = toPositiveNumber(process.env.QUEUE_END_IDLE_LEAVE_MS, 2 * 60 * 1000);
 const IDLE_LEAVE_MINUTES = Math.max(1, Math.round(IDLE_LEAVE_DELAY_MS / 60_000));
 const IDLE_LEAVE_LABEL = `${IDLE_LEAVE_MINUTES} minute${IDLE_LEAVE_MINUTES === 1 ? "" : "s"}`;
-const PREMIUM_NUDGE_COOLDOWN_MS = toPositiveNumber(process.env.QUEUE_END_PREMIUM_NUDGE_COOLDOWN_MS, 8 * 60 * 60 * 1000);
+const PREMIUM_NUDGE_COOLDOWN_MS = toPositiveNumber(process.env.QUEUE_END_PREMIUM_NUDGE_COOLDOWN_MS, 24 * 60 * 60 * 1000);
+const PREMIUM_NUDGE_CACHE_MAX = toPositiveNumber(process.env.QUEUE_END_PREMIUM_NUDGE_CACHE_MAX, 5000);
 const LOG_QUEUE_EVENTS = String(process.env.LOG_QUEUE_EVENTS || "false").toLowerCase() === "true";
 
 function logQueueEvent(client, message, level = "info") {
@@ -40,8 +41,8 @@ async function resolveTextChannel(client, channelId) {
 async function resolveVoiceChannel(client, player) {
   const guild = client.guilds.cache.get(player.guildId);
   const voiceChannelId =
-    player.voiceChannelId ||
     guild?.members?.me?.voice?.channelId ||
+    player.voiceChannelId ||
     null;
 
   if (!voiceChannelId) return null;
@@ -89,6 +90,28 @@ function clearIdleLeaveTimer(client, guildId) {
   timers.delete(guildId);
 }
 
+function prunePremiumNudgeCooldown(client, now = Date.now()) {
+  const cooldownMap = client.__queueEndPremiumNudgeCooldown;
+  if (!(cooldownMap instanceof Map)) return;
+
+  for (const [guildId, lastSentAt] of cooldownMap.entries()) {
+    const raw = Number(lastSentAt || 0);
+    if (!Number.isFinite(raw) || raw <= 0 || (now - raw) >= PREMIUM_NUDGE_COOLDOWN_MS) {
+      cooldownMap.delete(guildId);
+    }
+  }
+
+  if (cooldownMap.size <= PREMIUM_NUDGE_CACHE_MAX) return;
+
+  const overflow = cooldownMap.size - PREMIUM_NUDGE_CACHE_MAX;
+  let removed = 0;
+  for (const guildId of cooldownMap.keys()) {
+    cooldownMap.delete(guildId);
+    removed += 1;
+    if (removed >= overflow) break;
+  }
+}
+
 async function hasGuildPremium(guildId) {
   const premiumDoc = await Premium.findOne({ Id: guildId, Type: "guild" }).catch(() => null);
   if (!premiumDoc) return false;
@@ -102,11 +125,16 @@ async function hasGuildPremium(guildId) {
 }
 
 function playerHasActiveQueue(player) {
+  const hasCurrentTrack = Boolean(player?.queue?.current);
+  const hasUpcomingTracks = Array.isArray(player?.queue?.tracks) && player.queue.tracks.length > 0;
+  const isPlaying = Boolean(player?.playing);
+  const isPausedWithTrack = Boolean(player?.paused) && hasCurrentTrack;
+
   return (
-    Boolean(player?.queue?.current) ||
-    Boolean(player?.playing) ||
-    Boolean(player?.paused) ||
-    (Array.isArray(player?.queue?.tracks) && player.queue.tracks.length > 0)
+    hasCurrentTrack ||
+    isPlaying ||
+    isPausedWithTrack ||
+    hasUpcomingTracks
   );
 }
 
@@ -135,6 +163,7 @@ function getRequesterId(player, track) {
 function hasQueueEndPremiumNudgeCooldown(client, guildId, now = Date.now()) {
   const cooldownMap = client.__queueEndPremiumNudgeCooldown;
   if (!cooldownMap) return false;
+  prunePremiumNudgeCooldown(client, now);
 
   const lastSentAt = Number(cooldownMap.get(guildId) || 0);
   if (!Number.isFinite(lastSentAt) || lastSentAt <= 0) {
@@ -155,6 +184,7 @@ function markQueueEndPremiumNudgeSent(client, guildId, now = Date.now()) {
     client.__queueEndPremiumNudgeCooldown = new Map();
   }
 
+  prunePremiumNudgeCooldown(client, now);
   client.__queueEndPremiumNudgeCooldown.set(guildId, now);
 }
 
@@ -190,7 +220,7 @@ async function maybeSendQueueEndPremiumNudge(client, player, track, textChannel,
 
   const voteUrl = `https://top.gg/bot/${client.user.id}/vote`;
   const premiumUrl = `https://top.gg/bot/${client.user.id}`;
-  const supportUrl = "https://discord.gg/JQzBqgmwFm";
+  const supportUrl = client?.legalLinks?.supportServerUrl || "https://discord.gg/JQzBqgmwFm";
 
   const voteButton = new ButtonBuilder()
     .setStyle(ButtonStyle.Link)
@@ -199,7 +229,7 @@ async function maybeSendQueueEndPremiumNudge(client, player, track, textChannel,
 
   const premiumButton = new ButtonBuilder()
     .setStyle(ButtonStyle.Link)
-    .setLabel("Get Premium")
+    .setLabel("Premium")
     .setURL(premiumUrl);
 
   const supportButton = new ButtonBuilder()
@@ -221,23 +251,23 @@ async function maybeSendQueueEndPremiumNudge(client, player, track, textChannel,
 
   const embed = new EmbedBuilder()
     .setColor(client?.embedColor || EMBED_COLOR)
-    .setAuthor({ name: "Keep Music Running", iconURL: client.user.displayAvatarURL() })
+    .setAuthor({ name: "Want A Better Music Experience?", iconURL: client.user.displayAvatarURL() })
     .setDescription(
-      "Queue ended. Vote for temporary premium access or get Premium for uninterrupted playback and advanced features."
+      "The queue has ended. If you want a smoother experience, you can vote for temporary access or review premium information from the official bot links below."
     )
     .addFields(
       {
-        name: "Vote Access",
-        value: "Vote on Top.gg to unlock temporary premium access for 12 hours.",
+        name: "Vote",
+        value: "Vote on Top.gg to unlock temporary premium-style access for 12 hours.",
         inline: true,
       },
       {
-        name: "Premium Access",
-        value: "Get long-term premium access for enhanced playback and feature unlocks.",
+        name: "Premium",
+        value: "Keep music running longer with premium playback perks and extra features.",
         inline: true,
       }
     )
-    .setFooter({ text: "This reminder is sent occasionally, not on every queue end." });
+    .setFooter({ text: "Shown occasionally after queue end, not on every queue." });
 
   try {
     await textChannel.send({ embeds: [embed], components: [row] });
@@ -246,7 +276,7 @@ async function maybeSendQueueEndPremiumNudge(client, player, track, textChannel,
   } catch (_embedErr) {
     try {
       await textChannel.send(
-        `Queue ended. Vote for temporary access: ${voteUrl}\nGet Premium: ${premiumUrl}\nSupport: ${supportUrl}`
+        `Queue ended. Want a better experience? Vote here: ${voteUrl}\nPremium: ${premiumUrl}\nSupport: ${supportUrl}`
       );
       markQueueEndPremiumNudgeSent(client, player.guildId, now);
       return true;
@@ -264,8 +294,8 @@ async function maybeSendQueueEndPremiumNudge(client, player, track, textChannel,
 function buildQueueLeaveEmbed(client) {
   return new EmbedBuilder()
     .setColor(client?.embedColor || EMBED_COLOR)
-    .setAuthor({ name: " Leaving Voice Channel ", iconURL: client.user.displayAvatarURL() })
-    .setDescription(`I left the voice channel because the queue ended, 24/7 is disabled, this server has no premium, and no listeners stayed with me for ${IDLE_LEAVE_LABEL}.`);
+    .setAuthor({ name: " Leaving Voice Channel!", iconURL: client.user.displayAvatarURL() })
+    .setDescription(`Since ${IDLE_LEAVE_LABEL} nobody is listening, I've left the voice channel. Want the bot to stay in your channel all the time? Use the /247 command!`);
 }
 
 async function sendQueueLeaveNotice(client, player, fallbackChannel = null) {
@@ -315,9 +345,9 @@ module.exports = async (client, player, track, payload) => {
   if (!suppressQueueEndNotice && channel) {
     const queueEndEmbed = new EmbedBuilder()
       .setColor(client?.embedColor || EMBED_COLOR)
-      .setAuthor({ name: "Queue Ended", iconURL: client.user.displayAvatarURL() })
+      .setAuthor({ name: "Queue empty!", iconURL: client.user.displayAvatarURL() })
       .setDescription(
-        ` Add more songs or enable [autoplay](https://top.gg/bot/${client.user.id}) or [24/7](https://top.gg/bot/${client.user.id}) mode to keep the player alive after the queue ends.\nIf no non-bot listeners stay with me, I will leave in ${IDLE_LEAVE_LABEL}.`
+        ` Add more songs or enable [autoplay](https://top.gg/bot/${client.user.id}) or [24/7](https://top.gg/bot/${client.user.id}) mode to listen uninterrupetd music!.`
       );
 
     await channel.send({ embeds: [queueEndEmbed] }).catch(() => {});
@@ -401,6 +431,9 @@ module.exports = async (client, player, track, payload) => {
       client.logger?.log?.(`Idle queue-end leave failed for guild ${player.guildId}: ${err?.message || err}`, "error");
     }
   }, IDLE_LEAVE_DELAY_MS);
+  if (typeof idleLeaveTimer.unref === "function") {
+    idleLeaveTimer.unref();
+  }
 
   client.__queueEndLeaveTimers.set(player.guildId, idleLeaveTimer);
 };

@@ -2,6 +2,7 @@ const { Client, CommandInteraction, EmbedBuilder } = require('discord.js');
 const legacy = require('../../commands/fun/actions/rateavatar.js');
 const { safeReply, safeDeferReply } = require('../../utils/interactionResponder');
 
+
 module.exports = {
   name: 'rateavatar',
   description: legacy.description || 'Rate someone\'s avatar!',
@@ -12,28 +13,9 @@ module.exports = {
     const user = interaction.options.getUser('user') || interaction.user;
     const args = [user.id];
 
-    const replyFunc = async (payload) => {
-      try {
-        return await safeReply(interaction, typeof payload === 'string' ? { content: payload } : payload);
-      } catch (e) { return null; }
-    };
-
-    const message = {
-      member: interaction.member,
-      author: interaction.user,
-      guild: interaction.guild,
-      mentions: {
-        users: new Map([[user.id, user]])
-      },
-      channel: {
-        send: (p) => replyFunc(typeof p === 'string' ? { content: p } : p),
-      },
-      reply: (p) => replyFunc(typeof p === 'string' ? { content: p } : p),
-    };
-
-    try {
+        try {
       if (typeof legacy.execute === 'function') {
-        await legacy.execute(message, args, client, client.prefix);
+        await legacy.execute(interaction, args, client, client.prefix);
       } else if (typeof legacy.run === 'function') {
         await legacy.run(client, interaction);
       } else {
@@ -45,3 +27,5 @@ module.exports = {
     }
   }
 };
+
+

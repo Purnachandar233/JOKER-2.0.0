@@ -2,6 +2,7 @@ const { Client, CommandInteraction, EmbedBuilder } = require('discord.js');
 const legacy = require('../../commands/settings/prefix.js');
 const { safeReply, safeDeferReply } = require('../../utils/interactionResponder');
 
+
 module.exports = {
   name: 'prefix',
   description: legacy.description || 'Converted slash for prefix',
@@ -9,28 +10,12 @@ module.exports = {
   run: async (client, interaction) => {
     const deferred = await safeDeferReply(interaction, { ephemeral: false });
     if (!deferred) return safeReply(interaction, { content: 'Failed to defer reply.' });
-    const argstr = interaction.options.getString('args') || '';
+    const argstr = interaction.options.getString('prefix') || '';
     const args = argstr.length ? argstr.trim().split(/ +/) : [];
 
-    const replyFunc = async (payload) => {
-      try {
-        return await safeReply(interaction, typeof payload === 'string' ? { content: payload } : payload);
-      } catch (e) { return null; }
-    };
-
-    const message = {
-      member: interaction.member,
-      author: interaction.user,
-      guild: interaction.guild,
-      channel: {
-        send: (p) => replyFunc(typeof p === 'string' ? { content: p } : p),
-      },
-      reply: (p) => replyFunc(typeof p === 'string' ? { content: p } : p),
-    };
-
-    try {
+        try {
       if (typeof legacy.execute === 'function') {
-        await legacy.execute(message, args, client, client.prefix);
+        await legacy.execute(interaction, args, client, client.prefix);
       } else if (typeof legacy.run === 'function') {
         await legacy.run(client, interaction);
       } else {
@@ -42,3 +27,5 @@ module.exports = {
     }
   }
 };
+
+

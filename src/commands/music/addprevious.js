@@ -14,7 +14,6 @@ module.exports = {
     let ok = EMOJIS.ok;
     let no = EMOJIS.no;
 
-    if (!message.replied) await message.channel.send().catch(() => {});
     const { channel } = message.member.voice;
     if (!channel) {
                     const noperms = new EmbedBuilder()
@@ -87,7 +86,35 @@ return await message.channel.send({embeds: [noperms]});
       return await message.channel.send({embeds: [noperms]});
   }
 
-  const s = await player.search(last.uri, message.author);
+  const previousQuery =
+    last?.uri ||
+    last?.info?.uri ||
+    last?.identifier ||
+    last?.info?.identifier ||
+    last?.title ||
+    last?.info?.title ||
+    null;
+
+  if (!previousQuery) {
+      const noperms = new EmbedBuilder()
+        .setColor(message.client?.embedColor || '#ff0051')
+        .setDescription(`No previous song source found`)
+      return await message.channel.send({embeds: [noperms]});
+  }
+
+  let s = null;
+  try {
+    s = await player.search({ query: previousQuery }, message.author);
+  } catch (_err) {
+    return await message.channel.send({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(message.client?.embedColor || '#ff0051')
+          .setDescription(`${no} Failed to load the previous track right now.`)
+      ]
+    }).catch(() => {});
+  }
+
   if (s.loadType === "LOAD_FAILED") {
     if (player && !player.queue?.current && !(Array.isArray(player.queue?.tracks) && player.queue.tracks.length > 0)) await player.destroy().catch(() => {});
     return await message.channel.send({

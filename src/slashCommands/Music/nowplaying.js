@@ -2,7 +2,6 @@ const { EmbedBuilder } = require("discord.js");
 
 const { createBar } = require("../../functions.js");
 const safeReply = require("../../utils/interactionResponder");
-const musicChecks = require("../../utils/musicChecks");
 
 const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
@@ -38,7 +37,7 @@ module.exports = {
         return safeReply.safeReply(safeInteraction, { embeds: [embed] });
       }
 
-      const check = await musicChecks.runMusicChecks(client, safeInteraction, {
+      const check = await client.runMusicChecks(safeInteraction, {
         inVoiceChannel: true,
         botInVoiceChannel: true,
         sameChannel: false,
@@ -96,3 +95,4 @@ module.exports = {
     });
   }
 };
+

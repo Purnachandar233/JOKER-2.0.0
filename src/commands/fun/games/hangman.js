@@ -1,174 +1,139 @@
-const {
-  EmbedBuilder,
-  ActionRowBuilder,
-  StringSelectMenuBuilder,
-  ComponentType
-} = require("discord.js");
+const { ContainerBuilder, TextDisplayBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, MessageFlags } = require("discord.js");
+const { safeReply } = require("../../../utils/interactionResponder");
+
+function isInteraction(ctx) {
+  return Boolean(ctx && typeof ctx.deferReply === "function" && typeof ctx.editReply === "function");
+}
+
+function getAuthor(ctx) {
+  return ctx?.author || ctx?.user || null;
+}
+
+async function sendResponse(ctx, payload) {
+  const normalized = typeof payload === "string" ? { content: payload } : { ...(payload || {}) };
+  const usesComponentsV2 = Array.isArray(normalized.components) && normalized.components.some((component) => {
+    const type = component?.data?.type || component?.toJSON?.().type || null;
+    return type !== 1;
+  });
+
+  if (usesComponentsV2 && normalized.flags == null) {
+    normalized.flags = MessageFlags.IsComponentsV2;
+  }
+
+  if (isInteraction(ctx)) {
+    return safeReply(ctx, normalized);
+  }
+  return ctx.channel.send(normalized);
+}
+
+function withActionRows(container, ...rows) {
+  for (const row of rows.flat().filter(Boolean)) {
+    container.addActionRowComponents(row);
+  }
+  return container;
+}
 
 module.exports = {
   name: "hangman",
   category: "fun",
-  description: "Play Hangman - Guess the word before running out of lives!",
-  execute: async (message) => {
-    const words = [
-      "javascript", "programming", "discord", "hangman", "development",
-      "computer", "technology", "algorithm", "function", "database",
-      "network", "security", "interface", "application", "library",
-      "framework", "server", "client", "protocol", "encryption"
-    ];
+  aliases: ["hang"],
+  description: "Classic Hangman game!",
+  execute: async (ctx) => {
+    const author = getAuthor(ctx);
+    if (!author) return sendResponse(ctx, "Unable to resolve command user.");
 
-    const word = words[Math.floor(Math.random() * words.length)];
-    const guessed = new Set();
-    const wrongGuesses = new Set();
-    let lives = 6;
-
-    const getDisplay = () => word
-      .split("")
-      .map(letter => (guessed.has(letter) ? letter : "_"))
-      .join(" ");
-
-    const isWordSolved = () => word.split("").every(letter => guessed.has(letter));
+    const words = ["discord", "javascript", "hangman", "programming", "developer", "gaming", "community", "awesome", "keyboard", "monitor"];
+    const word = words[Math.floor(Math.random() * words.length)].toUpperCase().split("");
+    const guessed = new Array(word.length).fill("_");
+    const wrongGuesses = [];
+    const correctGuesses = [];
+    let attempts = 6;
 
     const hangmanStages = [
-      "```\n  +-----+\n  |     |\n        |\n        |\n        |\n        |\n  +-----+```",
-      "```\n  +-----+\n  |     |\n  O     |\n        |\n        |\n        |\n  +-----+```",
-      "```\n  +-----+\n  |     |\n  O     |\n  |     |\n        |\n        |\n  +-----+```",
-      "```\n  +-----+\n  |     |\n  O     |\n \\|     |\n        |\n        |\n  +-----+```",
-      "```\n  +-----+\n  |     |\n  O     |\n \\|/    |\n        |\n        |\n  +-----+```",
-      "```\n  +-----+\n  |     |\n  O     |\n \\|/    |\n  |     |\n        |\n  +-----+```",
-      "```\n  +-----+\n  |     |\n  O     |\n \\|/    |\n  |     |\n / \\    |\n  +-----+```"
+      "```\n  +---+\n  |   |\n      |\n      |\n      |\n      |\n=========```",
+      "```\n  +---+\n  |   |\n  O   |\n      |\n      |\n      |\n=========```",
+      "```\n  +---+\n  |   |\n  O   |\n  |   |\n      |\n      |\n=========```",
+      "```\n  +---+\n  |   |\n  O   |\n /|   |\n      |\n      |\n=========```",
+      "```\n  +---+\n  |   |\n  O   |\n /|\\  |\n      |\n      |\n=========```",
+      "```\n  +---+\n  |   |\n  O   |\n /|\\  |\n /    |\n      |\n=========```",
+      "```\n  +---+\n  |   |\n  O   |\n /|\\  |\n / \\  |\n      |\n=========```"
     ];
 
-    const createGameEmbed = () => {
-      const alphabet = "abcdefghijklmnopqrstuvwxyz".split("");
-      const available = alphabet.filter(letter => !guessed.has(letter) && !wrongGuesses.has(letter));
-
-      return new EmbedBuilder()
-        .setColor(lives === 0 ? "#ff0000" : lives <= 2 ? "#ffff00" : "#00ff00")
-        .setTitle("Hangman")
-        .setDescription(hangmanStages[6 - lives])
-        .addFields(
-          { name: "Word", value: `\`${getDisplay()}\``, inline: false },
-          { name: "Lives", value: `${lives}/6`, inline: true },
-          {
-            name: "Wrong Guesses",
-            value: wrongGuesses.size > 0 ? Array.from(wrongGuesses).join(", ").toUpperCase() : "None",
-            inline: true
-          },
-          {
-            name: "Available Letters",
-            value: available.length > 0 ? available.join(" ").toUpperCase() : "None",
-            inline: false
-          }
+    const createGamePanel = () => {
+      const container = new ContainerBuilder().setAccentColor(0x9b59b6);
+      container.addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(`## 🎮 Hangman\nAttempts Left: **${attempts}**`),
+        new TextDisplayBuilder().setContent(hangmanStages[6 - attempts]),
+        new TextDisplayBuilder().setContent(
+          `Word: \`${guessed.join(" ")}\`\n\n` +
+          `✅ Correct: ${correctGuesses.length > 0 ? correctGuesses.join(", ") : "None"}\n` +
+          `❌ Wrong: ${wrongGuesses.length > 0 ? wrongGuesses.join(", ") : "None"}`
         )
-};
-
-    const createLetterMenus = () => {
-      const alphabet = "abcdefghijklmnopqrstuvwxyz".split("");
-      const groups = [
-        { id: "hangman_letters_1", placeholder: "Pick a letter (A-M)", letters: alphabet.slice(0, 13) },
-        { id: "hangman_letters_2", placeholder: "Pick a letter (N-Z)", letters: alphabet.slice(13) }
-      ];
-
-      return groups.map(group => {
-        const availableLetters = group.letters.filter(letter => !guessed.has(letter) && !wrongGuesses.has(letter));
-        const menu = new StringSelectMenuBuilder()
-          .setCustomId(group.id)
-          .setMinValues(1)
-          .setMaxValues(1);
-
-        if (availableLetters.length === 0 || lives === 0 || isWordSolved()) {
-          menu
-            .setPlaceholder(`${group.placeholder} - done`)
-            .setDisabled(true)
-            .addOptions([{ label: "No letters left", value: `none_${group.id}` }]);
-        } else {
-          menu
-            .setPlaceholder(group.placeholder)
-            .addOptions(
-              availableLetters.map(letter => ({
-                label: letter.toUpperCase(),
-                value: letter,
-                description: `Guess ${letter.toUpperCase()}`
-              }))
-            );
-        }
-
-        return new ActionRowBuilder().addComponents(menu);
-      });
+      );
+      return container;
     };
 
-    const gameMsg = await message.channel.send({
-      embeds: [createGameEmbed()],
-      components: createLetterMenus()
-    });
+    const getAlphabetButtons = () => {
+      const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+      const buttons = [];
+      const guessedLetters = [...correctGuesses, ...wrongGuesses];
 
-    const collector = gameMsg.createMessageComponentCollector({
-      componentType: ComponentType.StringSelect,
-      time: 120000,
-      filter: i => i.customId.startsWith("hangman_letters_")
-    });
-
-    collector.on("collect", async interaction => {
-      if (interaction.user.id !== message.author.id) {
-        await interaction.reply({
-          content: `Only <@${message.author.id}> can play this Hangman game.`,
-          ephemeral: true
-        }).catch(() => {});
-        return;
-      }
-
-      const letter = interaction.values?.[0];
-      if (!letter || letter.startsWith("none_")) {
-        await interaction.deferUpdate().catch(() => {});
-        return;
-      }
-
-      if (guessed.has(letter) || wrongGuesses.has(letter)) {
-        await interaction.reply({ content: "That letter was already guessed.", ephemeral: true }).catch(() => {});
-        return;
-      }
-
-      if (word.includes(letter)) {
-        guessed.add(letter);
-
-        if (isWordSolved()) {
-          const winEmbed = new EmbedBuilder()
-            .setColor("#00ff00")
-            .setTitle("You Won")
-            .setDescription(`The word was: **${word}**`);
-
-          await interaction.update({ embeds: [winEmbed], components: [] }).catch(() => {});
-          collector.stop("completed");
-          return;
+      for (let i = 0; i < alphabet.length; i += 5) {
+        const row = new ActionRowBuilder();
+        for (let j = 0; j < 5 && i + j < alphabet.length; j++) {
+          const letter = alphabet[i + j];
+          row.addComponents(
+            new ButtonBuilder()
+              .setCustomId(`hangman_${letter}`)
+              .setLabel(letter)
+              .setStyle(ButtonStyle.Primary)
+              .setDisabled(guessedLetters.includes(letter))
+          );
         }
-      } else {
-        wrongGuesses.add(letter);
-        lives--;
-
-        if (lives === 0) {
-          const loseEmbed = new EmbedBuilder()
-            .setColor("#ff0000")
-            .setTitle("Game Over")
-            .setDescription(`The word was: **${word}**`)
-            .addFields({ name: "Hangman", value: hangmanStages[6] });
-
-          await interaction.update({ embeds: [loseEmbed], components: [] }).catch(() => {});
-          collector.stop("completed");
-          return;
-        }
+        buttons.push(row);
       }
+      return buttons;
+    };
 
-      await interaction.update({
-        embeds: [createGameEmbed()],
-        components: createLetterMenus()
-      }).catch(() => {});
-    });
+    const createGameComponents = () => [withActionRows(createGamePanel(), getAlphabetButtons())];
 
-    collector.on("end", async (_collected, reason) => {
-      if (reason === "time" && lives !== 0 && !isWordSolved()) {
-        await gameMsg.edit({ content: "Game ended due to inactivity.", components: [] }).catch(() => {});
-      }
-    });
+    const gameMsg = await sendResponse(ctx, { components: createGameComponents() });
+    if (!gameMsg) return null;
+
+    while (attempts > 0 && guessed.includes("_")) {
+      const filter = (i) => i.customId.startsWith("hangman_") && i.user.id === author.id;
+      const collector = gameMsg.createMessageComponentCollector({ filter, time: 30000, max: 1 });
+
+      await new Promise((resolve) => {
+        collector.on("collect", async (interaction) => {
+          const letter = interaction.customId.split("_")[1];
+          if (word.includes(letter)) {
+            word.forEach((w, index) => {
+              if (w === letter) guessed[index] = letter;
+            });
+            correctGuesses.push(letter);
+          } else {
+            wrongGuesses.push(letter);
+            attempts--;
+          }
+
+          await interaction.deferUpdate().catch(() => {});
+          await gameMsg.edit({ components: createGameComponents() }).catch(() => {});
+          resolve();
+        });
+
+        collector.on("end", () => resolve());
+      });
+    }
+
+    const endContainer = new ContainerBuilder().setAccentColor(guessed.includes("_") ? 0xe74c3c : 0x2ecc71);
+    if (guessed.includes("_")) {
+      endContainer.addTextDisplayComponents(new TextDisplayBuilder().setContent(`## Game Over - LOST\nWord was: **${word.join("")}**`));
+    } else {
+      endContainer.addTextDisplayComponents(new TextDisplayBuilder().setContent(`## Game Over - WON\n🎉 You guessed the word: **${word.join("")}**`));
+    }
+
+    await gameMsg.edit({ components: [endContainer] }).catch(() => {});
+    return null;
   }
 };

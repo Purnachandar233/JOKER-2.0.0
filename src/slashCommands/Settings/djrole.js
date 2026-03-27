@@ -51,7 +51,7 @@ module.exports = {
             await dSchema.findOneAndUpdate(
                 { guildID: interaction.guild.id },
                 { $set: { Roleid: role.id } },
-                { upsert: true, new: true }
+                { upsert: true, returnDocument: "after" }
             );
         } catch(err) {
             try { client.logger?.log(err && (err.stack || err.toString()), 'error'); } catch (e) { console.log(err); }

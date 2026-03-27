@@ -1,5 +1,41 @@
 const User = require("../../schema/User");
-const { getRequesterInfo, getTrackDurationMs } = require("../../utils/queue");
+const { withTimeout } = require("../../utils/promiseHandler");
+const AUTOPLAY_SOURCE_ORDER = ["spotify", "soundcloud", "deezer"];
+const AUTOPLAY_SEARCH_TIMEOUT_MS = 4500;
+const AUTOPLAY_RETRY_GUARD_MS = 15000;
+
+function normalizeSourceName(source) {
+    const value = String(source || "").trim().toLowerCase();
+    return value || null;
+}
+
+function buildAutoplaySourceOrder(player) {
+    const preferred = normalizeSourceName(
+        typeof player?.get === "function" ? player.get("preferredSearchSource") : null
+    );
+    const ordered = [...new Set(AUTOPLAY_SOURCE_ORDER.map(normalizeSourceName).filter(Boolean))];
+
+    if (!preferred || !ordered.includes(preferred)) {
+        return ordered;
+    }
+
+    return [preferred, ...ordered.filter((source) => source !== preferred)];
+}
+
+function resolveAutoplayRequester(client, player) {
+    const storedRequester = typeof player?.get === "function" ? player.get("requester") : null;
+    if (storedRequester?.user) return storedRequester.user;
+    if (storedRequester && typeof storedRequester === "object") return storedRequester;
+
+    const requesterId = String(
+        (typeof player?.get === "function" ? player.get("requesterId") : null) || ""
+    ).trim();
+    if (requesterId) {
+        return client?.users?.cache?.get(requesterId) || client?.user || null;
+    }
+
+    return client?.user || null;
+}
 
 function shouldCountTrackEnd(payload) {
     const reason = String(payload?.reason || payload?.type || "")
@@ -10,8 +46,16 @@ function shouldCountTrackEnd(payload) {
     return reason === "finished";
 }
 
-function trackListenStats(player, track, payload) {
+function trackListenStats(client, player, track, payload) {
     if (!shouldCountTrackEnd(payload)) return;
+
+    const queueTools = client?.core?.queue || {};
+    const getRequesterInfo = typeof queueTools.getRequesterInfo === "function"
+        ? queueTools.getRequesterInfo
+        : (() => ({ id: null }));
+    const getTrackDurationMs = typeof queueTools.getTrackDurationMs === "function"
+        ? queueTools.getTrackDurationMs
+        : (() => 0);
 
     const fallbackRequester = typeof player?.get === "function" ? player.get("requester") : null;
     const fallbackRequesterId = typeof player?.get === "function" ? player.get("requesterId") : null;
@@ -40,12 +84,7 @@ function trackListenStats(player, track, payload) {
 }
 
 module.exports = async (client, player, track, payload) => {
-    try {
-        const msg = player.get(`playingsongmsg`);
-        if (msg) await msg.delete().catch(() => {});
-    } catch (e) {}
-
-    trackListenStats(player, track, payload);
+    trackListenStats(client, player, track, payload);
 
     const autoplay = player.get("autoplay");
     if (autoplay === true) {
@@ -69,21 +108,26 @@ module.exports = async (client, player, track, payload) => {
             const builtQuery = autoplayQuery || ((track?.info?.title || track?.title) ? `${track?.info?.title || track?.title} ${track?.info?.author || ''}`.trim() : null);
             if (!builtQuery) return;
 
-            // Resolve requester: support stored member object or stored requesterId (string).
-            let requester = player.get("requester");
-            // If requester is an ID (string), try to fetch member
-            if (typeof requester === 'string') {
-                const guild = client.guilds.cache.get(player.guildId);
-                if (guild) requester = await guild.members.fetch(requester).catch(() => null);
+            const now = Date.now();
+            const lastAutoplayQuery = typeof player?.get === "function" ? player.get("lastAutoplayQuery") : null;
+            const lastAutoplayAttemptAt = Number(
+                typeof player?.get === "function" ? player.get("lastAutoplayAttemptAt") : 0
+            );
+            if (
+                lastAutoplayQuery === builtQuery &&
+                Number.isFinite(lastAutoplayAttemptAt) &&
+                lastAutoplayAttemptAt > 0 &&
+                (now - lastAutoplayAttemptAt) < AUTOPLAY_RETRY_GUARD_MS
+            ) {
+                return;
             }
-            // If not present, try requesterId metadata
-            if (!requester) {
-                const requesterId = player.get('requesterId') || null;
-                if (requesterId) {
-                    const guild = client.guilds.cache.get(player.guildId);
-                    if (guild) requester = await guild.members.fetch(requesterId).catch(() => null);
-                }
+
+            if (typeof player?.set === "function") {
+                player.set("lastAutoplayQuery", builtQuery);
+                player.set("lastAutoplayAttemptAt", now);
             }
+
+            const requester = resolveAutoplayRequester(client, player);
             if (!requester) return;
             if (!client?.lavalink) return;
             if (!client.lavalink.useable && typeof client.waitForLavalinkReady === 'function') {
@@ -95,14 +139,18 @@ module.exports = async (client, player, track, payload) => {
 
             let res = null;
             try {
-                // Search non-YouTube sources using the built query.
-                const sources = ['spotify', 'soundcloud', 'bandcamp', 'deezer', 'applemusic'];
+                const sources = buildAutoplaySourceOrder(player);
                 for (const source of sources) {
                     try {
                         const sp = player.search({ query: builtQuery, source }, requester.user ? requester.user : requester);
-                        const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('search timeout')), 8000));
-                        const r = await Promise.race([sp, timeout]).catch(() => null);
-                        if (r && r.tracks && r.tracks.length > 0) { res = r; break; }
+                        const r = await withTimeout(sp, AUTOPLAY_SEARCH_TIMEOUT_MS, 'search timeout').catch(() => null);
+                        if (r && r.tracks && r.tracks.length > 0) {
+                            res = r;
+                            if (typeof player?.set === "function") {
+                                player.set("preferredSearchSource", source);
+                            }
+                            break;
+                        }
                     } catch (_) { continue; }
                 }
 

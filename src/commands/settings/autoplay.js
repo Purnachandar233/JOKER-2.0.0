@@ -1,5 +1,4 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder } = require("discord.js");
-const twentyfourseven = require("../../schema/twentyfourseven");
+const { EmbedBuilder } = require("discord.js");
 const autoplaySchema = require("../../schema/autoplay.js");
 
 const EMOJIS = require("../../utils/emoji.json");
@@ -16,108 +15,97 @@ module.exports = {
     let ok = EMOJIS.ok;
     let no = EMOJIS.no;
 
+    const embedColor = message.client?.embedColor || client?.config?.embedColor || '#ff0051';
+    const { channel } = message.member.voice;
+    if (!channel) {
+      const noperms = new EmbedBuilder()
+        .setColor(embedColor)
+        .setDescription(`${no} You must be connected to a voice channel to use this command.`);
+      return await message.channel.send({ embeds: [noperms] });
+    }
 
+    if (message.member.voice.selfDeaf) {
+      const thing = new EmbedBuilder()
+        .setColor(embedColor)
+        .setDescription(`${no} <@${message.member.id}> You cannot run this command while deafened.`);
+      return await message.channel.send({ embeds: [thing] });
+    }
 
-    //
-       const { channel } = message.member.voice;
-       if (!channel) {
-                       const noperms = new EmbedBuilder()
+    const player = client.lavalink.players.get(message.guild.id);
+    if (player && channel.id !== player.voiceChannelId) {
+      const noperms = new EmbedBuilder()
+        .setColor(embedColor)
+        .setDescription(`${no} You must be connected to the same voice channel as me.`);
+      return await message.channel.send({ embeds: [noperms] });
+    }
 
-            .setColor(message.client.embedColor)
-              .setDescription(`${no} You must be connected to a voice channel to use this command.`)
-           return await message.channel.send({embeds: [noperms]});
-       }
-       if(message.member.voice.selfDeaf) {
-         let thing = new EmbedBuilder()
-          .setColor(message.client.embedColor)
+    const savedAutoplay = await autoplaySchema.findOne({ guildID: message.guild.id }).lean().catch(() => null);
+    const tracks = [
+      player?.queue?.current,
+      ...(Array.isArray(player?.queue?.tracks) ? player.queue.tracks : [])
+    ].filter(Boolean);
+    const lastTrack = player && typeof player.get === "function" ? player.get("lastTrack") : null;
+    const seedTrack = tracks[0] || lastTrack || null;
+    const identifier =
+      seedTrack?.identifier ||
+      seedTrack?.info?.identifier ||
+      savedAutoplay?.identifier ||
+      null;
+    const title = seedTrack?.info?.title || seedTrack?.title || "";
+    const author = seedTrack?.info?.author || seedTrack?.author || "";
+    const query = (title ? `${title} ${author}`.trim() : "") || savedAutoplay?.query || null;
 
-        .setDescription(`${no} <@${message.member.id}> You cannot run this command while deafened.`)
-          return await message.channel.send({embeds: [thing]});
-        }
-                 const player = client.lavalink.players.get(message.guild.id);
-                 const tracks = [
-                   player?.queue?.current,
-                   ...(Array.isArray(player?.queue?.tracks) ? player.queue.tracks : [])
-                 ].filter(Boolean);
-                 if(!player || !tracks || tracks.length === 0) {
-                      const noperms = new EmbedBuilder()
+    const autoplayEnabled = (player?.get?.("autoplay") === true) || Boolean(savedAutoplay?.enabled);
+    if (!autoplayEnabled) {
+      if (!identifier && !query) {
+        const noperms = new EmbedBuilder()
+          .setColor(embedColor)
+          .setDescription(`${no} There is nothing playing in this server.`);
+        return await message.channel.send({ embeds: [noperms] });
+      }
 
-                        .setColor(message.client.embedColor)
-            .setDescription(`${no} There is nothing playing in this server.`)
-           return await message.channel.send({embeds: [noperms]});
-       }
-         if(player && channel.id !== player.voiceChannelId) {
-                       const noperms = new EmbedBuilder()
-            .setColor(message.client.embedColor || client?.config?.embedColor || '#ff0051')
-           .setDescription(`${no} You must be connected to the same voice channel as me.`)
-           return await message.channel.send({embeds: [noperms]});
-       }
+      if (player && typeof player.set === "function") {
+        player.set("autoplay", true);
+        player.set("requester", null);
+        player.set("requesterId", message.member.id);
+        player.set("identifier", identifier);
+        player.set("autoplayQuery", query);
+      }
 
+      await autoplaySchema.findOneAndUpdate(
+        { guildID: message.guild.id },
+        {
+          enabled: true,
+          requesterId: message.member.id,
+          identifier,
+          query,
+          lastUpdated: Date.now(),
+        },
+        { upsert: true, setDefaultsOnInsert: true }
+      );
 
-       const autoplay = player.get("autoplay");
-       if (autoplay === false) {
-         const identifier = tracks[0]?.identifier || tracks[0]?.info?.identifier || null;
-         const title = tracks[0]?.info?.title || tracks[0]?.title || '';
-         const author = tracks[0]?.info?.author || tracks[0]?.author || '';
-         const query = (title ? `${title} ${author}`.trim() : null);
+      const thing = new EmbedBuilder()
+        .setColor(embedColor)
+        .setDescription(`${ok} Autoplay is now enabled. Recommended tracks will continue after the queue ends.`);
+      return await message.channel.send({ embeds: [thing] });
+    }
 
-         player.set("autoplay", true);
-         player.set("requester", null);
-         player.set("requesterId", message.member.id);
-         player.set("identifier", identifier);
-         player.set("autoplayQuery", query);
+    if (player && typeof player.set === "function") {
+      player.set("autoplay", false);
+    }
 
-         const autoplaySchema = require('../../schema/autoplay.js');
-         await autoplaySchema.findOneAndUpdate(
-           { guildID: message.guild.id },
-           { enabled: true, requesterId: message.member.id, identifier: identifier, query: query, lastUpdated: Date.now() },
-           { upsert: true }
-         );
+    await autoplaySchema.findOneAndUpdate(
+      { guildID: message.guild.id },
+      {
+        enabled: false,
+        lastUpdated: Date.now(),
+      },
+      { upsert: true, setDefaultsOnInsert: true }
+    );
 
-         // Try searching non-YouTube sources using query
-         let res = null;
-         if (query) {
-           const sources = ['spotify', 'soundcloud', 'bandcamp', 'deezer', 'applemusic'];
-           for (const source of sources) {
-             try {
-               const sp = player.search({ query, source }, message.member);
-               const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('search timeout')), 8000));
-               const r = await Promise.race([sp, timeout]).catch(() => null);
-               if (r && r.tracks && r.tracks.length > 0) { res = r; break; }
-             } catch (_) { continue; }
-           }
-         }
-
-        if (!res || !res.tracks || res.tracks.length === 0) {
-          let embed = new EmbedBuilder().setDescription(`Found nothing related for the latest song!`).setColor(message.client.embedColor || client?.config?.embedColor || '#ff0051');
-          try { client.channels.cache.get(player.textChannelId).send({embeds: [embed]}) } catch (e) {}
-        } else {
-           if (typeof player.queue?.clear === 'function') {
-             await player.queue.clear();
-           } else if (Array.isArray(player.queue?.tracks) && typeof player.queue.splice === 'function') {
-             await player.queue.splice(0, player.queue.tracks.length);
-           }
-           await player.queue.add(res.tracks[0]);
-        }
-
-         let thing = new EmbedBuilder().setColor(message.client.embedColor).setDescription(`${ok} Starting to play recommended tracks.`)
-         return await message.channel.send({embeds: [thing]});
-     } else {
-         player.set("autoplay", false);
-         // Clear the queue
-         if (typeof player.queue?.clear === 'function') {
-           await player.queue.clear();
-         } else if (Array.isArray(player.queue?.tracks) && typeof player.queue.splice === 'function') {
-           await player.queue.splice(0, player.queue.tracks.length);
-         }
-         let thing = new EmbedBuilder()
-         .setColor(message.client.embedColor)
-             .setDescription(`${ok} I have stopped to play recommended tracks.`)
-
-             return await message.channel.send({embeds: [thing]});
-
-     }
-
-
-        }
+    const thing = new EmbedBuilder()
+      .setColor(embedColor)
+      .setDescription(`${ok} Autoplay is now disabled.`);
+    return await message.channel.send({ embeds: [thing] });
+  }
 }

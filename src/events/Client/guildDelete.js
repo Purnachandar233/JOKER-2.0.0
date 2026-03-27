@@ -2,12 +2,48 @@ const { EmbedBuilder, WebhookClient } = require("discord.js");
 
 const EMOJIS = require("../../utils/emoji.json");
 const EMBED_COLOR = "#ff0051";
+const Prefix = require("../../schema/prefix");
+const Welcome = require("../../schema/welcome");
+const DjRole = require("../../schema/djroleSchema");
+const DefaultVolume = require("../../schema/defaultvolumeSchema");
+const Requester = require("../../schema/requesterSchema");
+const TwentyFourSeven = require("../../schema/twentyfourseven");
+const GuildFilters = require("../../schema/guildFilters");
+const Autoplay = require("../../schema/autoplay");
+const Premium = require("../../schema/Premium");
 
 function getEmoji(client, key, fallback = "") {
   return EMOJIS[key] || fallback;
 }
 
+async function cleanupGuildData(guildId) {
+  const id = String(guildId || "").trim();
+  if (!id) return { deleted: 0 };
+
+  const results = await Promise.all([
+    Prefix.deleteMany({ Guild: id }).catch(() => ({ deletedCount: 0 })),
+    Welcome.deleteMany({ guildID: id }).catch(() => ({ deletedCount: 0 })),
+    DjRole.deleteMany({ guildID: id }).catch(() => ({ deletedCount: 0 })),
+    DefaultVolume.deleteMany({ guildID: id }).catch(() => ({ deletedCount: 0 })),
+    Requester.deleteMany({ guildID: id }).catch(() => ({ deletedCount: 0 })),
+    TwentyFourSeven.deleteMany({ guildID: id }).catch(() => ({ deletedCount: 0 })),
+    GuildFilters.deleteMany({ guildId: id }).catch(() => ({ deletedCount: 0 })),
+    Autoplay.deleteMany({ guildID: id }).catch(() => ({ deletedCount: 0 })),
+    Premium.deleteMany({ Id: id, Type: "guild" }).catch(() => ({ deletedCount: 0 })),
+  ]);
+
+  const deleted = results.reduce((count, result) => count + Number(result?.deletedCount || 0), 0);
+  return { deleted };
+}
+
 module.exports = async (client, guild) => {
+  try {
+    const cleanup = await cleanupGuildData(guild?.id);
+    client.logger?.log?.(`guildDelete data cleanup for ${guild?.id}: removed ${cleanup.deleted} records`, "info");
+  } catch (err) {
+    client.logger?.log?.(`guildDelete database cleanup error for ${guild?.id}: ${err?.message || err}`, "warn");
+  }
+
   try {
     if (client.lavalink) {
       try {

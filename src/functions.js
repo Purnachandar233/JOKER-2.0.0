@@ -1,8 +1,8 @@
 const ms = require("ms");
 const empty_begining = "[";
 const emptyend = "]";
-const emptyframe = "<:MW_WhiteLine:1109733643510882334>";
-const filled = "<:redline:1109758438503886898>";
+const emptyframe = "▬";
+const filled = ">";
 
 module.exports.duration = duration;
 module.exports.createBar = createBar;

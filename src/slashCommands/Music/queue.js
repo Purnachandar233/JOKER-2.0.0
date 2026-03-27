@@ -2,17 +2,6 @@ const { ButtonBuilder, ButtonStyle, EmbedBuilder } = require("discord.js");
 
 const { intpaginationEmbed } = require("../../utils/pagination.js");
 const safeReply = require("../../utils/interactionResponder");
-const musicChecks = require("../../utils/musicChecks");
-const {
-  formatDiscordTimestamp,
-  formatDurationLabel,
-  formatQueueTrackMeta,
-  formatQueueTrackTitle,
-  getQueueTiming,
-  getRequesterInfo,
-  getTrackThumbnail,
-  truncateText,
-} = require("../../utils/queue");
 
 const EMOJIS = require("../../utils/emoji.json");
 
@@ -60,6 +49,16 @@ module.exports = {
   run: async (client, interaction) => {
     const getEmoji = (key, fallback = "") => EMOJIS[key] || fallback;
     const embedColor = client?.embedColor || "#ff0051";
+    const {
+      formatDiscordTimestamp,
+      formatDurationLabel,
+      formatQueueTrackMeta,
+      formatQueueTrackTitle,
+      getQueueTiming,
+      getRequesterInfo,
+      getTrackThumbnail,
+      truncateText,
+    } = client.core.queue;
     const createPaginationButtons = (page = 1, total = 1) => {
       const first = new ButtonBuilder().setCustomId("first").setLabel("First").setStyle(ButtonStyle.Secondary).setDisabled(page <= 1);
       const back = new ButtonBuilder().setCustomId("back").setLabel("Back").setStyle(ButtonStyle.Secondary).setDisabled(page <= 1);
@@ -87,7 +86,7 @@ module.exports = {
         return safeReply.safeReply(safeInteraction, { embeds: [embed] });
       }
 
-      const check = await musicChecks.runMusicChecks(client, safeInteraction, {
+      const check = await client.runMusicChecks(safeInteraction, {
         inVoiceChannel: true,
         botInVoiceChannel: true,
         sameChannel: false,

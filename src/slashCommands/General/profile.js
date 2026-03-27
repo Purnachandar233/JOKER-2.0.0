@@ -60,9 +60,16 @@ module.exports = {
     }
 
     const member = interaction.member;
-    let userData = await User.findOne({ userId: member.id });
+    let userData = await User.findOne({ userId: member.id }).lean();
     if (!userData) {
-      userData = await User.create({ userId: member.id });
+      userData = {
+        userId: member.id,
+        count: 0,
+        totalVotes: 0,
+        songsListened: 0,
+        totalListenTimeMs: 0,
+        badge: {}
+      };
     }
 
     const badgeLines = getBadgeLines(client, userData);
@@ -73,9 +80,9 @@ module.exports = {
     });
     const premiumDoc = await Premium.findOne({ Id: member.id, Type: "user" });
 
-    let premiumText = "No active premium subscription. Join support to get one.";
+    let premiumText = "No active premium access.";
     if (premiumDoc?.Permanent) {
-      premiumText = "Permanent subscription";
+      premiumText = "Permanent access";
     } else if (premiumDoc && premiumDoc.Expire > Date.now()) {
       premiumText = `Valid for ${formatDuration(premiumDoc.Expire - Date.now(), { verbose: false }).replace(/\s\d+s$/, "")}`;
     } else if (premiumDoc) {

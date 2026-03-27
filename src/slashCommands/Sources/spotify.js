@@ -2,6 +2,7 @@ const { CommandInteraction, Client, EmbedBuilder } = require("discord.js");
 const fetch = require('isomorphic-unfetch');
 const { getPreview, getTracks } = require('spotify-url-info')(fetch);
 const { safeReply, safeDeferReply } = require('../../utils/interactionResponder');
+const { withTimeout } = require('../../utils/promiseHandler');
 
 const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
@@ -127,7 +128,6 @@ return await interaction.editReply({embeds: [noperms]});
     };
 
     // If query is a Spotify URL, extract metadata and search for matching playable track
-    const timeoutPromise = (p) => new Promise((_, reject) => setTimeout(() => reject(new Error('Search timeout after 10 seconds')), p || 10000));
     let s;
     try {
       if (query.match(/https?:\/\/(open\.spotify\.com|spotify\.link)/)) {
@@ -137,10 +137,10 @@ return await interaction.editReply({embeds: [noperms]});
         }
         const searchQuery = `${data.title} ${data.artist}`;
         const searchPromise = player.search({ query: searchQuery, source: 'spotify' }, interaction.user);
-        s = await Promise.race([searchPromise, timeoutPromise(10000)]);
+        s = await withTimeout(searchPromise, 10000, 'Search timeout after 10 seconds');
       } else {
         const searchPromise = player.search({ query, source: 'spotify' }, interaction.user);
-        s = await Promise.race([searchPromise, timeoutPromise(10000)]);
+        s = await withTimeout(searchPromise, 10000, 'Search timeout after 10 seconds');
       }
     } catch (err) {
       client.logger?.log(`Spotify search error: ${err.message}`, 'error');
@@ -148,6 +148,15 @@ return await interaction.editReply({embeds: [noperms]});
         await player.destroy().catch(() => {});
       }
       return await interaction.editReply({ content: `${no} Search failed: ${err.message}` }).catch(() => {});
+    }
+
+    if (!s || !s.loadType) {
+      if (player && !player.queue?.current && !(player.queue?.tracks?.length > 0)) {
+        await player.destroy().catch(() => {});
+      }
+      return await interaction.editReply({
+        content: `${no} Failed to load Spotify results. Please try another Spotify link or search text.`
+      }).catch((err) => client.logger?.log(`Reply error: ${err.message}`, 'error'));
     }
 
     if (s.loadType === "LOAD_FAILED") {
@@ -173,7 +182,7 @@ return await interaction.editReply({embeds: [noperms]});
       }
       return await interaction.editReply({
         embeds: [new EmbedBuilder() .setColor(interaction.client?.embedColor || '#ff0051')
-          .setDescription(`Queued [${s.tracks[0].title}](${s.tracks[0].uri}) [\`${s.tracks[0].requester.tag}\`]`)]
+          .setDescription(`Queued [${s.tracks[0].title}](${s.tracks[0].uri}) [\`${s.tracks[0].requester?.tag || interaction.user.tag}\`]`)]
       }).catch((err) => client.logger?.log(`Reply error: ${err.message}`, 'error'));
     } else if (s.loadType === "PLAYLIST_LOADED") {
       try {
@@ -195,7 +204,7 @@ return await interaction.editReply({embeds: [noperms]});
       }
       return await interaction.editReply({
         embeds: [new EmbedBuilder().setColor(interaction.client?.embedColor || '#ff0051')
-          .setDescription(`Queued [${s.tracks[0].title}](${s.tracks[0].uri}) [\`${s.tracks[0].requester.tag}\`]`)]
+          .setDescription(`Queued [${s.tracks[0].title}](${s.tracks[0].uri}) [\`${s.tracks[0].requester?.tag || interaction.user.tag}\`]`)]
       }).catch((err) => client.logger?.log(`Reply error: ${err.message}`, 'error'));
     } else {
       return await interaction.editReply({

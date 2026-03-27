@@ -1,5 +1,6 @@
 const { CommandInteraction, Client, EmbedBuilder } = require("discord.js");
 const { safeReply, safeDeferReply } = require('../../utils/interactionResponder');
+const { withTimeout } = require('../../utils/promiseHandler');
 
 const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
@@ -129,13 +130,9 @@ return await interaction.editReply({embeds: [noperms]});
         source: 'soundcloud'
       }, interaction.user);
 
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Search timeout after 10 seconds')), 10000)
-    );
-
     let s;
     try {
-      s = await Promise.race([searchPromise, timeoutPromise]);
+      s = await withTimeout(searchPromise, 10000, 'Search timeout after 10 seconds');
     } catch (err) {
       client.logger?.log(`SoundCloud search error: ${err.message}`, 'error');
       if (player && !player.queue?.current && !(player.queue?.tracks?.length > 0)) {

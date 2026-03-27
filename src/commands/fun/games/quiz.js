@@ -1,144 +1,134 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
+const { ContainerBuilder, TextDisplayBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, MessageFlags } = require("discord.js");
+const { safeReply } = require("../../../utils/interactionResponder");
+
+function isInteraction(ctx) {
+  return Boolean(ctx && typeof ctx.deferReply === "function" && typeof ctx.editReply === "function");
+}
+
+function getAuthor(ctx) {
+  return ctx?.author || ctx?.user || null;
+}
+
+async function sendResponse(ctx, payload) {
+  const normalized = typeof payload === "string" ? { content: payload } : { ...(payload || {}) };
+  const usesComponentsV2 = Array.isArray(normalized.components) && normalized.components.some((component) => {
+    const type = component?.data?.type || component?.toJSON?.().type || null;
+    return type !== 1;
+  });
+
+  if (usesComponentsV2 && normalized.flags == null) {
+    normalized.flags = MessageFlags.IsComponentsV2;
+  }
+
+  if (isInteraction(ctx)) {
+    return safeReply(ctx, normalized);
+  }
+  return ctx.channel.send(normalized);
+}
+
+function withActionRows(container, ...rows) {
+  for (const row of rows.flat().filter(Boolean)) {
+    container.addActionRowComponents(row);
+  }
+  return container;
+}
 
 module.exports = {
-    name: "quiz",
-    category: "fun",
-    description: "Take a fun quiz challenge!",
-    execute: async (message, args, client, prefix) => {
-        const questions = [
-            {
-                question: "What is the capital of France?",
-                options: ["London", "Paris", "Berlin", "Madrid"],
-                correct: 1
-            },
-            {
-                question: "What is 5 + 3?",
-                options: ["6", "7", "8", "9"],
-                correct: 2
-            },
-            {
-                question: "Which planet is the largest?",
-                options: ["Mars", "Saturn", "Jupiter", "Neptune"],
-                correct: 2
-            },
-            {
-                question: "What is the smallest prime number?",
-                options: ["0", "1", "2", "3"],
-                correct: 2
-            },
-            {
-                question: "Which of these is a programming language?",
-                options: ["Python", "Coffee", "Milk", "Bread"],
-                correct: 0
-            },
-            {
-                question: "What year did World War II end?",
-                options: ["1943", "1944", "1945", "1946"],
-                correct: 2
-            },
-            {
-                question: "How many continents are there?",
-                options: ["5", "6", "7", "8"],
-                correct: 2
-            },
-            {
-                question: "What is the chemical symbol for Gold?",
-                options: ["Go", "Gd", "Au", "Ag"],
-                correct: 2
+  name: "quiz",
+  category: "fun",
+  aliases: ["trivia"],
+  description: "Battle royale trivia quiz!",
+  execute: async (ctx) => {
+    const author = getAuthor(ctx);
+    if (!author) return sendResponse(ctx, "Unable to resolve command user.");
+
+    const questions = [
+      { q: "What is the capital of France?", a: "a", options: ["Paris", "London", "Berlin", "Madrid"] },
+      { q: "What is 2 + 2?", a: "a", options: ["4", "3", "5", "6"] },
+      { q: "What color is the sky?", a: "a", options: ["Blue", "Red", "Green", "Yellow"] },
+      { q: "What is the largest planet?", a: "a", options: ["Jupiter", "Saturn", "Mars", "Venus"] },
+      { q: "Who wrote Romeo and Juliet?", a: "a", options: ["Shakespeare", "Marlowe", "Dante", "Cervantes"] }
+    ];
+
+    let current = 0;
+    let score = 0;
+
+    const createQuizPanel = (showAnswer = false, correct = false) => {
+      if (current >= questions.length) {
+        return new ContainerBuilder()
+          .setAccentColor(0x2ecc71)
+          .addTextDisplayComponents(
+            new TextDisplayBuilder().setContent(`## Quiz Complete!\n**Final Score: ${score}/${questions.length}**\n\nThat's **${Math.round((score / questions.length) * 100)}%**!`)
+          );
+      }
+
+      const q = questions[current];
+      const colorCode = showAnswer ? (correct ? 0x2ecc71 : 0xe74c3c) : 0x3498db;
+      const statusLine = showAnswer ? (correct ? "✅ Correct!" : "❌ Wrong!") : `Question ${current + 1}/${questions.length}`;
+
+      return new ContainerBuilder()
+        .setAccentColor(colorCode)
+        .addTextDisplayComponents(
+          new TextDisplayBuilder().setContent(`## 📚 Quiz\n${statusLine}`),
+          new TextDisplayBuilder().setContent(`**${q.q}**\n\nScore: ${score}`),
+          new TextDisplayBuilder().setContent(showAnswer && !correct ? `Correct answer: **${q.options[0]}**` : "Click an answer below!")
+        );
+    };
+
+    const createAnswerButtons = () => {
+      const q = questions[current];
+      const row = new ActionRowBuilder();
+      q.options.forEach((option, index) => {
+        const letter = String.fromCharCode(97 + index);
+        row.addComponents(new ButtonBuilder().setCustomId(`quiz_${letter}`).setLabel(option).setStyle(ButtonStyle.Primary));
+      });
+      return row;
+    };
+
+    const createQuestionComponents = (showAnswer = false, correct = false) => (
+      [withActionRows(createQuizPanel(showAnswer, correct), createAnswerButtons())]
+    );
+
+    const gameMsg = await sendResponse(ctx, { components: createQuestionComponents() });
+    if (!gameMsg) return null;
+
+    while (current < questions.length) {
+      const filter = (i) => i.customId.startsWith("quiz_") && i.user.id === author.id;
+      const collector = gameMsg.createMessageComponentCollector({ filter, time: 15000, max: 1 });
+
+      await new Promise((resolve) => {
+        collector.on("collect", async (interaction) => {
+          const answer = interaction.customId.split("_")[1];
+          const isCorrect = answer === questions[current].a;
+          if (isCorrect) score++;
+
+          await interaction.deferUpdate().catch(() => {});
+          await gameMsg.edit({ components: createQuestionComponents(true, isCorrect) }).catch(() => {});
+
+          setTimeout(() => {
+            current++;
+            if (current < questions.length) {
+              gameMsg.edit({ components: createQuestionComponents() }).catch(() => {});
+            } else {
+              gameMsg.edit({ components: [createQuizPanel()] }).catch(() => {});
             }
-        ];
+          }, 2000);
 
-        let score = 0;
-        let questionIndex = 0;
+          resolve();
+        });
 
-        const playQuiz = async () => {
-            return new Promise((resolve) => {
-                const q = questions[questionIndex];
-
-                const quizEmbed = new EmbedBuilder()
-                    .setColor(client.embedColor || '#e74c3c')
-                    .setTitle("Quiz Challenge")
-                    .setDescription(q.question)
-                    .addFields(
-                        { name: "Progress", value: `${questionIndex + 1}/${questions.length}`, inline: false },
-                        { name: "Score", value: `${score}`, inline: false }
-                    )
-const row = new ActionRowBuilder();
-                q.options.forEach((option, index) => {
-                    row.addComponents(
-                        new ButtonBuilder()
-                            .setCustomId(`quiz_${index}`)
-                            .setLabel(`${String.fromCharCode(65 + index)}) ${option}`)
-                            .setStyle(ButtonStyle.Primary)
-                    );
-                });
-
-                message.channel.send({ embeds: [quizEmbed], components: [row] }).then(msg => {
-                    const filter = (i) => i.customId.startsWith('quiz_');
-                    const collector = msg.createMessageComponentCollector({ filter, time: 20000, max: 1 });
-
-                    collector.on('collect', async (interaction) => {
-                        if (interaction.user.id !== message.author.id) {
-                            await interaction.reply({ content: `Only <@${message.author.id}> can use these buttons.`, ephemeral: true }).catch(() => {});
-                            return;
-                        }
-
-                        const selectedOption = parseInt(interaction.customId.split('_')[1]);
-                        const correct = selectedOption === q.correct;
-
-                        if (correct) {
-                            score++;
-                        }
-
-                        const resultEmbed = new EmbedBuilder()
-                            .setColor(correct ? '#2ecc71' : '#e74c3c')
-                            .setTitle(correct ? "✅ Correct!" : "❌ Wrong!")
-                            .addFields(
-                                { name: "Your Answer", value: q.options[selectedOption], inline: true },
-                                { name: "Correct Answer", value: q.options[q.correct], inline: true },
-                                { name: "Score", value: `${score}/${questions.length}`, inline: false }
-                            );
-
-                        interaction.update({ embeds: [resultEmbed], components: [] }).then(() => {
-                            resolve();
-                        });
-                    });
-
-                    collector.on('end', (collected) => {
-                        if (collected.size === 0) {
-                            msg.edit({ content: "Question skipped due to inactivity.", components: [] });
-                            resolve();
-                        }
-                    });
-                });
-            });
-        };
-
-        while (questionIndex < questions.length) {
-            await playQuiz();
-            questionIndex++;
-            if (questionIndex < questions.length) {
-                await new Promise(r => setTimeout(r, 2000));
+        collector.on("end", () => {
+          if (current < questions.length) {
+            current++;
+            if (current < questions.length) {
+              gameMsg.edit({ components: createQuestionComponents() }).catch(() => {});
             }
-        }
-
-        const percentage = Math.floor((score / questions.length) * 100);
-        let rank = "😢 F";
-        if (percentage >= 90) rank = "🏆 A+";
-        else if (percentage >= 80) rank = "🌟 A";
-        else if (percentage >= 70) rank = "👍 B";
-        else if (percentage >= 60) rank = "📚 C";
-        else if (percentage >= 50) rank = "⚠️ D";
-
-        const finalEmbed = new EmbedBuilder()
-            .setColor('#f39c12')
-            .setTitle("Quiz Complete!")
-            .addFields(
-                { name: "Final Score", value: `${score}/${questions.length}`, inline: true },
-                { name: "Percentage", value: `${percentage}%`, inline: true },
-                { name: "Grade", value: rank, inline: false }
-            );
-
-        message.channel.send({ embeds: [finalEmbed] });
+          }
+          resolve();
+        });
+      });
     }
+
+    return null;
+  }
 };
