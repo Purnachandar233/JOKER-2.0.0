@@ -6,6 +6,7 @@ const EMBED_COLOR = "#ff0051";
 const blacklist = require("../../schema/blacklistSchema.js");
 const { resolvePremiumAccess } = require("../../utils/premiumAccess");
 const { buildAccessRequiredPrompt } = require("../../utils/accessPrompt");
+const { handleInteractionCommandError, logOwnerCommand } = require("../../utils/errorHandler");
 const { safeReply, safeDeferReply } = require("../../utils/interactionResponder");
 const welcomeSchema = require("../../schema/welcome.js");
 const { buildWelcomeSetupPanel } = require("../../welcome/panel.js");
@@ -187,6 +188,8 @@ function commandNeedsUsableLavalink(command) {
   const category = String(command?.category || "").toLowerCase();
   const name = String(command?.name || "").toLowerCase();
 
+  if (name === "debugmusic") return false;
+
   if (
     filename.startsWith("src/commands/music/") ||
     filename.startsWith("src/commands/filters/") ||
@@ -274,6 +277,12 @@ function normalizeInteractionOptions(options, { forEdit = false } = {}) {
   }
 
   return cloned;
+}
+
+function hasWelcomeManagePermission(interaction) {
+  const permissions = interaction?.memberPermissions || interaction?.member?.permissions;
+  if (!permissions || typeof permissions.has !== "function") return false;
+  return permissions.has("ManageGuild") || permissions.has("Administrator");
 }
 
 function patchSafeInteractionResponses(interaction) {
@@ -406,6 +415,13 @@ async function runSlashCommand(client, interaction, ownerIds) {
     return interaction.editReply({ embeds: [embed] }).catch(() => {});
   }
 
+  if (slashCommand.owneronly) {
+    logOwnerCommand(client, {
+      command: `/${slashCommand.name || interaction.commandName || "command"}`,
+      mode: "slash",
+    }).catch(() => {});
+  }
+
   // Premium / Vote Lock Check
   if (slashCommand.votelock || slashCommand.voteOnly || slashCommand.premium) {
     const { hasAccess } = await resolvePremiumAccess(interaction.user.id, interaction.guild?.id, client);
@@ -497,22 +513,12 @@ You can use this command by voting on [Top.gg](https://top.gg/bot/${client.user.
   try {
     await slashCommand.run(client, interaction);
   } catch (error) {
-    const { logError } = require("../../utils/errorHandler");
-    await logError(client, error, {
+    await handleInteractionCommandError(client, interaction, error, {
       source: "SlashCommand",
+      mode: "slash",
       command: interaction.commandName,
-      user: interaction.user?.id,
-      guild: interaction.guild?.id,
-      channel: interaction.channel?.id
+      commandLabel: `/${slashCommand.name || interaction.commandName || "command"}`,
     });
-
-    const no = EMOJIS.no;
-    const errorMsg = error?.message || error?.toString() || "An unknown error occurred";
-    if (interaction.deferred || interaction.replied) {
-      await interaction.editReply({ content: `${no} Error: ${errorMsg}` }).catch(() => {});
-    } else {
-      await safeReply(interaction, { content: `${no} Error: ${errorMsg}`, ephemeral: true });
-    }
   }
 }
 
@@ -835,12 +841,119 @@ async function runPremiumComponent(client, interaction) {
   return false;
 }
 
+async function handleWelcomeModalSubmit(interaction) {
+  const modalId = interaction.customId;
+  if (
+    modalId !== "welcome_message_modal" &&
+    modalId !== "welcome_text_message_modal" &&
+    modalId !== "welcome_title_modal" &&
+    modalId !== "welcome_color_modal"
+  ) {
+    return false;
+  }
+
+  try {
+    if (!hasWelcomeManagePermission(interaction)) {
+      const embed = new EmbedBuilder()
+        .setColor(EMBED_COLOR)
+        .setDescription("*You need `Manage Server` or `Administrator` permission.*");
+      await safeReply(interaction, { embeds: [embed], ephemeral: true });
+      return true;
+    }
+
+    const embedColor = EMBED_COLOR;
+    const getEmoji = (key, fallback = "") => EMOJIS[key] || fallback;
+    const ok = EMOJIS.ok;
+    const no = EMOJIS.no;
+
+    if (modalId === "welcome_message_modal") {
+      const messageText = interaction.fields.getTextInputValue("message_input");
+      await welcomeSchema.findOneAndUpdate(
+        { guildID: interaction.guild.id },
+        { message: messageText },
+        { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
+      );
+      await syncWelcomePanelMessage(interaction, "Embed message updated by");
+
+      const embed = new EmbedBuilder()
+        .setColor(embedColor)
+        .setTitle(`${getEmoji("success")} Message Updated`)
+        .setDescription(`${ok} Welcome message template updated by ${interaction.user}.`)
+        .addFields({ name: `${getEmoji("info")} New Message`, value: `\`${messageText}\`` });
+      await safeReply(interaction, { embeds: [embed], ephemeral: true });
+      return true;
+    }
+
+    if (modalId === "welcome_text_message_modal") {
+      const textMessage = interaction.fields.getTextInputValue("text_message_input");
+      await welcomeSchema.findOneAndUpdate(
+        { guildID: interaction.guild.id },
+        { textMessage },
+        { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
+      );
+      await syncWelcomePanelMessage(interaction, "Text message updated by");
+
+      const embed = new EmbedBuilder()
+        .setColor(embedColor)
+        .setTitle(`${getEmoji("success")} Text Message Updated`)
+        .setDescription(`${ok} Welcome text message updated by ${interaction.user}.`)
+        .addFields({ name: `${getEmoji("info")} New Text Message`, value: `\`${textMessage}\`` });
+      await safeReply(interaction, { embeds: [embed], ephemeral: true });
+      return true;
+    }
+
+    if (modalId === "welcome_title_modal") {
+      const titleText = interaction.fields.getTextInputValue("title_input");
+      await welcomeSchema.findOneAndUpdate(
+        { guildID: interaction.guild.id },
+        { title: titleText },
+        { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
+      );
+      await syncWelcomePanelMessage(interaction, "Title updated by");
+
+      const embed = new EmbedBuilder()
+        .setColor(embedColor)
+        .setTitle(`${getEmoji("success")} Title Updated`)
+        .setDescription(`${ok} Embed title updated to \`${titleText}\` by ${interaction.user}.`);
+      await safeReply(interaction, { embeds: [embed], ephemeral: true });
+      return true;
+    }
+
+    const colorText = interaction.fields.getTextInputValue("color_input");
+    const parsed = normalizeWelcomeColor(colorText, embedColor);
+
+    if (!parsed) {
+      const embed = new EmbedBuilder()
+        .setColor(embedColor)
+        .setTitle(`${getEmoji("error")} Invalid Color`)
+        .setDescription(`${no} Use hex format like \`#ff0051\` or \`default\`.`);
+      await safeReply(interaction, { embeds: [embed], ephemeral: true });
+      return true;
+    }
+
+    await welcomeSchema.findOneAndUpdate(
+      { guildID: interaction.guild.id },
+      { embedColor: parsed },
+      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
+    );
+    await syncWelcomePanelMessage(interaction, "Color updated by");
+
+    const embed = new EmbedBuilder()
+      .setColor(embedColor)
+      .setTitle(`${getEmoji("success")} Color Updated`)
+      .setDescription(`${ok} Embed color set to \`${parsed}\` by ${interaction.user}.`);
+    await safeReply(interaction, { embeds: [embed], ephemeral: true });
+    return true;
+  } catch (err) {
+    console.error("Error in modal submit handler:", err);
+    return true;
+  }
+}
+
 
 
 module.exports = async (client, interaction) => {
-  const ownerIds = Array.isArray(client.config.ownerId||process.env.OWNERID)
-    ? client.config.ownerId||process.env.OWNERID
-    : [client.config.ownerId||process.env.OWNERID].filter(Boolean);
+  const ownerIds = [String(process.env.OWNERID || "").trim()].filter(Boolean);
 
   if (interaction.type === InteractionType.ApplicationCommand) {
     await runSlashCommand(client, interaction, ownerIds);
@@ -850,6 +963,11 @@ module.exports = async (client, interaction) => {
     if (!ownerIds.includes(interaction.user.id)) return;
     await interaction.message.delete().catch(() => {});
     return;
+  }
+
+  if (interaction.type === InteractionType.ModalSubmit) {
+    const handled = await handleWelcomeModalSubmit(interaction);
+    if (handled) return;
   }
 
 
@@ -878,7 +996,7 @@ module.exports = async (client, interaction) => {
     if (interaction.isStringSelectMenu?.()) {
       if (customId === "welcome_select_channel" || customId === "welcome_select_role") {
         try {
-          if (!interaction.member.permissions.has("MANAGE_GUILD") && !interaction.member.permissions.has("ADMINISTRATOR")) {
+          if (!hasWelcomeManagePermission(interaction)) {
             const embed = new EmbedBuilder()
               .setColor(EMBED_COLOR)
               .setDescription("*You need `Manage Server` or `Administrator` permission.*");
@@ -979,7 +1097,7 @@ module.exports = async (client, interaction) => {
         buttonId === "welcome_refresh"
       ) {
         try {
-          if (!interaction.member.permissions.has("MANAGE_GUILD") && !interaction.member.permissions.has("ADMINISTRATOR")) {
+          if (!hasWelcomeManagePermission(interaction)) {
             const embed = new EmbedBuilder()
               .setColor(EMBED_COLOR)
               .setDescription("*You need `Manage Server` or `Administrator` permission.*");
@@ -1168,111 +1286,6 @@ module.exports = async (client, interaction) => {
       }
     }
 
-    // Handle Modal Submissions
-    if (interaction.isModalSubmit?.()) {
-      const modalId = customId;
-      
-      if (
-        modalId === "welcome_message_modal" ||
-        modalId === "welcome_text_message_modal" ||
-        modalId === "welcome_title_modal" ||
-        modalId === "welcome_color_modal"
-      ) {
-        try {
-          if (!interaction.member.permissions.has("MANAGE_GUILD") && !interaction.member.permissions.has("ADMINISTRATOR")) {
-            const embed = new EmbedBuilder()
-              .setColor(EMBED_COLOR)
-              .setDescription("*You need `Manage Server` or `Administrator` permission.*");
-            return safeReply(interaction, { embeds: [embed], ephemeral: true });
-          }
-
-          const embedColor = EMBED_COLOR;
-          const getEmoji = (key, fallback = "") => EMOJIS[key] || fallback;
-          const ok = EMOJIS.ok;
-          const no = EMOJIS.no;
-
-          if (modalId === "welcome_message_modal") {
-            const messageText = interaction.fields.getTextInputValue("message_input");
-            await welcomeSchema.findOneAndUpdate(
-              { guildID: interaction.guild.id },
-              { message: messageText },
-              { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
-            );
-            await syncWelcomePanelMessage(interaction, "Embed message updated by");
-
-            const embed = new EmbedBuilder()
-              .setColor(embedColor)
-              .setTitle(`${getEmoji("success")} Message Updated`)
-              .setDescription(`${ok} Welcome message template updated by ${interaction.user}.`)
-              .addFields({ name: `${getEmoji("info")} New Message`, value: `\`${messageText}\`` });
-            return safeReply(interaction, { embeds: [embed], ephemeral: true });
-          }
-
-          if (modalId === "welcome_text_message_modal") {
-            const textMessage = interaction.fields.getTextInputValue("text_message_input");
-            await welcomeSchema.findOneAndUpdate(
-              { guildID: interaction.guild.id },
-              { textMessage },
-              { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
-            );
-            await syncWelcomePanelMessage(interaction, "Text message updated by");
-
-            const embed = new EmbedBuilder()
-              .setColor(embedColor)
-              .setTitle(`${getEmoji("success")} Text Message Updated`)
-              .setDescription(`${ok} Welcome text message updated by ${interaction.user}.`)
-              .addFields({ name: `${getEmoji("info")} New Text Message`, value: `\`${textMessage}\`` });
-            return safeReply(interaction, { embeds: [embed], ephemeral: true });
-          }
-
-          if (modalId === "welcome_title_modal") {
-            const titleText = interaction.fields.getTextInputValue("title_input");
-            await welcomeSchema.findOneAndUpdate(
-              { guildID: interaction.guild.id },
-              { title: titleText },
-              { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
-            );
-            await syncWelcomePanelMessage(interaction, "Title updated by");
-
-            const embed = new EmbedBuilder()
-              .setColor(embedColor)
-              .setTitle(`${getEmoji("success")} Title Updated`)
-              .setDescription(`${ok} Embed title updated to \`${titleText}\` by ${interaction.user}.`);
-            return safeReply(interaction, { embeds: [embed], ephemeral: true });
-          }
-
-          if (modalId === "welcome_color_modal") {
-            const colorText = interaction.fields.getTextInputValue("color_input");
-            const parsed = normalizeWelcomeColor(colorText, embedColor);
-            
-            if (!parsed) {
-              const embed = new EmbedBuilder()
-                .setColor(embedColor)
-                .setTitle(`${getEmoji("error")} Invalid Color`)
-                .setDescription(`${no} Use hex format like \`#ff0051\` or \`default\`.`);
-              return safeReply(interaction, { embeds: [embed], ephemeral: true });
-            }
-
-            await welcomeSchema.findOneAndUpdate(
-              { guildID: interaction.guild.id },
-              { embedColor: parsed },
-              { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
-            );
-            await syncWelcomePanelMessage(interaction, "Color updated by");
-
-            const embed = new EmbedBuilder()
-              .setColor(embedColor)
-              .setTitle(`${getEmoji("success")} Color Updated`)
-              .setDescription(`${ok} Embed color set to \`${parsed}\` by ${interaction.user}.`);
-            return safeReply(interaction, { embeds: [embed], ephemeral: true });
-          }
-        } catch (err) {
-          console.error("Error in modal submit handler:", err);
-        }
-        return;
-      }
-    }
-    
     const premiumHandled = await runPremiumComponent(client, interaction);
     if (premiumHandled) return;
     await runMusicComponent(client, interaction);

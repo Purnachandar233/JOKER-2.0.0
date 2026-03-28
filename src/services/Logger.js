@@ -175,8 +175,6 @@ class Logger {
     const entry = this.formatEntry("fatal", printable, metadata);
     this.pushHistory(this.recentLogs, entry);
     this.pushHistory(this.recentErrors, entry);
-
-    this.sendFatalWebhook(message, error, metadata).catch(() => {});
   }
 
   logCommand(commandName, userId, guildId, duration, success = true) {
@@ -199,24 +197,6 @@ class Logger {
 
   logDatabase(operation, collection, metadata = {}) {
     this.debug(`DB: ${operation} on ${collection}`, metadata);
-  }
-
-  async sendErrorWebhook(message, _error, _metadata = {}) {
-    try {
-      if (!this.client?.config?.errorWebhook) return;
-      console.log(`[Logger] Error webhook would send: ${message}`);
-    } catch (err) {
-      console.error("[Logger] sendErrorWebhook error:", err && (err.message || err));
-    }
-  }
-
-  async sendFatalWebhook(message, _error, _metadata = {}) {
-    try {
-      if (!this.client?.config?.errorWebhook) return;
-      console.log(`[Logger] FATAL webhook would send: ${message}`);
-    } catch (err) {
-      console.error("[Logger] sendFatalWebhook error:", err && (err.message || err));
-    }
   }
 
   getRecentLogs(lines = 50) {

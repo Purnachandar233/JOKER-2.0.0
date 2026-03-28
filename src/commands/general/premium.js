@@ -14,6 +14,10 @@ const formatDuration = require("../../utils/formatDuration");
 const { resolvePremiumAccess } = require("../../utils/premiumAccess");
 const { safeReply } = require("../../utils/interactionResponder");
 
+function getEmoji(key, fallback = "") {
+  return EMOJIS[key] || fallback;
+}
+
 function isInteraction(ctx) {
   return Boolean(ctx && typeof ctx.deferReply === "function" && typeof ctx.editReply === "function");
 }
@@ -58,7 +62,6 @@ module.exports = {
   owner: false,
   wl: true,
   execute: async (ctx, args, client) => {
-    const getEmoji = (key, fallback = "") => EMOJIS[key] || fallback;
     const embedColor = client?.embedColor || "#ff0051";
 
     const userId = ctx?.author?.id || ctx?.user?.id;

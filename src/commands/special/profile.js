@@ -65,6 +65,7 @@ module.exports = {
     const member =
       message.mentions.members.first() ||
       message.guild.members.cache.get(args[0]) ||
+      await message.guild.members.fetch(args[0]).catch(() => null) ||
       message.member;
 
     let userData = await User.findOne({ userId: member.id }).lean();

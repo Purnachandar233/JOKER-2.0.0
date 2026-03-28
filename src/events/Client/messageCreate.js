@@ -13,6 +13,7 @@ const blacklist = require("../../schema/blacklistSchema.js");
 const db = require("../../schema/prefix.js");
 const { resolvePremiumAccess } = require("../../utils/premiumAccess");
 const { buildAccessRequiredPrompt } = require("../../utils/accessPrompt");
+const { handleMessageCommandError, logOwnerCommand } = require("../../utils/errorHandler");
 const { scheduleErrorMessageDeletion } = require("../../utils/errorMessageAutoDelete");
 
 const toPositiveNumber = (value, fallback) => {
@@ -67,6 +68,8 @@ function commandNeedsUsableLavalink(command) {
   const filename = normalizeCommandFilename(command);
   const category = String(command?.category || "").toLowerCase();
   const name = String(command?.name || "").toLowerCase();
+
+  if (name === "debugmusic") return false;
 
   if (
     filename.startsWith("src/commands/music/") ||
@@ -224,9 +227,7 @@ module.exports = async (client, message) => {
 
   if (!message.guild || !message.guild.id || message.author.bot) return;
 
-  const owners = Array.isArray(client.config.ownerId)
-    ? client.config.ownerId
-    : [client.config.ownerId].filter(Boolean);
+  const owners = [String(process.env.OWNERID || "").trim()].filter(Boolean);
 
   const prefix = await getGuildPrefix(client, message.guild.id);
 
@@ -426,14 +427,21 @@ You can use this command by voting on [Top.gg](https://top.gg/bot/${client.user.
   }
 
   try {
+    if (command.owneronly) {
+      logOwnerCommand(client, {
+        command: `${prefix}${command.name || commandName || "command"}`,
+        mode: "prefix",
+      }).catch(() => {});
+    }
+
     await command.execute(message, args, client, prefix);
   } catch (error) {
-    client.logger?.log(`Command execution error: ${error?.message || error}`, "error");
-    const embed = new EmbedBuilder()
-      .setColor(client?.embedColor || EMBED_COLOR)
-      .setTitle(`${getEmoji(client, "error")} Command Error`)
-      .setDescription(`Error executing command: ${error?.message || "Unknown error"}`);
-    await message.reply({ embeds: [embed] }).catch(() => {});
+    await handleMessageCommandError(client, message, error, {
+      source: "PrefixCommand",
+      mode: "prefix",
+      command: command.name || commandName || "command",
+      commandLabel: `${prefix}${command.name || commandName || "command"}`,
+    });
   }
 };
 

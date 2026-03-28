@@ -2,10 +2,12 @@ const { Client, EmbedBuilder } = require("discord.js");
 const mongoose = require('mongoose');
 const { readdirSync } = require("fs");
 const formatDuration = require('../utils/formatDuration');
+const sanitize = require('../utils/sanitize');
 const GuildFilters = require('../schema/guildFilters');
 const queueToolsModule = require('../utils/queue');
 const filterSettingsModule = require('../utils/settings');
 const musicChecksModule = require('../utils/musicChecks');
+const { reportStartupError } = require('../utils/errorHandler');
 
 // Import all services
 const Logger = require('../services/Logger');
@@ -461,7 +463,7 @@ module.exports = async (client) => {
     // Output stays one-line and structured to avoid noisy startup logs.
     const safeLog = (message, type = 'info') => {
         const normalizedType = ['ready', 'success'].includes(String(type).toLowerCase()) ? 'info' : String(type || 'info').toLowerCase();
-        const safeMessage = String(message ?? "").replace(/\s+/g, " ").trim();
+        const safeMessage = sanitize(String(message ?? "").replace(/\s+/g, " ").trim());
         if (!safeMessage) return;
 
         try {
@@ -481,6 +483,10 @@ module.exports = async (client) => {
             return;
         }
         console.log(line);
+    };
+
+    const reportBootstrapError = (error, context = {}) => {
+        reportStartupError(client, error, context).catch(() => {});
     };
 
     /**
@@ -567,6 +573,9 @@ module.exports = async (client) => {
         } catch (err) {
             mongoState.healthy = false;
             safeLog(`[MONGO] Connection failed (${reason}): ${err && (err.message || err)}`, 'error');
+            if (reason === 'startup') {
+                reportBootstrapError(err, { stage: 'mongo-connect' });
+            }
             scheduleMongoReconnect('connect-failed');
             return false;
         } finally {
@@ -664,69 +673,55 @@ try {
             }
         } catch (err) {
             safeLog(`[ERROR] Failed to load Client event file ${file}: ${err && (err.stack || err.message || err)}`, 'error');
+            reportBootstrapError(err, { stage: `client-event:${file}` });
         }
     });
 } catch (err) {
     safeLog(`[ERROR] Unable to read Client events folder: ${err && (err.stack || err.message || err)}`, 'error');
+    reportBootstrapError(err, { stage: 'client-events-folder' });
 }
 
 const data = [];
-readdirSync("./src/slashCommands/").forEach((dir) => {
+try {
+    readdirSync("./src/slashCommands/").forEach((dir) => {
         const slashCommandFile = readdirSync(`./src/slashCommands/${dir}/`).filter((files) => files.endsWith(".js"));
 
         for (const file of slashCommandFile) {
-            const slashCommand = require(`../slashCommands/${dir}/${file}`);
-            // Attach filename so error handlers can surface the originating file
-            try { slashCommand._filename = `src/slashCommands/${dir}/${file}`; } catch (e) {}
+            try {
+                const slashCommand = require(`../slashCommands/${dir}/${file}`);
+                try { slashCommand._filename = `src/slashCommands/${dir}/${file}`; } catch (_e) {}
 
-            if(!slashCommand.name) return console.error(`slashCommandNameError: ${file.split(".")[0]} application command name is required.`);
+                if (!slashCommand.name) {
+                    throw new Error(`Slash command name is required for ${dir}/${file}`);
+                }
 
-            if(!slashCommand.description) return console.error(`slashCommandDescriptionError: ${file.split(".")[0]} application command description is required.`);
+                if (!slashCommand.description) {
+                    throw new Error(`Slash command description is required for ${dir}/${file}`);
+                }
 
-            client.sls.set(slashCommand.name, slashCommand);
-
-            data.push(slashCommand);
+                client.sls.set(slashCommand.name, slashCommand);
+                data.push(slashCommand);
+            } catch (err) {
+                safeLog(`[COMMANDS] Failed to load slash command ${dir}/${file}: ${err && (err.message || err)}`, 'error');
+                reportBootstrapError(err, { stage: `slash-command:${dir}/${file}` });
+            }
         }
     });
+} catch (err) {
+    safeLog(`[COMMANDS] Unable to read slash commands folder: ${err && (err.message || err)}`, 'error');
+    reportBootstrapError(err, { stage: 'slash-commands-folder' });
+}
 
+try {
     readdirSync("./src/commands/").forEach((dir) => {
         const fullDir = `./src/commands/${dir}/`;
         const CommandFile = readdirSync(fullDir).filter((files) => files.endsWith(".js"));
 
         for (const file of CommandFile) {
-            const command = require(`../commands/${dir}/${file}`);
-            if(!command.name) continue;
-            try { command._filename = `src/commands/${dir}/${file}`; } catch (_e) {}
-            const commandName = command.name.toLowerCase();
-            client.commands.set(commandName, command);
-            if (command.aliases && Array.isArray(command.aliases)) {
-                command.aliases.forEach((alias) => {
-                    const aliasKey = String(alias).toLowerCase();
-                    const existing = client.aliases.get(aliasKey);
-                    if (existing && existing !== commandName) {
-                        safeLog(`[WARN] Alias collision skipped: "${aliasKey}" already mapped to "${existing}", ignoring "${commandName}"`, 'warn');
-                        return;
-                    }
-                    if (client.commands.has(aliasKey) && aliasKey !== commandName) {
-                        safeLog(`[WARN] Alias collision skipped: "${aliasKey}" matches command name, ignoring alias for "${commandName}"`, 'warn');
-                        return;
-                    }
-                    client.aliases.set(aliasKey, commandName);
-                });
-            }
-        }
-
-        // Load nested commands in one level deeper
-        const subDirs = readdirSync(fullDir, { withFileTypes: true })
-            .filter(dirent => dirent.isDirectory())
-            .map(dirent => dirent.name);
-
-        subDirs.forEach(subDir => {
-            const subCommandFiles = readdirSync(`${fullDir}${subDir}/`).filter((files) => files.endsWith(".js"));
-            for (const file of subCommandFiles) {
-                const command = require(`../commands/${dir}/${subDir}/${file}`);
-                if(!command.name) continue;
-                try { command._filename = `src/commands/${dir}/${subDir}/${file}`; } catch (_e) {}
+            try {
+                const command = require(`../commands/${dir}/${file}`);
+                if (!command.name) continue;
+                try { command._filename = `src/commands/${dir}/${file}`; } catch (_e) {}
                 const commandName = command.name.toLowerCase();
                 client.commands.set(commandName, command);
                 if (command.aliases && Array.isArray(command.aliases)) {
@@ -744,9 +739,51 @@ readdirSync("./src/slashCommands/").forEach((dir) => {
                         client.aliases.set(aliasKey, commandName);
                     });
                 }
+            } catch (err) {
+                safeLog(`[COMMANDS] Failed to load command ${dir}/${file}: ${err && (err.message || err)}`, 'error');
+                reportBootstrapError(err, { stage: `command:${dir}/${file}` });
+            }
+        }
+
+        const subDirs = readdirSync(fullDir, { withFileTypes: true })
+            .filter(dirent => dirent.isDirectory())
+            .map(dirent => dirent.name);
+
+        subDirs.forEach(subDir => {
+            const subCommandFiles = readdirSync(`${fullDir}${subDir}/`).filter((files) => files.endsWith(".js"));
+            for (const file of subCommandFiles) {
+                try {
+                    const command = require(`../commands/${dir}/${subDir}/${file}`);
+                    if (!command.name) continue;
+                    try { command._filename = `src/commands/${dir}/${subDir}/${file}`; } catch (_e) {}
+                    const commandName = command.name.toLowerCase();
+                    client.commands.set(commandName, command);
+                    if (command.aliases && Array.isArray(command.aliases)) {
+                        command.aliases.forEach((alias) => {
+                            const aliasKey = String(alias).toLowerCase();
+                            const existing = client.aliases.get(aliasKey);
+                            if (existing && existing !== commandName) {
+                                safeLog(`[WARN] Alias collision skipped: "${aliasKey}" already mapped to "${existing}", ignoring "${commandName}"`, 'warn');
+                                return;
+                            }
+                            if (client.commands.has(aliasKey) && aliasKey !== commandName) {
+                                safeLog(`[WARN] Alias collision skipped: "${aliasKey}" matches command name, ignoring alias for "${commandName}"`, 'warn');
+                                return;
+                            }
+                            client.aliases.set(aliasKey, commandName);
+                        });
+                    }
+                } catch (err) {
+                    safeLog(`[COMMANDS] Failed to load nested command ${dir}/${subDir}/${file}: ${err && (err.message || err)}`, 'error');
+                    reportBootstrapError(err, { stage: `command:${dir}/${subDir}/${file}` });
+                }
             }
         });
     });
+} catch (err) {
+    safeLog(`[COMMANDS] Unable to read commands folder: ${err && (err.message || err)}`, 'error');
+    reportBootstrapError(err, { stage: 'commands-folder' });
+}
 
     // The discord.js v15 ready event was renamed to `clientReady`. Register the
     // same initialization for both event names to remain backwards compatible
@@ -779,6 +816,7 @@ readdirSync("./src/slashCommands/").forEach((dir) => {
 
                     registerIfChanged().catch((e) => {
                         safeLog(`[COMMANDS] Failed to register slash commands: ${e && (e.message || e.toString())}`, 'error');
+                        reportBootstrapError(e, { stage: 'slash-register' });
                     });
                 } else {
                     safeLog('[COMMANDS] Slash registration skipped: client.application.commands unavailable', 'warn');
@@ -788,6 +826,7 @@ readdirSync("./src/slashCommands/").forEach((dir) => {
             }
         } catch (e) {
             safeLog(`[COMMANDS] Registration error: ${e && (e.message || e.toString())}`, 'error');
+            reportBootstrapError(e, { stage: 'slash-register' });
         }
         // Lavalink setup is performed from src/events/Client/ready.js, which
         // also runs on clientReady. This block only handles Discord startup
@@ -812,6 +851,7 @@ readdirSync("./src/slashCommands/").forEach((dir) => {
 
         } catch (e) {
             safeLog(`Initialization failed: ${e && (e.message || e.toString())}`, 'error');
+            reportBootstrapError(e, { stage: 'core-services' });
         }
     });
 

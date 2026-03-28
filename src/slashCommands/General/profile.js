@@ -59,11 +59,21 @@ module.exports = {
       await interaction.deferReply({ ephemeral: false }).catch(() => {});
     }
 
-    const member = interaction.member;
-    let userData = await User.findOne({ userId: member.id }).lean();
+    const member =
+      interaction.guild?.members?.cache?.get?.(interaction.user.id) ||
+      interaction.member ||
+      null;
+    const profileUser = member?.user || interaction.user;
+    const profileUserId = member?.id || profileUser?.id || interaction.user.id;
+    const avatarUrl =
+      member?.displayAvatarURL?.({ forceStatic: false, size: 1024 }) ||
+      profileUser?.displayAvatarURL?.({ forceStatic: false, size: 1024 }) ||
+      null;
+
+    let userData = await User.findOne({ userId: profileUserId }).lean();
     if (!userData) {
       userData = {
-        userId: member.id,
+        userId: profileUserId,
         count: 0,
         totalVotes: 0,
         songsListened: 0,
@@ -78,7 +88,7 @@ module.exports = {
       verbose: false,
       unitCount: 3
     });
-    const premiumDoc = await Premium.findOne({ Id: member.id, Type: "user" });
+    const premiumDoc = await Premium.findOne({ Id: profileUserId, Type: "user" });
 
     let premiumText = "No active premium access.";
     if (premiumDoc?.Permanent) {
@@ -88,7 +98,7 @@ module.exports = {
     } else if (premiumDoc) {
       const expiredAt = day(premiumDoc.Expire).format("DD/MM/YYYY");
       premiumText = `Expired on ${expiredAt}`;
-      await premiumDoc.deleteOne();
+      await premiumDoc.deleteOne().catch(() => {});
     }
 
     let voteText = `Not voted - vote on [top.gg](https://top.gg/bot/${client.user.id}/vote) to unlock premium commands for 12 hours.`;
@@ -101,8 +111,7 @@ module.exports = {
 
     const embed = new EmbedBuilder()
       .setColor(embedColor)
-      .setTitle(`${getEmoji("users")} Profile - ${member.user.username}`)
-      .setThumbnail(member.displayAvatarURL({ forceStatic: false, size: 1024 }))
+      .setTitle(`${getEmoji("users")} Profile - ${profileUser?.username || "User"}`)
       .addFields(
         statField("Commands Used", `\`${userData.count || 0}\``, "music"),
         statField("Total Votes", `\`${userData.totalVotes || 0}\``, "vote"),
@@ -124,6 +133,7 @@ module.exports = {
           inline: false
         }
       );
+    if (avatarUrl) embed.setThumbnail(avatarUrl);
     restoreBadgeFieldValue(embed, badgeValue);
 
     return interaction.editReply({ embeds: [embed] });

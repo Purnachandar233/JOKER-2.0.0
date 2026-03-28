@@ -96,7 +96,7 @@ client.commands = new Collection();
 client.aliases = new Collection();
 client.sls = new Collection();
 client.config = require("../config.json");
-client.owner = client.config.ownerIds || process.env.ownerid;
+client.owner = String(process.env.OWNERID || "").trim();
 client.prefix = process.env.PREFIX || client.config.prefix;
 client.embedColor = client.config.embedColor;
 client.legalLinks = Object.freeze(buildLegalLinks(client.config));
@@ -157,6 +157,14 @@ if (topggWebhookAuth) {
                 console.log(`[TOPGG] Vote recorded for ${vote.user}. Premium window unchanged.`);
             }
 
+            const user = await client.users.fetch(vote.user).catch(() => null);
+            if (user) {
+                const thankYouText = voteGrant.status === "kept_permanent"
+                    ? "Thank you for voting! Your permanent Premium is already active."
+                    : "Thank you for voting! You received 12 hours of Premium access!";
+                user.send(thankYouText).catch(() => {});
+            }
+
         } catch (err) {
             console.error("Top.gg webhook error:", err);
         }
@@ -191,9 +199,9 @@ process.on('unhandledRejection', (error) => {
   } catch (e) {
     console.error('[FALLBACK ERROR]', error);
   }
-  if (client.config.webhooks?.errorLogs) {
+  if (process.env.ERROR_WEBHOOK_URL || client.config.webhooks?.errorLogs) {
     const { logError } = require('./utils/errorHandler');
-    logError(client, error, { source: 'Unhandled Rejection' }).catch(() => {});
+    logError(client, error, { source: 'Unhandled Rejection', skipLocalLog: true }).catch(() => {});
   }
 });
 
@@ -209,8 +217,8 @@ process.on("uncaughtException", (err, origin) => {
   } catch (e) {
     console.error('[FALLBACK ERROR]', err);
   }
-  if (client.config.webhooks?.errorLogs) {
+  if (process.env.ERROR_WEBHOOK_URL || client.config.webhooks?.errorLogs) {
     const { logError } = require('./utils/errorHandler');
-    logError(client, err, { source: 'Uncaught Exception', origin }).catch(() => {});
+    logError(client, err, { source: 'Uncaught Exception', origin, skipLocalLog: true }).catch(() => {});
   }
 });

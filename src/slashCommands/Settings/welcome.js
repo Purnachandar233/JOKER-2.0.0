@@ -9,6 +9,12 @@ const {
 } = require("../../welcome/template");
 const { buildWelcomeSetupPanel } = require("../../welcome/panel");
 
+function hasWelcomeManagePermission(interaction) {
+  const permissions = interaction?.memberPermissions || interaction?.member?.permissions;
+  if (!permissions || typeof permissions.has !== "function") return false;
+  return permissions.has("ManageGuild") || permissions.has("Administrator");
+}
+
 module.exports = {
   name: "welcome",
   description: "Configure welcome messages for your server.",
@@ -160,7 +166,7 @@ module.exports = {
 
     // Handle string select menus (dropdowns)
     if (interaction.isStringSelectMenu?.()) {
-      if (!interaction.member.permissions.has("MANAGE_GUILD") && !interaction.member.permissions.has("ADMINISTRATOR")) {
+      if (!hasWelcomeManagePermission(interaction)) {
         const embed = new EmbedBuilder()
           .setColor(embedColor)
           .setDescription("*You need the `Manage Server` or `Administrator` permission to configure the welcome system.*");
@@ -237,7 +243,7 @@ module.exports = {
     }
 
     if (interaction.isModalSubmit?.()) {
-      if (!interaction.member.permissions.has("MANAGE_GUILD") && !interaction.member.permissions.has("ADMINISTRATOR")) {
+      if (!hasWelcomeManagePermission(interaction)) {
         const embed = new EmbedBuilder()
           .setColor(embedColor)
           .setDescription("*You need the `Manage Server` or `Administrator` permission to configure the welcome system.*");
@@ -305,7 +311,7 @@ module.exports = {
 
     const sub = interaction.options.getSubcommand();
 
-    if (!interaction.member.permissions.has("MANAGE_GUILD") && !interaction.member.permissions.has("ADMINISTRATOR")) {
+    if (!hasWelcomeManagePermission(interaction)) {
       const embed = new EmbedBuilder()
         .setColor(embedColor)
         .setDescription("*You need the `Manage Server` or `Administrator` permission to configure the welcome system.*");

@@ -23,6 +23,52 @@ function buildPageEmbed({ embedColor, getEmoji, message, pages, pageIndex }) {
     });
 }
 
+async function getAllGuildEntries(client) {
+  const normalizeGuild = (guild) => ({
+    name: String(guild?.name || "Unknown"),
+    id: String(guild?.id || "Unknown"),
+    memberCount: Number(guild?.memberCount || 0),
+  });
+  const mergeGuildLists = (lists) => {
+    const merged = new Map();
+    for (const list of Array.isArray(lists) ? lists : []) {
+      for (const guild of Array.isArray(list) ? list : []) {
+        if (!guild?.id) continue;
+        merged.set(String(guild.id), normalizeGuild(guild));
+      }
+    }
+    return [...merged.values()];
+  };
+
+  if (client?.cluster && typeof client.cluster.broadcastEval === "function") {
+    try {
+      const clusterGuildLists = await client.cluster.broadcastEval((c) =>
+        c.guilds.cache.map((guild) => ({
+          name: String(guild?.name || "Unknown"),
+          id: String(guild?.id || "Unknown"),
+          memberCount: Number(guild?.memberCount || 0),
+        }))
+      );
+      return mergeGuildLists(clusterGuildLists);
+    } catch (_err) {}
+  }
+
+  if (client?.shard && typeof client.shard.broadcastEval === "function") {
+    try {
+      const shardGuildLists = await client.shard.broadcastEval((c) =>
+        c.guilds.cache.map((guild) => ({
+          name: String(guild?.name || "Unknown"),
+          id: String(guild?.id || "Unknown"),
+          memberCount: Number(guild?.memberCount || 0),
+        }))
+      );
+      return mergeGuildLists(shardGuildLists);
+    } catch (_err) {}
+  }
+
+  return client.guilds.cache.map((guild) => normalizeGuild(guild));
+}
+
 module.exports = {
   name: "topsecret",
   category: "owner",
@@ -45,9 +91,10 @@ module.exports = {
       return [first, back, next, last];
     };
 
-    const servers = client.guilds.cache.map(
-      (guild) => `- \`${guild.name}\` | \`${guild.id}\` | members: \`${guild.memberCount}\``
-    );
+    const guildEntries = await getAllGuildEntries(client);
+    const servers = guildEntries
+      .sort((left, right) => Number(right?.memberCount || 0) - Number(left?.memberCount || 0))
+      .map((guild, index) => `${index + 1}. \`${guild.name}\` | \`${guild.id}\` | members: \`${Number(guild.memberCount || 0).toLocaleString("en-US")}\``);
 
     const chunks = chunkArray(servers, 10);
     const pages = (chunks.length ? chunks : [["No servers found."]]).map((lines) => lines.join("\n"));
