@@ -22,6 +22,7 @@ const { ModalBuilder, TextInputBuilder, TextInputStyle } = require("discord.js")
 const MUSIC_COMPONENT_IDS = new Set(["prevtrack", "prtrack", "skiptrack", "shufflequeue", "looptrack", "showqueue", "stop"]);
 const PREMIUM_COMPONENT_IDS = new Set(["premium_dashboard_activate", "premium_dashboard_deactivate"]);
 const EPHEMERAL_FLAG = 1 << 6;
+const User = require("../../schema/User.js");
 
 async function refreshWelcomePanel(interaction, successMessage = null) {
   try {
@@ -76,6 +77,97 @@ async function syncWelcomePanelMessage(interaction, successMessage = null) {
 
     await interaction.message.edit({ components }).catch(() => null);
   } catch (_err) {}
+}
+
+async function resolveWelcomeTextChannel(guild, channelId) {
+  if (!guild?.channels || !channelId) return null;
+
+  let channel = guild.channels.cache.get(channelId);
+  if (!channel && typeof guild.channels.fetch === "function") {
+    channel = await guild.channels.fetch(channelId).catch(() => null);
+  }
+
+  return channel && channel.isTextBased() ? channel : null;
+}
+
+function getWelcomeChannelAccess(guild, channel) {
+  const botMember = guild?.members?.me || null;
+  const permissions = botMember && channel ? channel.permissionsFor(botMember) : null;
+
+  return {
+    canSendMessages: !permissions || permissions.has("SendMessages"),
+    canEmbedLinks: !permissions || permissions.has("EmbedLinks"),
+  };
+}
+
+function formatWelcomePlainFallback(title, description) {
+  const safeTitle = String(title || "").trim();
+  const safeDescription = String(description || "").trim();
+  if (!safeTitle) return safeDescription;
+  if (!safeDescription) return `**${safeTitle}**`;
+  return `**${safeTitle}**\n${safeDescription}`;
+}
+
+async function sendWelcomePreview({
+  channel,
+  data,
+  member,
+  user,
+  guild,
+  embedColor,
+}) {
+  const access = getWelcomeChannelAccess(guild, channel);
+  if (!access.canSendMessages) {
+    return { ok: false, code: "missing_send_messages" };
+  }
+
+  const hasEmbedTemplate = Boolean(String(data?.message || "").trim());
+  const hasTextTemplate = Boolean(String(data?.textMessage || "").trim());
+  if (!hasEmbedTemplate && !hasTextTemplate) {
+    return { ok: false, code: "missing_content" };
+  }
+
+  let sentText = false;
+  let sentEmbed = false;
+  let sentEmbedFallback = false;
+  let skippedEmbedForPermissions = false;
+
+  if (hasTextTemplate) {
+    const textPreview = renderWelcomeTemplate(data.textMessage, member, "");
+    await channel.send({ content: textPreview });
+    sentText = true;
+  }
+
+  if (hasEmbedTemplate) {
+    const embedPreview = renderWelcomeTemplate(data.message, member, "");
+    const title = data.title || DEFAULT_WELCOME_TITLE;
+
+    if (!access.canEmbedLinks) {
+      if (!hasTextTemplate) {
+        await channel.send({ content: formatWelcomePlainFallback(title, embedPreview) });
+        sentEmbedFallback = true;
+      } else {
+        skippedEmbedForPermissions = true;
+      }
+    } else {
+      const testEmbed = new EmbedBuilder()
+        .setColor(data.embedColor || embedColor)
+        .setTitle(title)
+        .setDescription(embedPreview)
+        .setThumbnail(user.displayAvatarURL({ forceStatic: false }))
+        .setFooter({ text: `Member #${guild.memberCount}` });
+      await channel.send({ embeds: [testEmbed] });
+      sentEmbed = true;
+    }
+  }
+
+  return {
+    ok: true,
+    sentText,
+    sentEmbed,
+    sentEmbedFallback,
+    skippedEmbedForPermissions,
+  };
 }
 
 function toPositiveNumber(value, fallback) {
@@ -372,19 +464,21 @@ async function runSlashCommand(client, interaction, ownerIds) {
     try {
       const djData = await getGuildDjRole(interaction.guild.id);
       if (djData.hasConfig) {
-        if (!interaction.member?.roles?.cache?.has(djData.roleId)) {
+        const hasDjRole = Boolean(interaction.member?.roles?.cache?.has(djData.roleId));
+        const hasManagerBypass = Boolean(
+          interaction.memberPermissions?.has?.("ManageGuild") ||
+          interaction.memberPermissions?.has?.("Administrator") ||
+          interaction.member?.permissions?.has?.("ManageGuild") ||
+          interaction.member?.permissions?.has?.("Administrator")
+        );
+
+        if (!hasDjRole && !hasManagerBypass && !ownerIds.includes(interaction.user.id)) {
           const embed = new EmbedBuilder()
             .setColor(client?.embedColor || EMBED_COLOR)
             .setTitle(`${getEmoji(client, "error")} DJ Role Required`)
-            .setDescription(`<@${interaction.member.id}> You need the configured DJ role to use this command.`);
+            .setDescription(`<@${interaction.member.id}> You need the configured DJ role or Manage Server permission to use this command.`);
           return interaction.editReply({ embeds: [embed] }).catch(() => {});
         }
-      } else if (!ownerIds.includes(interaction.user.id)) {
-        const embed = new EmbedBuilder()
-          .setColor(client?.embedColor || EMBED_COLOR)
-          .setTitle(`${getEmoji(client, "error")} DJ Role Not Configured`)
-          .setDescription(`<@${interaction.member.id}> No DJ role is configured yet. Contact a server admin.`);
-        return interaction.editReply({ embeds: [embed] }).catch(() => {});
       }
     } catch (err) {
       client.logger?.log?.(`DJ role check error: ${err?.message || err}`, "error");
@@ -512,6 +606,9 @@ You can use this command by voting on [Top.gg](https://top.gg/bot/${client.user.
 
   try {
     await slashCommand.run(client, interaction);
+    User.applyProgressMilestones(interaction.user.id, {
+      incrementCommands: 1,
+    }).catch(() => {});
   } catch (error) {
     await handleInteractionCommandError(client, interaction, error, {
       source: "SlashCommand",
@@ -867,10 +964,10 @@ async function handleWelcomeModalSubmit(interaction) {
     const no = EMOJIS.no;
 
     if (modalId === "welcome_message_modal") {
-      const messageText = interaction.fields.getTextInputValue("message_input");
+      const messageText = interaction.fields.getTextInputValue("message_input").trim();
       await welcomeSchema.findOneAndUpdate(
         { guildID: interaction.guild.id },
-        { message: messageText },
+        { message: messageText || null },
         { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
       );
       await syncWelcomePanelMessage(interaction, "Embed message updated by");
@@ -878,17 +975,21 @@ async function handleWelcomeModalSubmit(interaction) {
       const embed = new EmbedBuilder()
         .setColor(embedColor)
         .setTitle(`${getEmoji("success")} Message Updated`)
-        .setDescription(`${ok} Welcome message template updated by ${interaction.user}.`)
-        .addFields({ name: `${getEmoji("info")} New Message`, value: `\`${messageText}\`` });
+        .setDescription(
+          messageText
+            ? `${ok} Welcome message template updated by ${interaction.user}.`
+            : `${ok} Welcome embed message cleared by ${interaction.user}.`
+        )
+        .addFields({ name: `${getEmoji("info")} New Message`, value: messageText ? `\`${messageText}\`` : "`Not set`" });
       await safeReply(interaction, { embeds: [embed], ephemeral: true });
       return true;
     }
 
     if (modalId === "welcome_text_message_modal") {
-      const textMessage = interaction.fields.getTextInputValue("text_message_input");
+      const textMessage = interaction.fields.getTextInputValue("text_message_input").trim();
       await welcomeSchema.findOneAndUpdate(
         { guildID: interaction.guild.id },
-        { textMessage },
+        { textMessage: textMessage || null },
         { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
       );
       await syncWelcomePanelMessage(interaction, "Text message updated by");
@@ -896,8 +997,12 @@ async function handleWelcomeModalSubmit(interaction) {
       const embed = new EmbedBuilder()
         .setColor(embedColor)
         .setTitle(`${getEmoji("success")} Text Message Updated`)
-        .setDescription(`${ok} Welcome text message updated by ${interaction.user}.`)
-        .addFields({ name: `${getEmoji("info")} New Text Message`, value: `\`${textMessage}\`` });
+        .setDescription(
+          textMessage
+            ? `${ok} Welcome text message updated by ${interaction.user}.`
+            : `${ok} Welcome text message cleared by ${interaction.user}.`
+        )
+        .addFields({ name: `${getEmoji("info")} New Text Message`, value: textMessage ? `\`${textMessage}\`` : "`Not set`" });
       await safeReply(interaction, { embeds: [embed], ephemeral: true });
       return true;
     }
@@ -974,6 +1079,14 @@ module.exports = async (client, interaction) => {
   if (interaction.type === InteractionType.MessageComponent) {
     if (!interaction.customId) return;
     const customId = interaction.customId;
+
+    if (customId.startsWith("queue_track_")) {
+      const queueCommand = client.commands?.get?.("queue");
+      if (queueCommand && typeof queueCommand.handleTrackControlInteraction === "function") {
+        const handled = await queueCommand.handleTrackControlInteraction(interaction, client);
+        if (handled) return;
+      }
+    }
     
     // ============ WELCOME PANEL HANDLERS ============
     if (customId === "welcome_panel") {
@@ -992,8 +1105,8 @@ module.exports = async (client, interaction) => {
       return;
     }
 
-    // Handle String Select Menus (dropdowns)
-    if (interaction.isStringSelectMenu?.()) {
+    // Handle Select Menus
+    if (interaction.isChannelSelectMenu?.() || interaction.isRoleSelectMenu?.()) {
       if (customId === "welcome_select_channel" || customId === "welcome_select_role") {
         try {
           if (!hasWelcomeManagePermission(interaction)) {
@@ -1009,21 +1122,22 @@ module.exports = async (client, interaction) => {
           const ok = EMOJIS.ok;
           const no = EMOJIS.no;
 
-          if (customId === "welcome_select_channel") {
-            if (selectedValue === "none") {
-              const embed = new EmbedBuilder()
-                .setColor(embedColor)
-                .setTitle(`${getEmoji("error")} No Channels`)
-                .setDescription(`${no} Please create a text channel first.`);
-              return safeReply(interaction, { embeds: [embed], ephemeral: true });
-            }
-
-            const channel = interaction.guild.channels.cache.get(selectedValue);
+          if (customId === "welcome_select_channel" && interaction.isChannelSelectMenu?.()) {
+            const channel = await resolveWelcomeTextChannel(interaction.guild, selectedValue);
             if (!channel) {
               const embed = new EmbedBuilder()
                 .setColor(embedColor)
                 .setTitle(`${getEmoji("error")} Channel Not Found`)
                 .setDescription(`${no} This channel no longer exists.`);
+              return safeReply(interaction, { embeds: [embed], ephemeral: true });
+            }
+
+            const access = getWelcomeChannelAccess(interaction.guild, channel);
+            if (!access.canSendMessages) {
+              const embed = new EmbedBuilder()
+                .setColor(embedColor)
+                .setTitle(`${getEmoji("error")} Permission Denied`)
+                .setDescription(`${no} I can't send messages in <#${selectedValue}>. Please fix channel permissions first.`);
               return safeReply(interaction, { embeds: [embed], ephemeral: true });
             }
 
@@ -1034,10 +1148,8 @@ module.exports = async (client, interaction) => {
               { 
                 channelID: selectedValue,
                 enabled: true,
-                embedEnabled: true,
-                textEnabled: false,
                 message: currentWelcome?.message || DEFAULT_WELCOME_EMBED_MESSAGE,
-                textMessage: currentWelcome?.textMessage || DEFAULT_WELCOME_TEXT_MESSAGE,
+                textMessage: currentWelcome?.textMessage || null,
                 title: currentWelcome?.title || DEFAULT_WELCOME_TITLE,
               },
               { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
@@ -1046,16 +1158,7 @@ module.exports = async (client, interaction) => {
             return refreshWelcomePanel(interaction, `Welcome channel set to <#${selectedValue}> by`);
           }
 
-          if (customId === "welcome_select_role") {
-            if (selectedValue === "none") {
-              await welcomeSchema.findOneAndUpdate(
-                { guildID: interaction.guild.id },
-                { roleID: null },
-                { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
-              );
-              return refreshWelcomePanel(interaction, "Auto-role cleared by");
-            }
-
+          if (customId === "welcome_select_role" && interaction.isRoleSelectMenu?.()) {
             const role = interaction.guild.roles.cache.get(selectedValue);
             if (!role) {
               const embed = new EmbedBuilder()
@@ -1089,12 +1192,11 @@ module.exports = async (client, interaction) => {
         buttonId === "welcome_set_text_message" || 
         buttonId === "welcome_set_title" || 
         buttonId === "welcome_set_color" || 
+        buttonId === "welcome_clear_message" ||
+        buttonId === "welcome_clear_text_message" ||
         buttonId === "welcome_clear_role" || 
         buttonId === "welcome_test" || 
-        buttonId === "welcome_toggle_embed" || 
-        buttonId === "welcome_toggle_text" || 
-        buttonId === "welcome_toggle_enable" || 
-        buttonId === "welcome_refresh"
+        buttonId === "welcome_toggle_enable"
       ) {
         try {
           if (!hasWelcomeManagePermission(interaction)) {
@@ -1120,7 +1222,9 @@ module.exports = async (client, interaction) => {
               .setCustomId("message_input")
               .setLabel("Embed Message Template")
               .setStyle(TextInputStyle.Paragraph)
-              .setValue(data?.message || DEFAULT_WELCOME_EMBED_MESSAGE)
+              .setValue(data?.message || "")
+              .setPlaceholder(DEFAULT_WELCOME_EMBED_MESSAGE)
+              .setRequired(false)
               .setMaxLength(1000);
 
             modal.addComponents(new ActionRowBuilder().addComponents(messageInput));
@@ -1136,7 +1240,9 @@ module.exports = async (client, interaction) => {
               .setCustomId("text_message_input")
               .setLabel("Text Message Template")
               .setStyle(TextInputStyle.Paragraph)
-              .setValue(data?.textMessage || DEFAULT_WELCOME_TEXT_MESSAGE)
+              .setValue(data?.textMessage || "")
+              .setPlaceholder(DEFAULT_WELCOME_TEXT_MESSAGE)
+              .setRequired(false)
               .setMaxLength(1000);
 
             modal.addComponents(new ActionRowBuilder().addComponents(textMessageInput));
@@ -1175,6 +1281,24 @@ module.exports = async (client, interaction) => {
             return interaction.showModal(modal);
           }
 
+          if (buttonId === "welcome_clear_message") {
+            await welcomeSchema.findOneAndUpdate(
+              { guildID: interaction.guild.id },
+              { message: null },
+              { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
+            );
+            return refreshWelcomePanel(interaction, "Embed message cleared by");
+          }
+
+          if (buttonId === "welcome_clear_text_message") {
+            await welcomeSchema.findOneAndUpdate(
+              { guildID: interaction.guild.id },
+              { textMessage: null },
+              { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
+            );
+            return refreshWelcomePanel(interaction, "Text message cleared by");
+          }
+
           if (buttonId === "welcome_clear_role") {
             await welcomeSchema.findOneAndUpdate(
               { guildID: interaction.guild.id },
@@ -1195,8 +1319,8 @@ module.exports = async (client, interaction) => {
               return safeReply(interaction, { embeds: [embed] });
             }
 
-            const channel = interaction.guild.channels.cache.get(testData.channelID);
-            if (!channel || !channel.isTextBased()) {
+            const channel = await resolveWelcomeTextChannel(interaction.guild, testData.channelID);
+            if (!channel) {
               const embed = new EmbedBuilder()
                 .setColor(embedColor)
                 .setTitle(`${getEmoji("error")} Invalid Channel`)
@@ -1205,29 +1329,45 @@ module.exports = async (client, interaction) => {
             }
 
             try {
-              const embedPreview = renderWelcomeTemplate(testData.message, interaction.member, DEFAULT_WELCOME_EMBED_MESSAGE);
-              const textPreview = renderWelcomeTemplate(testData.textMessage, interaction.member, DEFAULT_WELCOME_TEXT_MESSAGE);
-              const embedEnabled = testData.embedEnabled !== false;
-              const textEnabled = Boolean(testData.textEnabled);
+              const previewResult = await sendWelcomePreview({
+                channel,
+                data: testData,
+                member: interaction.member,
+                user: interaction.user,
+                guild: interaction.guild,
+                embedColor,
+              });
 
-              if (textEnabled) {
-                await channel.send({ content: textPreview }).catch(() => {});
+              if (!previewResult.ok && previewResult.code === "missing_content") {
+                const embed = new EmbedBuilder()
+                  .setColor(embedColor)
+                  .setTitle(`${getEmoji("error")} No Welcome Content`)
+                  .setDescription(`${no} Set an embed message or a text message first.`);
+                return safeReply(interaction, { embeds: [embed] });
               }
 
-              if (embedEnabled) {
-                const testEmbed = new EmbedBuilder()
-                  .setColor(testData.embedColor || embedColor)
-                  .setTitle(testData.title || DEFAULT_WELCOME_TITLE)
-                  .setDescription(embedPreview)
-                  .setThumbnail(interaction.user.displayAvatarURL({ forceStatic: false }))
-                  .setFooter({ text: `Member #${interaction.guild.memberCount}` });
-                await channel.send({ embeds: [testEmbed] }).catch(() => {});
+              if (!previewResult.ok && previewResult.code === "missing_send_messages") {
+                const embed = new EmbedBuilder()
+                  .setColor(embedColor)
+                  .setTitle(`${getEmoji("error")} Permission Denied`)
+                  .setDescription(`${no} I can't send messages in <#${channel.id}>. Please fix channel permissions first.`);
+                return safeReply(interaction, { embeds: [embed] });
+              }
+
+              const resultLines = [];
+              if (previewResult.sentEmbed) resultLines.push(`${ok} Embed preview sent to <#${channel.id}>.`);
+              if (previewResult.sentText) resultLines.push(`${ok} Text preview sent to <#${channel.id}>.`);
+              if (previewResult.sentEmbedFallback) {
+                resultLines.push(`${ok} Embed preview was sent as plain text because \`Embed Links\` is missing in <#${channel.id}>.`);
+              }
+              if (previewResult.skippedEmbedForPermissions) {
+                resultLines.push(`${no} Text preview was sent, but the embed preview was skipped because \`Embed Links\` is missing in <#${channel.id}>.`);
               }
 
               const embed = new EmbedBuilder()
                 .setColor(embedColor)
-                .setTitle(`${getEmoji("success")} Test Sent`)
-                .setDescription(`${ok} Welcome preview sent to <#${channel.id}>.`);
+                .setTitle(`${getEmoji("success")} Test Complete`)
+                .setDescription(resultLines.join("\n"));
               return safeReply(interaction, { embeds: [embed] });
             } catch (err) {
               console.error("Error sending test message:", err);
@@ -1239,36 +1379,7 @@ module.exports = async (client, interaction) => {
             }
           }
 
-          if (buttonId === "welcome_refresh") {
-            return refreshWelcomePanel(interaction, "Panel refreshed by");
-          }
-
           const currentData = await welcomeSchema.findOne({ guildID: interaction.guild.id }).catch(() => null);
-
-          if (buttonId === "welcome_toggle_embed") {
-            const newState = !Boolean(currentData?.embedEnabled !== false);
-            await welcomeSchema.findOneAndUpdate(
-              { guildID: interaction.guild.id },
-              { embedEnabled: newState },
-              { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
-            );
-            return refreshWelcomePanel(interaction, `Embed mode ${newState ? "enabled" : "disabled"} by`);
-          }
-
-          if (buttonId === "welcome_toggle_text") {
-            const newState = !Boolean(currentData?.textEnabled);
-            await welcomeSchema.findOneAndUpdate(
-              { guildID: interaction.guild.id },
-              {
-                textEnabled: newState,
-                ...(newState && !currentData?.textMessage
-                  ? { textMessage: DEFAULT_WELCOME_TEXT_MESSAGE }
-                  : {}),
-              },
-              { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
-            );
-            return refreshWelcomePanel(interaction, `Text mode ${newState ? "enabled" : "disabled"} by`);
-          }
 
           if (buttonId === "welcome_toggle_enable") {
             const newState = !Boolean(currentData?.enabled);

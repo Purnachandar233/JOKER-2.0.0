@@ -1,6 +1,22 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder } = require('discord.js')
+const { EmbedBuilder } = require('discord.js');
 
 const EMOJIS = require("../../utils/emoji.json");
+
+const FILTER_FLAGS = [
+  'eightD',
+  'bassboost',
+  'nightcore',
+  'soft',
+  'pop',
+  'treblebass',
+  'vaporwave',
+  'karaoke',
+  'vibrato',
+  'tremolo',
+  'chipmunk',
+  'slowmo',
+];
+
 module.exports = {
   name: 'reset',
   aliases: ['clearfilters'],
@@ -9,62 +25,44 @@ module.exports = {
   args: false,
   usage: '',
   votelock: true,
-  djonly: false,
+  djonly: true,
   wl: true,
-  execute: async (message, args, client, prefix) => {
-    const ok = EMOJIS.ok
-    const no = EMOJIS.no
+  execute: async (message, args, client) => {
+    const ok = EMOJIS.ok;
+    const no = EMOJIS.no;
+    const color = message.client?.embedColor || '#ff0051';
 
-    //
-    const { channel } = message.member.voice
+    const { channel } = message.member.voice;
     if (!channel) {
-      const noperms = new EmbedBuilder()
-
-        .setColor(message.client?.embedColor || '#ff0051')
-        .setDescription(`${no} You must be connected to a voice channel to use this command.`)
-      return await message.channel.send({ embeds: [noperms] })
+      return await message.channel.send({ embeds: [new EmbedBuilder().setColor(color).setDescription(`${no} You must be connected to a voice channel to use this command.`)] });
     }
+
     if (message.member.voice.selfDeaf) {
-      const thing = new EmbedBuilder()
-        .setColor(message.client?.embedColor || '#ff0051')
-        .setDescription(`${no} <@${message.member.id}> You cannot run this command while deafened.`)
-      return await message.channel.send({ embeds: [thing] })
+      return await message.channel.send({ embeds: [new EmbedBuilder().setColor(color).setDescription(`${no} <@${message.member.id}> You cannot run this command while deafened.`)] });
     }
-        const player = client.lavalink.players.get(message.guild.id)
-      const { getQueueArray } = client.core.queue;
-      const tracks = getQueueArray(player);
-      if(!player || !tracks || tracks.length === 0) {
-      const noperms = new EmbedBuilder()
-        .setColor(message.client?.embedColor || '#ff0051')
-        .setDescription(`${no} There is nothing playing in this server.`)
-      return await message.channel.send({ embeds: [noperms] })
+
+    const player = client.lavalink.players.get(message.guild.id);
+    const tracks = client.core.queue.getQueueArray(player);
+    if (!player || !tracks.length) {
+      return await message.channel.send({ embeds: [new EmbedBuilder().setColor(color).setDescription(`${no} There is nothing playing in this server.`)] });
     }
-    if (player && channel.id !== player.voiceChannelId) {
-      const noperms = new EmbedBuilder()
-        .setColor(message.client?.embedColor || '#ff0051')
-        .setDescription(`${no} You must be connected to the same voice channel as me.`)
-      return await message.channel.send({ embeds: [noperms] }),
-      message.channel.send({ embeds: [noperms] })
+
+    if (channel.id !== player.voiceChannelId) {
+      return await message.channel.send({ embeds: [new EmbedBuilder().setColor(color).setDescription(`${no} You must be connected to the same voice channel as me.`)] });
     }
-    //
-    player.reset()
-    const noperms = new EmbedBuilder()
-      .setColor(message.client?.embedColor || '#ff0051')
-      .setDescription(`${ok} All filters has been reseted.- <@${message.member.id}>`)
 
-    message.channel.send({ embeds: [noperms] }).then(responce => {
-      setTimeout(() => {
-        try {
-          responce.delete().catch(() => {
+    for (const key of FILTER_FLAGS) {
+      player[key] = false;
+    }
 
-          })
-        } catch (err) {
+    await client.core.filterSettings.setFilter(message.guild.id, 'chipmunk', false);
+    await client.core.filterSettings.setFilter(message.guild.id, 'slowmo', false);
+    await client.core.filters.resetPlayerFilters(player, message.guild.id);
+    player.set('eq', 'None');
+    player.set('filter', 'None');
 
-        }
-      }, 30000)
-    })
+    return await message.channel.send({
+      embeds: [new EmbedBuilder().setColor(color).setDescription(`${ok} All filters have been reset. - <@${message.member.id}>`)]
+    }).catch(() => {});
   }
-}
-
-
-
+};

@@ -70,6 +70,7 @@ module.exports = {
       Id: guildId,
       Type: "guild",
       Code: code,
+      ActivatedBy: message.author?.id || null,
       ActivatedAt: Date.now(),
       Expire: codeDoc.Expiry || 0,
       Permanent: codeDoc.Permanent || false,

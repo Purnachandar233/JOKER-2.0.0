@@ -8,7 +8,7 @@ const formatDuration = require("../../utils/formatDuration");
 const EMOJIS = require("../../utils/emoji.json");
 
 function getBadgeLines(client, data) {
-  const map = [
+  const manualMap = [
     ["owner", "Owner"],
     ["dev", "Verified Bot Developer"],
     ["supporter", "Supporter"],
@@ -17,15 +17,28 @@ function getBadgeLines(client, data) {
     ["manager", "Manager"],
     ["partner", "Partnered Member"],
     ["staff", "Staff Member"],
-    ["booster", "Server Booster"]
+    ["booster", "Server Booster"],
+    ["vip", "VIP"]
   ];
 
   const lines = [];
-  for (const [key, label] of map) {
+  for (const [key, label] of manualMap) {
     if (data?.badge?.[key]) {
       const icon = EMOJIS[key] || EMOJIS.star || "*";
       lines.push(`${icon} ${label}`);
     }
+  }
+
+  const milestoneMap = User.BADGE_CATALOG || {};
+  for (const [key, definition] of Object.entries(milestoneMap)) {
+    if (!data?.milestones?.[key]) continue;
+
+    let icon = EMOJIS.star || "*";
+    if (definition.metric === "votes") icon = EMOJIS.vote || EMOJIS.star || "*";
+    if (definition.metric === "songs") icon = EMOJIS.songs || EMOJIS.music || EMOJIS.star || "*";
+    if (definition.metric === "commands") icon = EMOJIS.music || EMOJIS.star || "*";
+
+    lines.push(`${icon} ${definition.label}`);
   }
 
   if (lines.length === 0) {
@@ -68,15 +81,24 @@ module.exports = {
       await message.guild.members.fetch(args[0]).catch(() => null) ||
       message.member;
 
-    let userData = await User.findOne({ userId: member.id }).lean();
+    const profileMember = member || message.member;
+    const profileUser = profileMember?.user || message.author;
+    const profileUserId = profileMember?.id || profileUser?.id || message.author.id;
+    const profileAvatarUrl =
+      profileMember?.displayAvatarURL?.({ forceStatic: false, size: 1024 }) ||
+      profileUser?.displayAvatarURL?.({ forceStatic: false, size: 1024 }) ||
+      null;
+
+    let userData = await User.findOne({ userId: profileUserId }).lean();
     if (!userData) {
       userData = {
-        userId: member.id,
+        userId: profileUserId,
         count: 0,
         totalVotes: 0,
         songsListened: 0,
         totalListenTimeMs: 0,
-        badge: {}
+        badge: {},
+        milestones: {}
       };
     }
 
@@ -87,7 +109,7 @@ module.exports = {
       unitCount: 3
     });
 
-    const premiumDoc = await Premium.findOne({ Id: member.id, Type: "user" });
+    const premiumDoc = await Premium.findOne({ Id: profileUserId, Type: "user" });
 
     // ================= PREMIUM STATUS =================
     let premiumText = "No active premium access.";
@@ -122,11 +144,12 @@ module.exports = {
 
     const embed = new EmbedBuilder()
       .setColor(embedColor)
-      .setAuthor({name: `Profile - ${member.user.username}`, iconURL: member.user.displayAvatarURL({ forceStatic: false })})
-      .setThumbnail(member.displayAvatarURL({ size: 1024 }))
+      .setAuthor({
+        name: `Profile - ${profileUser?.username || "User"}`,
+        ...(profileUser?.displayAvatarURL ? { iconURL: profileUser.displayAvatarURL({ forceStatic: false }) } : {}),
+      })
       .addFields(
         statField("Commands Used", `\`${userData.count || 0}\``, "music"),
-        statField("Total Votes", `\`${userData.totalVotes || 0}\``, "vote"),
         statField("Songs Listened", `\`${userData.songsListened || 0}\``, "songs"),
         statField("Listen Time", `\`${totalListenTime}\``, "time"),
         {
@@ -143,8 +166,17 @@ module.exports = {
           name: `${getEmoji("vote")} Vote Status`,
           value: voteText,
           inline: false
+        },
+        {
+          name: "Total Votes",
+          value: `\`${userData.totalVotes || 0}\``,
+          inline: false
         }
       );
+
+    if (profileAvatarUrl) {
+      embed.setThumbnail(profileAvatarUrl);
+    }
 
     restoreBadgeFieldValue(embed, badgeValue);
 

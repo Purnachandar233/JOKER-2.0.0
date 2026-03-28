@@ -55,7 +55,7 @@ module.exports = {
            return await interaction.followUp({embeds: [noperms]});
        }
            //
-        if(!player.treblebass === true){
+        if (player.treblebass !== true) {
             player.treblebass = true;
                      const noperms = new EmbedBuilder()
                 .setColor(interaction.client?.embedColor || '#ff0051')
@@ -64,7 +64,7 @@ module.exports = {
                      .setColor(interaction.client?.embedColor || '#ff0051')
                            .setDescription(`${ok} Applying the \`Treblebass\` Filter(*It might take up to 5 seconds until you hear the Filter*)`)
       await interaction.editReply({embeds: [noperms1]});
-      interaction.channel.send({embeds: [noperms]}).then(responce => {
+      return interaction.channel.send({embeds: [noperms]}).then(responce => {
         setTimeout(() => {
             try {
                 responce.delete().catch(() => {

@@ -7,7 +7,7 @@ const formatDuration = require("../../utils/formatDuration");
 
 const EMOJIS = require("../../utils/emoji.json");
 function getBadgeLines(client, data) {
-  const map = [
+  const manualMap = [
     ["owner", "Owner"],
     ["dev", "Verified Bot Developer"],
     ["supporter", "Supporter"],
@@ -16,14 +16,27 @@ function getBadgeLines(client, data) {
     ["manager", "Manager"],
     ["partner", "Partnered Member"],
     ["staff", "Staff Member"],
-    ["booster", "Server Booster"]
+    ["booster", "Server Booster"],
+    ["vip", "VIP"]
   ];
 
   const lines = [];
-  for (const [key, label] of map) {
+  for (const [key, label] of manualMap) {
     if (data?.badge?.[key]) {
       lines.push(`${EMOJIS[key] || EMOJIS.star || "*"} ${label}`);
     }
+  }
+
+  const milestoneMap = User.BADGE_CATALOG || {};
+  for (const [key, definition] of Object.entries(milestoneMap)) {
+    if (!data?.milestones?.[key]) continue;
+
+    let icon = EMOJIS.star || "*";
+    if (definition.metric === "votes") icon = EMOJIS.vote || EMOJIS.star || "*";
+    if (definition.metric === "songs") icon = EMOJIS.songs || EMOJIS.music || EMOJIS.star || "*";
+    if (definition.metric === "commands") icon = EMOJIS.music || EMOJIS.star || "*";
+
+    lines.push(`${icon} ${definition.label}`);
   }
 
   if (lines.length === 0) {
@@ -78,7 +91,8 @@ module.exports = {
         totalVotes: 0,
         songsListened: 0,
         totalListenTimeMs: 0,
-        badge: {}
+        badge: {},
+        milestones: {}
       };
     }
 

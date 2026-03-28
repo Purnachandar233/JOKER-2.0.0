@@ -8,7 +8,7 @@ module.exports = {
   aliases: ["shuf"],
   description: 'shuffles the queue',
   owner: false,
-  djonly : false,
+  djonly : true,
   wl : true,
   execute: async (message, args, client, prefix) => {
 

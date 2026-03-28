@@ -54,7 +54,7 @@ wl : true,
         return await interaction.editReply({embeds: [noperms]});
     }
         //
-        if(!player.tremolo === true){
+        if (player.tremolo !== true) {
             player.tremolo = true;
                      const noperms = new EmbedBuilder()
                 .setColor(interaction.client?.embedColor || '#ff0051')

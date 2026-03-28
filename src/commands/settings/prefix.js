@@ -31,7 +31,6 @@ module.exports = {
   usage: "<prefix>",
   aliases: ["prefix"],
   owner: false,
-  votelock: true,
   wl: true,
   execute: async (ctx, args, client, prefix) => {
     if (!ctx?.guild?.id) {

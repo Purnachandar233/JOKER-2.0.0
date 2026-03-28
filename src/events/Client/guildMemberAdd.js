@@ -2,11 +2,17 @@ const { EmbedBuilder } = require("discord.js");
 
 const Schema = require("../../schema/welcome.js");
 const {
-  DEFAULT_WELCOME_EMBED_MESSAGE,
-  DEFAULT_WELCOME_TEXT_MESSAGE,
   DEFAULT_WELCOME_TITLE,
   renderWelcomeTemplate,
 } = require("../../welcome/template");
+
+function formatWelcomePlainFallback(title, description) {
+  const safeTitle = String(title || "").trim();
+  const safeDescription = String(description || "").trim();
+  if (!safeTitle) return safeDescription;
+  if (!safeDescription) return `**${safeTitle}**`;
+  return `**${safeTitle}**\n${safeDescription}`;
+}
 
 module.exports = async (client, member) => {
   try {
@@ -35,23 +41,34 @@ module.exports = async (client, member) => {
 
     const botMember = member.guild.members.me;
     const permissions = channel.permissionsFor(botMember);
-    if (permissions && !permissions.has("SendMessages")) return;
+    if (permissions && !permissions.has("SendMessages")) {
+      client.logger?.log?.(`Welcome send skipped in ${member.guild.id}: missing SendMessages in ${data.channelID}.`, "warn");
+      return;
+    }
 
-    const embedDescription = renderWelcomeTemplate(data.message, member, DEFAULT_WELCOME_EMBED_MESSAGE);
-    const textDescription = renderWelcomeTemplate(data.textMessage, member, DEFAULT_WELCOME_TEXT_MESSAGE);
-    const embedEnabled = data.embedEnabled !== false; // default true
-    const textEnabled = Boolean(data.textEnabled);
+    const hasEmbedTemplate = Boolean(String(data.message || "").trim());
+    const hasTextTemplate = Boolean(String(data.textMessage || "").trim());
+    if (!hasEmbedTemplate && !hasTextTemplate) return;
 
-    // Send text message if enabled
-    if (textEnabled) {
+    const embedDescription = hasEmbedTemplate
+      ? renderWelcomeTemplate(data.message, member, "")
+      : "";
+    const textDescription = hasTextTemplate
+      ? renderWelcomeTemplate(data.textMessage, member, "")
+      : "";
+
+    if (hasTextTemplate) {
       await channel.send({ content: textDescription }).catch(() => {});
     }
 
-    // Send embed if enabled
-    if (embedEnabled) {
+    if (hasEmbedTemplate) {
       if (permissions && !permissions.has("EmbedLinks")) {
-        // Fallback to text if no embed permission
-        await channel.send({ content: textDescription }).catch(() => {});
+        if (!hasTextTemplate) {
+          const fallbackContent = formatWelcomePlainFallback(data.title || DEFAULT_WELCOME_TITLE, embedDescription);
+          await channel.send({ content: fallbackContent }).catch(() => {});
+        } else {
+          client.logger?.log?.(`Welcome embed skipped in ${member.guild.id}: missing EmbedLinks in ${data.channelID}.`, "warn");
+        }
         return;
       }
 

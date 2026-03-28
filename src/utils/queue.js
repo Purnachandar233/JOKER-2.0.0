@@ -8,6 +8,116 @@ function getQueueArray(player) {
   ].filter(Boolean);
 }
 
+function hasActivePlayback(player) {
+  return (
+    Boolean(player?.queue?.current) ||
+    Boolean(player?.playing) ||
+    Boolean(player?.paused) ||
+    (Array.isArray(player?.queue?.tracks) && player.queue.tracks.length > 0)
+  );
+}
+
+function needsPlaybackStart(player) {
+  return (
+    !player?.queue?.current &&
+    !player?.playing &&
+    !player?.paused
+  );
+}
+
+async function queueTracksNative(player, tracks, index) {
+  const incoming = (Array.isArray(tracks) ? tracks : [tracks]).filter(Boolean);
+  if (!player || !incoming.length) return 0;
+
+  if (typeof player.queue?.add === "function") {
+    if (typeof index === "number") {
+      await player.queue.add(incoming, index);
+    } else {
+      await player.queue.add(incoming);
+    }
+    return incoming.length;
+  }
+
+  if (!Array.isArray(player.queue?.tracks)) {
+    player.queue.tracks = [];
+  }
+
+  if (typeof index === "number" && index >= 0 && index <= player.queue.tracks.length) {
+    player.queue.tracks.splice(index, 0, ...incoming);
+  } else {
+    player.queue.tracks.push(...incoming);
+  }
+
+  return incoming.length;
+}
+
+async function queueTracksForPlayback(player, tracks, startPlayback) {
+  const incoming = (Array.isArray(tracks) ? tracks : [tracks]).filter(Boolean);
+  const shouldStartPlayback = needsPlaybackStart(player);
+  const existingQueuedTracks = Array.isArray(player?.queue?.tracks) ? player.queue.tracks.filter(Boolean) : [];
+
+  if (!incoming.length) {
+    return {
+      hadActivePlayback: hasActivePlayback(player),
+      startedPlayback: false,
+      queuedCount: 0,
+      directTrack: null,
+      resumedQueuedPlayback: false,
+    };
+  }
+
+  if (!shouldStartPlayback) {
+    await queueTracksNative(player, incoming);
+    return {
+      hadActivePlayback: true,
+      startedPlayback: false,
+      queuedCount: incoming.length,
+      directTrack: null,
+      resumedQueuedPlayback: false,
+    };
+  }
+
+  if (existingQueuedTracks.length) {
+    await queueTracksNative(player, incoming);
+
+    let resumedQueuedPlayback = false;
+    resumedQueuedPlayback = Boolean(await startPlayback(null));
+
+    return {
+      hadActivePlayback: false,
+      startedPlayback: resumedQueuedPlayback,
+      queuedCount: incoming.length,
+      directTrack: null,
+      resumedQueuedPlayback,
+    };
+  }
+
+  const [directTrack, ...remainingTracks] = incoming;
+  if (remainingTracks.length) {
+    await queueTracksNative(player, remainingTracks);
+  }
+
+  let startedPlayback = false;
+  try {
+    startedPlayback = Boolean(await startPlayback(directTrack));
+  } catch (error) {
+    await queueTracksNative(player, directTrack, 0).catch(() => {});
+    throw error;
+  }
+
+  if (!startedPlayback) {
+    await queueTracksNative(player, directTrack, 0).catch(() => {});
+  }
+
+  return {
+    hadActivePlayback: false,
+    startedPlayback,
+    queuedCount: remainingTracks.length + (startedPlayback ? 0 : 1),
+    directTrack: startedPlayback ? directTrack : null,
+    resumedQueuedPlayback: false,
+  };
+}
+
 function truncateText(value, maxLength = 60) {
   const text = String(value || "");
   if (text.length <= maxLength) return text;
@@ -190,7 +300,11 @@ module.exports = {
   getTrackDurationMs,
   getTrackThumbnail,
   getTrackUrl,
+  hasActivePlayback,
   isLiveTrack,
+  needsPlaybackStart,
+  queueTracksForPlayback,
+  queueTracksNative,
   sumTrackDurations,
   truncateText,
 };

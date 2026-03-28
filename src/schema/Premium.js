@@ -4,6 +4,7 @@ const premiumSchema = new mongoose.Schema({
     Id: { type: String, required: true }, // GuildID or UserID
     Type: { type: String, enum: ['user', 'guild'], required: true },
     Code: { type: String },
+    ActivatedBy: { type: String, default: null },
     ActivatedAt: { type: Number, default: Date.now },
     Expire: { type: Number, default: 0 },
     Permanent: { type: Boolean, default: false },

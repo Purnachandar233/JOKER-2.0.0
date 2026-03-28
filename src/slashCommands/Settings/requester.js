@@ -8,7 +8,6 @@ module.exports = {
     player: true,
     inVoiceChannel: true,
     sameVoiceChannel: true,
-    votelock: true,
     wl : true,
 //
 //

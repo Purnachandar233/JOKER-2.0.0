@@ -4,6 +4,19 @@ const EMOJIS = require("../../utils/emoji.json");
 
 const EMBED_COLOR = "#ff0051";
 
+async function resolveTextChannel(client, channelId) {
+  if (!channelId) return null;
+
+  const cached = client.channels.cache.get(channelId);
+  if (cached) return cached;
+
+  if (typeof client.channels?.fetch === "function") {
+    return client.channels.fetch(channelId).catch(() => null);
+  }
+
+  return null;
+}
+
 module.exports = async (client, player, track) => {
   try {
     const queueTools = client?.core?.queue || {};
@@ -35,11 +48,11 @@ module.exports = async (client, player, track) => {
       }
     } catch (_e) {}
 
-    const channel = client.channels.cache.get(player.textChannelId);
+    const channel = await resolveTextChannel(client, player.textChannelId);
     if (!channel) {
       client.logger?.log(
         `Channel not found for textChannelId: ${player.textChannelId} in guild ${player.guildId}`,
-        "error"
+        "warn"
       );
       return;
     }
@@ -66,11 +79,6 @@ module.exports = async (client, player, track) => {
       .setStyle(ButtonStyle.Secondary)
       .setLabel("Skip");
 
-    const shuffleBtn = new ButtonBuilder()
-      .setCustomId("music_shufflequeue")
-      .setStyle(ButtonStyle.Secondary)
-      .setLabel("Shuffle");
-
     const queueBtn = new ButtonBuilder()
       .setCustomId("music_showqueue")
       .setStyle(ButtonStyle.Secondary)
@@ -81,7 +89,7 @@ module.exports = async (client, player, track) => {
       .setStyle(ButtonStyle.Danger)
       .setLabel("Stop");
 
-    const primaryRow = new ActionRowBuilder().addComponents(prevBtn, pauseBtn, skipBtn, shuffleBtn, queueBtn);
+    const primaryRow = new ActionRowBuilder().addComponents(prevBtn, pauseBtn, skipBtn, queueBtn);
     const secondaryRow = new ActionRowBuilder().addComponents(stopBtn);
 
     const songLine = uri ? `**[${title}](${uri})**` : `**${title}**`;
@@ -104,7 +112,7 @@ module.exports = async (client, player, track) => {
       })
       .setThumbnail(thumbnail)
       .setDescription(
-        `${songLine}\n\`${isStream ? "LIVE" : convertTime(duration)}\` - Requested by ${requestedBy}`
+        `${songLine}\n\`${isStream ? "LIVE" : convertTime(duration)}\n\`Requested by ${requestedBy}`
       );
       
 

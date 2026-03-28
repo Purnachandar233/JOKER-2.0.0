@@ -9,6 +9,7 @@ module.exports = {
   aliases: ["vcdha","vcra","j"],
   description: 'grabs and send the current playing song data to your personal dms',
   owner: false,
+  djonly : true,
   wl : true,
   execute: async (message, args, client, prefix) => {
 

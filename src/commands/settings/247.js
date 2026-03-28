@@ -9,6 +9,7 @@ module.exports = {
   owner: false,
   premium: true,
   votelock: true,
+  djonly : true,
   wl : true,
   execute: async (message, args, client, prefix) => {
 

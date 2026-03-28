@@ -110,7 +110,6 @@ module.exports = {
     const messagePayload = {
       embeds: [buildEmbed()],
       components: buildButtons(),
-      fetchReply: true
     };
 
     let gameMessage = null;

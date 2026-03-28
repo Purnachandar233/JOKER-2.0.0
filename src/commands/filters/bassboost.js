@@ -7,7 +7,7 @@ module.exports = {
   description: 'Enables or disables the bassboost filter.',
   args: false,
   usage: '',
-  djonly: false,
+  djonly: true,
   votelock: true,
   wl: true,
   execute: async (message, args, client, prefix) => {

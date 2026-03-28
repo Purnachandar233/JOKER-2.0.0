@@ -8,7 +8,6 @@ module.exports = {
     player: true,
     inVoiceChannel: true,
     sameVoiceChannel: true,
-    votelock : true,
     wl : true,
     options: [
       {
@@ -18,7 +17,6 @@ module.exports = {
         type: 4
 		}
 	],
-    votelock: true,
 
     /**
      * @param {Client} client

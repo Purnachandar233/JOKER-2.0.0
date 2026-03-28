@@ -76,16 +76,16 @@ module.exports = {
         return await interaction.editReply({embeds: [noperms]})
     }
         //
-        if(!player.bassboost === true){
+        if (player.bassboost !== true) {
             player.bassboost = true;
        const noperms = new EmbedBuilder()
        .setColor(interaction.client?.embedColor || '#ff0051')
        .setDescription(`${ok} Bassboost has been \`enabled\`. - <@!${interaction.member.id}>`)
-       const noperms1 = new EmbedBuilder()
-       .setColor(interaction.client?.embedColor || '#ff0051')
-             .setDescription(`${ok} Applying the \`bassboost\` Filter(*It might take up to 5 seconds until you hear the Filter*)`)
+      const noperms1 = new EmbedBuilder()
+      .setColor(interaction.client?.embedColor || '#ff0051')
+            .setDescription(`${ok} Applying the \`bassboost\` Filter(*It might take up to 5 seconds until you hear the Filter*)`)
       await interaction.editReply({embeds: [noperms1], ephemeral: false});
-      interaction.channel.send({embeds: [noperms]}).then(responce => {
+      return interaction.channel.send({embeds: [noperms]}).then(responce => {
         setTimeout(() => {
             try {
                 responce.delete().catch(() => {

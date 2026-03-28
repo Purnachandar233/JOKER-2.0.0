@@ -9,6 +9,7 @@ module.exports = {
     player: true,
     inVoiceChannel: true,
     sameVoiceChannel: true,
+    premium: true,
     votelock: true,
     djonly :true,
     wl : true,
@@ -105,12 +106,21 @@ module.exports = {
 
         if (player && typeof player.set === "function") {
           player.set("autoplay", false);
+          player.set("identifier", null);
+          player.set("autoplayQuery", null);
+          player.set("requester", null);
+          player.set("requesterId", null);
+          player.set("lastAutoplayQuery", null);
+          player.set("lastAutoplayAttemptAt", null);
         }
 
         await autoplaySchema.findOneAndUpdate(
           { guildID: interaction.guild.id },
           {
             enabled: false,
+            requesterId: null,
+            identifier: null,
+            query: null,
             lastUpdated: Date.now()
           },
           { upsert: true, setDefaultsOnInsert: true }

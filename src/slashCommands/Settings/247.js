@@ -8,6 +8,7 @@ module.exports = {
     player: true,
     inVoiceChannel: true,
     sameVoiceChannel: true,
+    premium: true,
     votelock: true,
     djonly :true,
     wl : true,

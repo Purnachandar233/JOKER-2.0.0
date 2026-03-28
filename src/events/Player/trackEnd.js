@@ -70,17 +70,10 @@ function trackListenStats(client, player, track, payload) {
 
     const durationMs = Number(getTrackDurationMs(track) || 0);
 
-    User.findOneAndUpdate(
-        { userId: requesterId },
-        {
-            $inc: {
-                songsListened: 1,
-                totalListenTimeMs: Number.isFinite(durationMs) && durationMs > 0 ? durationMs : 0,
-            },
-            $setOnInsert: { userId: requesterId },
-        },
-        { upsert: true, setDefaultsOnInsert: true }
-    ).catch(() => {});
+    User.applyProgressMilestones(requesterId, {
+        incrementSongs: 1,
+        incrementListenTimeMs: Number.isFinite(durationMs) && durationMs > 0 ? durationMs : 0,
+    }).catch(() => {});
 }
 
 module.exports = async (client, player, track, payload) => {

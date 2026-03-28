@@ -5,6 +5,8 @@ const { safeReply, safeDeferReply } = require('../../utils/interactionResponder'
 const { withTimeout } = require('../../utils/promiseHandler');
 
 const EMOJIS = require("../../utils/emoji.json");
+const SEARCH_TIMEOUT_MS = 5000;
+const VOICE_BRIDGE_TIMEOUT_MS = 5000;
 module.exports = {
   name: "spotify",
   description: "plays some high quality music from spotify",
@@ -75,57 +77,7 @@ return await interaction.editReply({embeds: [noperms]});
       selfDeafen: true,
 
     });
-
-    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-    const waitForVoiceBridge = async () => {
-      const startedAt = Date.now();
-      while ((Date.now() - startedAt) < 10000) {
-        const botChannelId = interaction.guild.members.me?.voice?.channelId || null;
-        const hasVoiceBridge = Boolean(
-          player?.voice?.sessionId &&
-          player?.voice?.token &&
-          player?.voice?.endpoint
-        );
-
-        if (botChannelId === channel.id && hasVoiceBridge) {
-          return true;
-        }
-
-        await sleep(200);
-      }
-
-      return false;
-    };
-
-    const queueTracksNative = async (tracks) => {
-      const incoming = (Array.isArray(tracks) ? tracks : [tracks]).filter(Boolean);
-      if (!incoming.length) return;
-
-      if (typeof player.queue?.add === 'function') {
-        await player.queue.add(incoming);
-        return;
-      }
-
-      if (!Array.isArray(player.queue?.tracks)) {
-        player.queue.tracks = [];
-      }
-      player.queue.tracks.push(...incoming);
-    };
-
-    const startIfIdle = async () => {
-      if (player.state !== "CONNECTED" || interaction.guild.members.me?.voice?.channelId !== channel.id) {
-        await player.connect();
-      }
-
-      const voiceReady = await waitForVoiceBridge();
-      if (!voiceReady) return false;
-
-      if (!player.playing && !player.paused) {
-        await player.play({ paused: false });
-      }
-
-      return true;
-    };
+    const musicCore = client.core.music;
 
     // If query is a Spotify URL, extract metadata and search for matching playable track
     let s;
@@ -137,10 +89,10 @@ return await interaction.editReply({embeds: [noperms]});
         }
         const searchQuery = `${data.title} ${data.artist}`;
         const searchPromise = player.search({ query: searchQuery, source: 'spotify' }, interaction.user);
-        s = await withTimeout(searchPromise, 10000, 'Search timeout after 10 seconds');
+        s = await withTimeout(searchPromise, SEARCH_TIMEOUT_MS, `Search timeout after ${SEARCH_TIMEOUT_MS / 1000} seconds`);
       } else {
         const searchPromise = player.search({ query, source: 'spotify' }, interaction.user);
-        s = await withTimeout(searchPromise, 10000, 'Search timeout after 10 seconds');
+        s = await withTimeout(searchPromise, SEARCH_TIMEOUT_MS, `Search timeout after ${SEARCH_TIMEOUT_MS / 1000} seconds`);
       }
     } catch (err) {
       client.logger?.log(`Spotify search error: ${err.message}`, 'error');
@@ -175,10 +127,28 @@ return await interaction.editReply({embeds: [noperms]});
       }).catch((err) => client.logger?.log(`Reply error: ${err.message}`, 'error'));
     } else if (s.loadType === "TRACK_LOADED") {
       try {
-        await queueTracksNative(s.tracks[0]);
-        await startIfIdle();
+        const { queueTracksForPlayback } = client.core.queue;
+        const playbackResult = await queueTracksForPlayback(
+          player,
+          s.tracks[0],
+          (directTrack) => musicCore.ensurePlayerPlayback({
+            player,
+            guild: interaction.guild,
+            channelId: channel.id,
+            directTrack,
+            timeoutMs: VOICE_BRIDGE_TIMEOUT_MS,
+            recoverVolume: true,
+          })
+        );
+        if (!playbackResult.hadActivePlayback && !playbackResult.startedPlayback) {
+          throw new Error('Failed to start playback.');
+        }
       } catch (err) {
         client.logger?.log(`Player error: ${err.message}`, 'error');
+        return await interaction.editReply({
+          embeds: [new EmbedBuilder().setColor(interaction.client?.embedColor || '#ff0051')
+            .setDescription(`${no} Failed to start playback. Please try again.`)]
+        }).catch(() => {});
       }
       return await interaction.editReply({
         embeds: [new EmbedBuilder() .setColor(interaction.client?.embedColor || '#ff0051')
@@ -186,10 +156,28 @@ return await interaction.editReply({embeds: [noperms]});
       }).catch((err) => client.logger?.log(`Reply error: ${err.message}`, 'error'));
     } else if (s.loadType === "PLAYLIST_LOADED") {
       try {
-        await queueTracksNative(s.tracks);
-        await startIfIdle();
+        const { queueTracksForPlayback } = client.core.queue;
+        const playbackResult = await queueTracksForPlayback(
+          player,
+          s.tracks,
+          (directTrack) => musicCore.ensurePlayerPlayback({
+            player,
+            guild: interaction.guild,
+            channelId: channel.id,
+            directTrack,
+            timeoutMs: VOICE_BRIDGE_TIMEOUT_MS,
+            recoverVolume: true,
+          })
+        );
+        if (!playbackResult.hadActivePlayback && !playbackResult.startedPlayback) {
+          throw new Error('Failed to start playback.');
+        }
       } catch (err) {
         client.logger?.log(`Player error: ${err.message}`, 'error');
+        return await interaction.editReply({
+          embeds: [new EmbedBuilder().setColor(interaction.client?.embedColor || '#ff0051')
+            .setDescription(`${no} Failed to start playback. Please try again.`)]
+        }).catch(() => {});
       }
       return await interaction.editReply({
         embeds: [new EmbedBuilder().setColor(interaction.client?.embedColor || '#ff0051')
@@ -197,10 +185,28 @@ return await interaction.editReply({embeds: [noperms]});
       }).catch((err) => client.logger?.log(`Reply error: ${err.message}`, 'error'));
     } else if (s.loadType === "SEARCH_RESULT") {
       try {
-        await queueTracksNative(s.tracks[0]);
-        await startIfIdle();
+        const { queueTracksForPlayback } = client.core.queue;
+        const playbackResult = await queueTracksForPlayback(
+          player,
+          s.tracks[0],
+          (directTrack) => musicCore.ensurePlayerPlayback({
+            player,
+            guild: interaction.guild,
+            channelId: channel.id,
+            directTrack,
+            timeoutMs: VOICE_BRIDGE_TIMEOUT_MS,
+            recoverVolume: true,
+          })
+        );
+        if (!playbackResult.hadActivePlayback && !playbackResult.startedPlayback) {
+          throw new Error('Failed to start playback.');
+        }
       } catch (err) {
         client.logger?.log(`Player error: ${err.message}`, 'error');
+        return await interaction.editReply({
+          embeds: [new EmbedBuilder().setColor(interaction.client?.embedColor || '#ff0051')
+            .setDescription(`${no} Failed to start playback. Please try again.`)]
+        }).catch(() => {});
       }
       return await interaction.editReply({
         embeds: [new EmbedBuilder().setColor(interaction.client?.embedColor || '#ff0051')

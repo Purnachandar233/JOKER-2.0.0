@@ -139,15 +139,9 @@ if (topggWebhookAuth) {
 
             const voteGrant = await grantVotePremiumWindow(vote.user, { now: Date.now() });
 
-            await User.findOneAndUpdate(
-                { userId: vote.user },
-                {
-                    $inc: { totalVotes: 1 },
-                    $set: { voted: true },
-                    $setOnInsert: { userId: vote.user }
-                },
-                { upsert: true, setDefaultsOnInsert: true }
-            ).catch(() => {});
+            const milestoneUpdate = await User.applyProgressMilestones(vote.user, {
+                incrementVotes: 1,
+            }).catch(() => ({ unlockedBadges: [], grantedRewards: [] }));
 
             if (voteGrant.status === "kept_permanent") {
                 console.log(`[TOPGG] Vote recorded for ${vote.user}. Existing permanent premium kept.`);
@@ -159,9 +153,21 @@ if (topggWebhookAuth) {
 
             const user = await client.users.fetch(vote.user).catch(() => null);
             if (user) {
+                const rewardCatalog = User.REWARD_CATALOG || {};
+                const rewardLabels = Array.isArray(milestoneUpdate?.grantedRewards)
+                    ? milestoneUpdate.grantedRewards
+                        .map((key) => rewardCatalog[key]?.label)
+                        .filter(Boolean)
+                    : [];
+                const rewardNote = rewardLabels.length
+                    ? `\nMilestone reward unlocked: ${rewardLabels.join(", ")}.`
+                    : "";
+                const badgeNote = milestoneUpdate?.unlockedBadges?.length
+                    ? `\nNew badge${milestoneUpdate.unlockedBadges.length > 1 ? "s" : ""} unlocked in your profile.`
+                    : "";
                 const thankYouText = voteGrant.status === "kept_permanent"
-                    ? "Thank you for voting! Your permanent Premium is already active."
-                    : "Thank you for voting! You received 12 hours of Premium access!";
+                    ? `Thank you for voting! Your permanent Premium is already active.${badgeNote}`
+                    : `Thank you for voting! You received 12 hours of Premium access!${rewardNote}${badgeNote}`;
                 user.send(thankYouText).catch(() => {});
             }
 

@@ -1,84 +1,67 @@
 const { EmbedBuilder } = require("discord.js");
 
 const EMOJIS = require("../../utils/emoji.json");
+
+const FILTER_FLAGS = [
+  'eightD',
+  'bassboost',
+  'nightcore',
+  'soft',
+  'pop',
+  'treblebass',
+  'vaporwave',
+  'karaoke',
+  'vibrato',
+  'tremolo',
+  'chipmunk',
+  'slowmo',
+];
+
 module.exports = {
-    name: "reset",
-    category: "Filters",
-    description: "Resets all the filters enabled.",
-    votelock: true,
-    djonly : true,
-    wl : true,
-   /**
-   *
-   * @param {Client} client
-   * @param {CommandInteraction} interaction
-   */
+  name: "reset",
+  category: "Filters",
+  description: "Resets all the filters enabled.",
+  votelock: true,
+  djonly: true,
+  wl: true,
+  run: async (client, interaction) => {
+    await interaction.deferReply({});
 
-    run: async (client, interaction) => {
-      await interaction.deferReply({
-        });
+    const ok = EMOJIS.ok;
+    const no = EMOJIS.no;
+    const color = interaction.client?.embedColor || '#ff0051';
+    const { channel } = interaction.member.voice;
 
-    let ok = EMOJIS.ok;
-    let no = EMOJIS.no;
-
-
-
-       //
-       const { channel } = interaction.member.voice;
-       if (!channel) {
-                       const noperms = new EmbedBuilder()
-
-            .setColor(interaction.client?.embedColor || '#ff0051')
-              .setDescription(`${no} You must be connected to a voice channel to use this command.`)
-           return await interaction.editReply({embeds: [noperms]});
-       }
-       if(interaction.member.voice.selfDeaf) {
-         let thing = new EmbedBuilder()
-          .setColor(interaction.client?.embedColor || '#ff0051')
-        .setDescription(`${no} <@${interaction.member.id}> You cannot run this command while deafened.`)
-          return await interaction.editReply({embeds: [thing]});
-        }
-              const player = client.lavalink.players.get(interaction.guild.id);
-            const { getQueueArray } = client.core.queue;
-            const tracks = getQueueArray(player);
-            if(!player || !tracks || tracks.length === 0) {
-                       const noperms = new EmbedBuilder()
-            .setColor(interaction.client?.embedColor || '#ff0051')
-            .setDescription(`${no} There is nothing playing in this server.`)
-           return await interaction.editReply({embeds: [noperms]});
-       }
-       if(player && channel.id !== player.voiceChannelId) {
-                                   const noperms = new EmbedBuilder()
-          .setColor(interaction.client?.embedColor || '#ff0051')
-           .setDescription(`${no} You must be connected to the same voice channel as me.`)
-           return await interaction.editReply({embeds: [noperms]}),
-           interaction.channel.send({embeds: [noperms]});
-       }
-           //
-    player.reset();
-                   const noperms = new EmbedBuilder()
-              .setColor(interaction.client?.embedColor || '#ff0051')
-                   .setDescription(`${ok} All filters has been reseted. - <@!${interaction.member.id}>`)
-                   const noperms1 = new EmbedBuilder()
-                   .setColor(interaction.client?.embedColor || '#ff0051')
-                         .setDescription(`${ok} Resetting all filters...(*It might take up to 5 seconds to reset the filters.*)`)
-      return await interaction.editReply({embeds: [noperms1]}),
-      interaction.channel.send({embeds: [noperms]}).then(responce => {
-        setTimeout(() => {
-            try {
-                responce.delete().catch(() => {
-                    return
-                })
-            } catch(err) {
-                return
-            }
-        }, 30000)
-    });;
-
-
-
-
+    if (!channel) {
+      return await interaction.editReply({ embeds: [new EmbedBuilder().setColor(color).setDescription(`${no} You must be connected to a voice channel to use this command.`)] });
     }
+
+    if (interaction.member.voice.selfDeaf) {
+      return await interaction.editReply({ embeds: [new EmbedBuilder().setColor(color).setDescription(`${no} <@${interaction.member.id}> You cannot run this command while deafened.`)] });
+    }
+
+    const player = client.lavalink.players.get(interaction.guild.id);
+    const tracks = client.core.queue.getQueueArray(player);
+    if (!player || !tracks.length) {
+      return await interaction.editReply({ embeds: [new EmbedBuilder().setColor(color).setDescription(`${no} There is nothing playing in this server.`)] });
+    }
+
+    if (channel.id !== player.voiceChannelId) {
+      return await interaction.editReply({ embeds: [new EmbedBuilder().setColor(color).setDescription(`${no} You must be connected to the same voice channel as me.`)] });
+    }
+
+    for (const key of FILTER_FLAGS) {
+      player[key] = false;
+    }
+
+    await client.core.filterSettings.setFilter(interaction.guild.id, 'chipmunk', false);
+    await client.core.filterSettings.setFilter(interaction.guild.id, 'slowmo', false);
+    await client.core.filters.resetPlayerFilters(player, interaction.guild.id);
+    player.set("eq", "None");
+    player.set("filter", "None");
+
+    return await interaction.editReply({
+      embeds: [new EmbedBuilder().setColor(color).setDescription(`${ok} All filters have been reset. - <@!${interaction.member.id}>`)]
+    });
   }
-
-
+};

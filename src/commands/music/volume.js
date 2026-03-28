@@ -7,7 +7,7 @@ module.exports = {
   aliases: ["vo","vol","volum"],
   description: 'plays some high quality music for you',
   owner: false,
-  djonly : false,
+  djonly : true,
   votelock:true,
   wl : true,
   execute: async (message, args, client, prefix) => {
@@ -17,19 +17,6 @@ module.exports = {
 
 
     const volume = args.join(" ")
-   //
-     const djSchema = require('../../schema/djroleSchema')
-     let djdata = await djSchema.findOne({ guildID: message.guild.id })
-     if (djdata && djdata.Roleid) {
-       if (!message.member.roles.cache.has(djdata.Roleid)) {
-         // role configured but user doesn't have it
-         const embed = new EmbedBuilder()
-         .setColor(message.client?.embedColor || '#ff0051')
-         .setDescription(`${no} This command requires you to have <@&${djdata.Roleid}>.`)
-         return await message.channel.send({embeds: [embed]});
-       }
-     }
-   //
       const { channel } = message.member.voice;
       if (!channel) {
                       const noperms = new EmbedBuilder()

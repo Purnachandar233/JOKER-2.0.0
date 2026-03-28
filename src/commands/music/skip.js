@@ -9,6 +9,7 @@ module.exports = {
   aliases: ["skp"],
   description: 'skips the current song. ',
   owner: false,
+  djonly : true,
   wl : true,
 
   execute: async (message, args, client, prefix) => {

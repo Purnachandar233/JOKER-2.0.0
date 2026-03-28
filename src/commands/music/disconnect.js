@@ -7,7 +7,7 @@ module.exports = {
   aliases: ["dc","leave","leavevc","mingey"],
   description: 'leaves the voice channel',
   owner: false,
-  djonly : false,
+  djonly : true,
   wl : true,
   execute: async (message, args, client, prefix) => {
 

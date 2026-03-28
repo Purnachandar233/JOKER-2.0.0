@@ -55,6 +55,12 @@ function formatPremiumStatusLine(label, { active = false, doc = null, now = Date
   return `${getEmoji("ok")} ${label}: **Active**`;
 }
 
+function formatActivatedByLine(doc) {
+  const activatorId = String(doc?.ActivatedBy || "").trim();
+  if (!activatorId) return null;
+  return `Activated by: <@${activatorId}>`;
+}
+
 module.exports = {
   name: "premium",
   category: "general",
@@ -83,6 +89,10 @@ module.exports = {
           now,
         })
       : "Info Server Premium: **Unavailable in DM**";
+
+    const serverActivatedByLine = guildId && access.guildPremium
+      ? formatActivatedByLine(access.guildDoc)
+      : null;
 
     const activateButton = new ButtonBuilder()
       .setCustomId("premium_dashboard_activate")
@@ -145,7 +155,9 @@ module.exports = {
         new TextDisplayBuilder().setContent("## Premium Dashboard"),
         new TextDisplayBuilder().setContent("Manage your premium features and view current status"),
         new TextDisplayBuilder().setContent("### Current Status"),
-        new TextDisplayBuilder().setContent(`${userStatusLine}\n${serverStatusLine}`),
+        new TextDisplayBuilder().setContent(
+          [userStatusLine, serverStatusLine, serverActivatedByLine].filter(Boolean).join("\n")
+        ),
         new TextDisplayBuilder().setContent(
           access.hasAccess
             ? "Premium commands are currently unlocked for you."
@@ -162,6 +174,7 @@ module.exports = {
       return await sendResponse(ctx, {
         flags: MessageFlags.IsComponentsV2,
         components: [dashboardContainer],
+        allowedMentions: { parse: [], repliedUser: false },
       });
     } catch (_err) {
       const fallbackEmbed = new EmbedBuilder()
@@ -171,13 +184,18 @@ module.exports = {
           [
             userStatusLine,
             serverStatusLine,
+            serverActivatedByLine,
             "",
             access.hasAccess
               ? "Premium commands are currently unlocked for you."
               : "Get premium to unlock exclusive features!",
-          ].join("\n")
+          ].filter(Boolean).join("\n")
         );
-      return sendResponse(ctx, { embeds: [fallbackEmbed], components: [linkRow] });
+      return sendResponse(ctx, {
+        embeds: [fallbackEmbed],
+        components: [linkRow],
+        allowedMentions: { parse: [], repliedUser: false },
+      });
     }
   },
 };

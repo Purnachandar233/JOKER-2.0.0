@@ -10,6 +10,7 @@ module.exports = {
   aliases: ["side"],
   description: 'Change the position of a track in the queue.',
   owner: false,
+  djonly : true,
   wl : true,
   execute: async (message, args, client, prefix) => {
 

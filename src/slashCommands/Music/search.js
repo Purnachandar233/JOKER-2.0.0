@@ -33,11 +33,12 @@ function isTrackLive(track) {
 }
 
 const SEARCH_SOURCE_ORDER = ["spotify", "soundcloud", "applemusic", "deezer", "bandcamp"];
-const USER_SEARCH_SOURCE_ATTEMPTS = 3;
-const USER_SEARCH_TIMEOUT_MS = 5000;
+const USER_SEARCH_SOURCE_ATTEMPTS = 2;
+const USER_SEARCH_TIMEOUT_MS = 3000;
 const SEARCH_PANEL_MAX_ACTION_ROWS = 5;
 const SEARCH_PANEL_FIXED_ROWS = 2; // tab row + navigation row
 const SEARCH_PANEL_PAGE_SIZE = Math.max(1, SEARCH_PANEL_MAX_ACTION_ROWS - SEARCH_PANEL_FIXED_ROWS);
+const VOICE_BRIDGE_TIMEOUT_MS = 5000;
 
 function normalizeSourceName(source) {
   const value = String(source || "").trim().toLowerCase();
@@ -385,7 +386,7 @@ function buildSearchPanel(query, tab, pageIndex, searchResult, embedColor, getEm
     "",
     description,
     "",
-    `Page ${safePage + 1}/${totalPages} • ${entries.length} result(s) • Panel expires in 90 seconds`,
+    `Page ${safePage + 1}/${totalPages} | ${entries.length} result(s) | Panel expires in 90 seconds`,
   ].join("\n");
 
   return {
@@ -472,119 +473,44 @@ module.exports = {
           selfDeafen: true
         });
       }
-
-      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-      const waitForVoiceBridge = async () => {
-        const startedAt = Date.now();
-        while ((Date.now() - startedAt) < 10000) {
-          const botChannelId = interaction.guild.members.me?.voice?.channelId || null;
-          const hasVoiceBridge = Boolean(
-            player?.voice?.sessionId &&
-            player?.voice?.token &&
-            player?.voice?.endpoint
-          );
-
-          if (botChannelId === voiceChannel.id && hasVoiceBridge) {
-            return true;
-          }
-
-          await sleep(200);
-        }
-
-        return false;
+      const musicCore = client.core.music;
+      const activeSearchSourceOrder = musicCore.DEFAULT_SEARCH_SOURCE_ORDER;
+      const ensurePlaybackStarted = async (directTrack = null) => {
+        return musicCore.ensurePlayerPlayback({
+          player,
+          guild: interaction.guild,
+          channelId: voiceChannel.id,
+          directTrack,
+          timeoutMs: VOICE_BRIDGE_TIMEOUT_MS,
+          recoverVolume: true,
+        });
       };
-
-      const ensurePlaybackStarted = async () => {
-        if (player.state !== "CONNECTED" || interaction.guild.members.me?.voice?.channelId !== voiceChannel.id) {
-          await player.connect();
-        }
-
-        const voiceReady = await waitForVoiceBridge();
-        if (!voiceReady) return false;
-
-        await player.play({ paused: false });
-        return true;
-      };
-      const hasActivePlayback = () => (
-        Boolean(player?.queue?.current) ||
-        Boolean(player?.playing) ||
-        Boolean(player?.paused) ||
-        (Array.isArray(player?.queue?.tracks) && player.queue.tracks.length > 0)
-      );
       const searchWithAvailableSources = async (
         queryText,
         requester,
         {
-          preferredSources = SEARCH_SOURCE_ORDER,
+          preferredSources = activeSearchSourceOrder,
           timeoutMs = USER_SEARCH_TIMEOUT_MS,
           logPrefix = "Search",
           maxSourceAttempts = USER_SEARCH_SOURCE_ATTEMPTS,
         } = {}
       ) => {
-        const availability = getAvailableSearchSources(client, player, preferredSources);
-        const attemptedSources = availability.sources.slice(0, Math.max(1, Number(maxSourceAttempts) || USER_SEARCH_SOURCE_ATTEMPTS));
-        let lastError = null;
-
-        if (!attemptedSources.length) {
-          return {
-            result: null,
-            attemptedSources,
-            advertisedSources: availability.advertisedSources,
-            hasNodeInfo: availability.hasNodeInfo,
-            lastError: new Error(
-              availability.hasNodeInfo
-                ? `No supported search sources are enabled on this Lavalink node. Available sources: ${formatSourceList(availability.advertisedSources)}`
-                : "No searchable sources are available yet."
-            ),
-          };
-        }
-
-        for (const source of attemptedSources) {
-          try {
-            const result = await withTimeout(
-              player.search({ query: queryText, source }, requester),
-              timeoutMs,
-              `${source} search timeout`
-            );
-
-            if (result?.loadType === "LOAD_FAILED") {
-              throw result.exception || new Error(`${source} search failed`);
-            }
-
-            if (result?.tracks?.length) {
-              if (typeof player?.set === "function") {
-                player.set("preferredSearchSource", source);
-              }
-              return {
-                result,
-                attemptedSources,
-                advertisedSources: availability.advertisedSources,
-                hasNodeInfo: availability.hasNodeInfo,
-                lastError: null,
-              };
-            }
-          } catch (error) {
-            lastError = error;
-            if (!/has not '.*' enabled|has not .* enabled|required to have|Query \/ Link Provided for this Source/i.test(String(error?.message || error || ""))) {
-              client.logger?.log?.(`${logPrefix} failed for ${source}: ${error?.message || error}`, "warn");
-            }
-          }
-        }
-
-        return {
-          result: null,
-          attemptedSources,
-          advertisedSources: availability.advertisedSources,
-          hasNodeInfo: availability.hasNodeInfo,
-          lastError,
-        };
+        return musicCore.searchWithAvailableSources({
+          player,
+          queryText,
+          requester,
+          preferredSources,
+          timeoutMs,
+          logPrefix,
+          maxSourceAttempts,
+        });
       };
       const describeSearchFailure = (attempt) => {
         if (!attempt) return "I could not fetch results for this query. Try another keyword.";
         if (attempt.hasNodeInfo && attempt.attemptedSources.length === 0) {
-          return `No supported search sources are enabled on this Lavalink node. Available sources: ${formatSourceList(attempt.advertisedSources)}.`;
+          return `No supported search sources are enabled on this Lavalink node. Available sources: ${musicCore.formatSourceList(attempt.advertisedSources)}.`;
         }
-        if (attempt.lastError && isTimeoutLikeError(attempt.lastError)) {
+        if (attempt.lastError && musicCore.isTimeoutLikeError(attempt.lastError)) {
           const sourceLabel = String(attempt.attemptedSources[0] || "Search");
           const titled = sourceLabel.charAt(0).toUpperCase() + sourceLabel.slice(1);
           return `${titled} search timed out. Lavalink is responding too slowly right now.`;
@@ -627,13 +553,6 @@ module.exports = {
           .setDescription(`${ok} No tracks were found for that query.`);
         return interaction.editReply({ embeds: [embed] });
       }
-
-      const queueTracks = async (tracks) => {
-        const items = (Array.isArray(tracks) ? tracks : [tracks]).filter(Boolean);
-        if (!items.length) return 0;
-        await player.queue.add(items);
-        return items.length;
-      };
 
       const resolveEntryTracks = async (entry) => {
         if (!entry) return [];
@@ -751,24 +670,54 @@ module.exports = {
           await buttonInteraction.deferUpdate().catch(() => {});
 
           try {
-            const queueBefore = hasActivePlayback();
+            const queuedCountBefore = Array.isArray(player?.queue?.tracks) ? player.queue.tracks.length : 0;
             const tracksToAdd = await resolveEntryTracks(entry);
-            const addedCount = await queueTracks(tracksToAdd);
+            const normalizedTracks = (Array.isArray(tracksToAdd) ? tracksToAdd : [tracksToAdd]).filter(Boolean);
+            const addedCount = normalizedTracks.length;
+            const hadActivePlayback = Boolean(player?.queue?.current || player?.playing || player?.paused);
+            const shouldShowQueuedState = hadActivePlayback || queuedCountBefore > 0;
+            const { queueTracksForPlayback } = client.core.queue;
+            const playbackResult = await queueTracksForPlayback(
+              player,
+              tracksToAdd,
+              (directTrack) => ensurePlaybackStarted(directTrack)
+            );
 
-            if (!queueBefore) {
-              const started = await ensurePlaybackStarted();
-              if (!started) throw new Error("Failed to start playback.");
+            if (!playbackResult.hadActivePlayback && !playbackResult.startedPlayback) {
+              throw new Error("Failed to start playback.");
             }
 
+            const linkedText = entry.url
+              ? `[${escapeLinkLabel(truncateText(entry.title, 60))}](${entry.url})`
+              : truncateText(entry.title, 60);
+            const firstPosition = queuedCountBefore + 1;
+            const lastPosition = firstPosition + Math.max(0, addedCount - 1);
+            const firstTrack = normalizedTracks[0] || null;
+            const firstTrackTitle = firstTrack
+              ? client.core.queue.formatQueueTrackTitle(firstTrack, 70)
+              : linkedText;
+            const firstTrackLength = firstTrack
+              ? client.core.queue.formatTrackLength(firstTrack)
+              : null;
+            const authorLabel = addedCount > 1
+              ? (shouldShowQueuedState ? `Tracks queued - Positions #${firstPosition}-#${lastPosition}` : "Tracks queued")
+              : (shouldShowQueuedState ? `Track queued - Position #${firstPosition}` : "Now playing");
             const successText = addedCount > 1
-              ? `${ok} Queued **${addedCount}** track(s) from **${truncateText(entry.title, 60)}**.`
-              : `${ok} Queued **${truncateText(entry.title, 60)}**.`;
+              ? `Added **${addedCount}** track(s) from ${linkedText} to the queue`
+              : (
+                  shouldShowQueuedState
+                    ? `Added ${firstTrackTitle} \`${firstTrackLength}\` to the queue`
+                    : `Started ${firstTrackTitle} \`${firstTrackLength}\``
+                );
 
             await buttonInteraction.followUp({
               embeds: [
                 new EmbedBuilder()
                   .setColor(embedColor)
-                  .setTitle(`${getEmoji("queue")} Added To Queue`)
+                  .setAuthor({
+                    name: authorLabel,
+                    iconURL: interaction.member?.displayAvatarURL?.({ forceStatic: false, size: 256 }) || interaction.user.displayAvatarURL({ forceStatic: false, size: 256 }),
+                  })
                   .setDescription(successText)
               ],
               ephemeral: true,

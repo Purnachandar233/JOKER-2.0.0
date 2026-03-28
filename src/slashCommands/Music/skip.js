@@ -6,6 +6,7 @@ module.exports = {
         name: "skip",
         description: "To skip a song/track from the queue.",
         owner: false,
+        djonly: true,
         player: true,
         inVoiceChannel: true,
         sameVoiceChannel: true,

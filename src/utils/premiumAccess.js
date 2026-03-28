@@ -22,6 +22,13 @@ function calculateMergedVoteExpire(existingDoc, now = Date.now()) {
   return Math.max(existingExpire, voteWindowExpire);
 }
 
+function calculateExtendedPremiumExpire(existingDoc, durationMs, now = Date.now()) {
+  const existingExpire = Math.max(0, toNumber(existingDoc?.Expire, 0));
+  const safeDuration = Math.max(0, toNumber(durationMs, 0));
+  const base = Math.max(now, existingExpire);
+  return base + safeDuration;
+}
+
 function isPremiumActive(doc, now = Date.now()) {
   if (!doc) return false;
   if (doc.Permanent) return true;
@@ -140,6 +147,80 @@ async function grantVotePremiumWindow(userId, options = {}) {
   };
 }
 
+async function grantTimedUserPremiumWindow(userId, options = {}) {
+  const now = Number.isFinite(Number(options.now)) ? Number(options.now) : Date.now();
+  const durationMs = Math.max(0, toNumber(options.durationMs, 0));
+  const permanent = Boolean(options.permanent);
+  const planType = String(options.planType || "Milestone Reward");
+  const normalizedUserId = normalizeUserId(userId);
+  if (!normalizedUserId) {
+    return { status: "invalid_user", expire: 0, permanent: false };
+  }
+
+  if (!permanent && durationMs <= 0) {
+    return { status: "invalid_duration", expire: 0, permanent: false };
+  }
+
+  const existing = await Premium.findOne({ Id: normalizedUserId, Type: "user" }).catch(() => null);
+  if (existing?.Permanent) {
+    return {
+      status: "kept_permanent",
+      expire: Math.max(0, toNumber(existing.Expire, 0)),
+      permanent: true,
+    };
+  }
+
+  if (permanent) {
+    const preservedExpire = Math.max(0, toNumber(existing?.Expire, 0));
+    await Premium.findOneAndUpdate(
+      { Id: normalizedUserId, Type: "user" },
+      {
+        $set: {
+          Expire: preservedExpire,
+          Permanent: true,
+          PlanType: planType,
+        },
+        $setOnInsert: {
+          Id: normalizedUserId,
+          Type: "user",
+          ActivatedAt: now,
+        },
+      },
+      { upsert: true }
+    ).catch(() => {});
+
+    return {
+      status: existing ? "upgraded_to_permanent" : "created_permanent",
+      expire: preservedExpire,
+      permanent: true,
+    };
+  }
+
+  const nextExpire = calculateExtendedPremiumExpire(existing, durationMs, now);
+  await Premium.findOneAndUpdate(
+    { Id: normalizedUserId, Type: "user" },
+    {
+      $set: {
+        Expire: nextExpire,
+        Permanent: false,
+        PlanType: planType,
+      },
+      $setOnInsert: {
+        Id: normalizedUserId,
+        Type: "user",
+        ActivatedAt: now,
+      },
+    },
+    { upsert: true }
+  ).catch(() => {});
+
+  return {
+    status: existing ? "extended" : "created",
+    expire: nextExpire,
+    permanent: false,
+  };
+}
+
 async function resolvePremiumAccess(userId, guildId, client = null) {
   const now = Date.now();
   const normalizedUserId = userId ? String(userId) : null;
@@ -183,6 +264,7 @@ async function resolvePremiumAccess(userId, guildId, client = null) {
 
 module.exports = {
   grantVotePremiumWindow,
+  grantTimedUserPremiumWindow,
   isPremiumActive,
   resolvePremiumAccess
 };

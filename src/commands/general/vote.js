@@ -1,5 +1,7 @@
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require("discord.js");
 
+const User = require("../../schema/User");
+const { resolvePremiumAccess } = require("../../utils/premiumAccess");
 const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
   name: "vote",
@@ -10,28 +12,41 @@ module.exports = {
   execute: async (message, args, client) => {
     const getEmoji = (key, fallback = "") => EMOJIS[key] || fallback;
     const embedColor = client?.embedColor || "#ff0051";
-    const legal = client?.legalLinks || {};
-    const support = new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel("Support").setURL(legal.supportServerUrl);
-    const invite = new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel("Invite").setURL(`https://discord.com/oauth2/authorize?client_id=${client.user.id}&permissions=70510540062032&integration_type=0&scope=bot+applications.commands`);
-    const vote = new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel("Vote").setURL(`https://top.gg/bot/${client.user.id}/vote`);
-    const supportEmoji = getEmoji("support");
-    const inviteEmoji = getEmoji("invite");
+    const botName = client.user?.username || "the bot";
+    const voteUrl = `https://top.gg/bot/${client.user.id}/vote`;
+    const vote = new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel(`Vote for ${botName}`).setURL(voteUrl);
     const voteEmoji = getEmoji("vote");
-    try { if (supportEmoji) support.setEmoji(supportEmoji); } catch (_e) {}
-    try { if (inviteEmoji) invite.setEmoji(inviteEmoji); } catch (_e) {}
     try { if (voteEmoji) vote.setEmoji(voteEmoji); } catch (_e) {}
-    const linkRow = new ActionRowBuilder().addComponents(support, invite, vote);
+    const linkRow = new ActionRowBuilder().addComponents(vote);
 
+    const [userData, premiumState] = await Promise.all([
+      User.findOne({ userId: message.author.id }).lean().catch(() => null),
+      resolvePremiumAccess(message.author.id, message.guild?.id, client).catch(() => null),
+    ]);
+
+    const totalVotes = Number(userData?.totalVotes || 0);
+    const hasActiveVoteAccess = Boolean(premiumState?.userPremium || premiumState?.topggFallbackVoted);
+    const description = hasActiveVoteAccess
+      ? [
+          `Hey there! Looks like your Top.gg vote perks are already active for ${botName} :D`,
+          `You can vote again any time by heading over to our [Top.gg](${voteUrl}) page - we'd really appreciate it!`,
+        ].join("\n")
+      : [
+          "Hey there! Looks like you haven't voted for the bot on Top.gg just yet :/",
+          `You can vote and unlock some awesome perks by heading over to our [Top.gg](${voteUrl}) page - we'd really appreciate it!`,
+        ].join("\n");
 
     const embed = new EmbedBuilder()
       .setColor(embedColor)
-      .setAuthor({ name: `Vote!`, iconURL: message.member.displayAvatarURL({ forceStatic: false, size: 256 }) })
-      .setDescription([
-        "Vote on bot listing platforms to support development.",
-        "",
-        "Voting can unlock temporary access windows for some gated commands."
-      ].join("\n"))
-      
+      .setAuthor({
+        name: message.author.tag,
+        iconURL: message.member?.displayAvatarURL({ forceStatic: false, size: 256 }) || message.author.displayAvatarURL({ forceStatic: false, size: 256 }),
+      })
+      .setDescription(description)
+      .setFooter({
+        text: `You have voted ${totalVotes} time(s) for ${botName} so far :D`,
+        iconURL: client.user.displayAvatarURL({ forceStatic: false, size: 256 }),
+      });
 
     return message.channel.send({ embeds: [embed], components: [linkRow] });
   }

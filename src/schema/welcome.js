@@ -17,11 +17,11 @@ const welcomeSchema = new mongoose.Schema(
     },
     message: {
       type: String,
-      default: "Welcome {user} to {server}!"
+      default: null
     },
     textMessage: {
       type: String,
-      default: "Welcome {user} to {server}! You are member #{count}."
+      default: null
     },
     title: {
       type: String,
@@ -30,14 +30,6 @@ const welcomeSchema = new mongoose.Schema(
     embedColor: {
       type: String,
       default: null
-    },
-    embedEnabled: {
-      type: Boolean,
-      default: true
-    },
-    textEnabled: {
-      type: Boolean,
-      default: false
     },
     enabled: {
       type: Boolean,

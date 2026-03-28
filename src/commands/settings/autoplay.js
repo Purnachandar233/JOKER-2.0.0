@@ -9,7 +9,7 @@ module.exports = {
   owner: false,
   premium: true,
   votelock:true,
-  djonly : false,
+  djonly : true,
   wl : true,
   execute: async (message, args, client, prefix) => {
     let ok = EMOJIS.ok;
@@ -92,12 +92,21 @@ module.exports = {
 
     if (player && typeof player.set === "function") {
       player.set("autoplay", false);
+      player.set("identifier", null);
+      player.set("autoplayQuery", null);
+      player.set("requester", null);
+      player.set("requesterId", null);
+      player.set("lastAutoplayQuery", null);
+      player.set("lastAutoplayAttemptAt", null);
     }
 
     await autoplaySchema.findOneAndUpdate(
       { guildID: message.guild.id },
       {
         enabled: false,
+        requesterId: null,
+        identifier: null,
+        query: null,
         lastUpdated: Date.now(),
       },
       { upsert: true, setDefaultsOnInsert: true }

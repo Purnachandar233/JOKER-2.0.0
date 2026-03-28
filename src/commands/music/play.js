@@ -1,5 +1,4 @@
 const { EmbedBuilder } = require('discord.js');
-const track = require('../../schema/trackinfoSchema.js');
 const EMOJIS = require("../../utils/emoji.json");
 // Use spotify-url-info (no axios dependency)
 const fetch = require('isomorphic-unfetch');
@@ -8,80 +7,12 @@ const { withTimeout } = require('../../utils/promiseHandler.js');
 
 // Common URL shorteners that may redirect to YouTube
 const URL_SHORTENERS = /bit\.ly|tinyurl\.com|ow\.ly|short\.link|youtu\.be|buff\.ly|tiny\.cc|goo\.gl|t\.co/i;
-const SEARCH_SOURCE_ORDER = ['spotify', 'soundcloud', 'applemusic', 'deezer', 'bandcamp'];
-const USER_SEARCH_SOURCE_ATTEMPTS = 3;
-const USER_SEARCH_TIMEOUT_MS = 5000;
-const USER_FALLBACK_SEARCH_TIMEOUT_MS = 4500;
-const SPOTIFY_DIRECT_LOAD_TIMEOUT_MS = 7000;
-const SPOTIFY_PLAYLIST_FALLBACK_TRACK_LIMIT = 12;
-
-function normalizeSourceName(source) {
-  const value = String(source || '').trim().toLowerCase();
-  if (!value) return null;
-
-  if (['spotify', 'spsearch', 'sp'].includes(value)) return 'spotify';
-  if (['soundcloud', 'scsearch', 'sc'].includes(value)) return 'soundcloud';
-  if (['applemusic', 'apple', 'apple music', 'amsearch', 'am'].includes(value)) return 'applemusic';
-  if (['deezer', 'dzsearch', 'dz', 'dzisrc'].includes(value)) return 'deezer';
-  if (['bandcamp', 'bcsearch', 'bc'].includes(value)) return 'bandcamp';
-
-  return value;
-}
-
-function uniqueSources(list) {
-  return [...new Set((Array.isArray(list) ? list : [list]).map(normalizeSourceName).filter(Boolean))];
-}
-
-function orderSourcesForPlayer(player, preferredSources = SEARCH_SOURCE_ORDER) {
-  const ordered = uniqueSources(preferredSources);
-  const preferred = normalizeSourceName(
-    typeof player?.get === 'function' ? player.get('preferredSearchSource') : null
-  );
-
-  if (!preferred || !ordered.includes(preferred)) {
-    return ordered;
-  }
-
-  return [preferred, ...ordered.filter((source) => source !== preferred)];
-}
-
-function getAvailableSearchSources(client, player, preferredSources = SEARCH_SOURCE_ORDER) {
-  const preferred = orderSourcesForPlayer(player, preferredSources);
-  const nodes = [];
-
-  if (player?.node) nodes.push(player.node);
-
-  for (const node of Array.from(client?.lavalink?.nodeManager?.nodes?.values?.() || [])) {
-    if (!nodes.includes(node)) nodes.push(node);
-  }
-
-  const advertisedSources = new Set();
-  let hasNodeInfo = false;
-
-  for (const node of nodes) {
-    if (!Array.isArray(node?.info?.sourceManagers)) continue;
-    hasNodeInfo = true;
-
-    for (const source of node.info.sourceManagers) {
-      const normalized = normalizeSourceName(source);
-      if (normalized) advertisedSources.add(normalized);
-    }
-  }
-
-  return {
-    sources: hasNodeInfo ? preferred.filter((source) => advertisedSources.has(source)) : preferred,
-    advertisedSources: [...advertisedSources],
-    hasNodeInfo,
-  };
-}
-
-function formatSourceList(sources) {
-  return Array.isArray(sources) && sources.length ? sources.join(', ') : 'none';
-}
-
-function isTimeoutLikeError(error) {
-  return /timeout|timed out|aborted/i.test(String(error?.message || error || ''));
-}
+const USER_SEARCH_SOURCE_ATTEMPTS = 2;
+const USER_SEARCH_TIMEOUT_MS = 3000;
+const USER_FALLBACK_SEARCH_TIMEOUT_MS = 2500;
+const SPOTIFY_DIRECT_LOAD_TIMEOUT_MS = 5000;
+const SPOTIFY_PLAYLIST_FALLBACK_TRACK_LIMIT = 8;
+const VOICE_BRIDGE_TIMEOUT_MS = 5000;
 
 module.exports = {
   name: 'play',
@@ -122,6 +53,9 @@ module.exports = {
       }
     }
 
+    const musicCore = client.core.music;
+    const SEARCH_SOURCE_ORDER = musicCore.DEFAULT_SEARCH_SOURCE_ORDER;
+
     let player = client.lavalink.players.get(message.guild.id);
     if (player && channel.id !== player.voiceChannelId) {
       return await message.channel.send({ embeds: [new EmbedBuilder().setColor(message.client?.embedColor || '#ff0051').setDescription("*We must be in the same voice channel.*")] });
@@ -137,145 +71,6 @@ module.exports = {
 
     let s;
     let lastSearchAttempt = null;
-    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-    const waitForVoiceBridge = async (expectedChannelId) => {
-      const startedAt = Date.now();
-      while ((Date.now() - startedAt) < 10000) {
-        const botChannelId = message.guild.members.me?.voice?.channelId || null;
-        const hasVoiceBridge = Boolean(
-          player?.voice?.sessionId &&
-          player?.voice?.token &&
-          player?.voice?.endpoint
-        );
-
-        if (botChannelId === expectedChannelId && hasVoiceBridge) {
-          return true;
-        }
-
-        await sleep(200);
-      }
-
-      return false;
-    };
-
-    const queueTracksNative = async (tracks) => {
-      const incoming = (Array.isArray(tracks) ? tracks : [tracks]).filter(Boolean);
-      if (!incoming.length) return;
-
-      if (typeof player.queue?.add === 'function') {
-        await player.queue.add(incoming);
-        return;
-      }
-
-      if (!Array.isArray(player.queue?.tracks)) {
-        player.queue.tracks = [];
-      }
-      player.queue.tracks.push(...incoming);
-    };
-    const hasActivePlayback = () => (
-      Boolean(player?.queue?.current) ||
-      Boolean(player?.playing) ||
-      Boolean(player?.paused) ||
-      (Array.isArray(player?.queue?.tracks) && player.queue.tracks.length > 0)
-    );
-    const searchWithAvailableSources = async (
-      queryText,
-      requester,
-      {
-        preferredSources = SEARCH_SOURCE_ORDER,
-        timeoutMs = USER_SEARCH_TIMEOUT_MS,
-        logPrefix = 'Search',
-        maxSourceAttempts = USER_SEARCH_SOURCE_ATTEMPTS,
-      } = {}
-    ) => {
-      const availability = getAvailableSearchSources(client, player, preferredSources);
-      const attemptedSources = availability.sources.slice(0, Math.max(1, Number(maxSourceAttempts) || USER_SEARCH_SOURCE_ATTEMPTS));
-      let lastError = null;
-
-      if (!attemptedSources.length) {
-        return {
-          result: null,
-          attemptedSources,
-          advertisedSources: availability.advertisedSources,
-          hasNodeInfo: availability.hasNodeInfo,
-          lastError: new Error(
-            availability.hasNodeInfo
-              ? `No supported search sources are enabled on this Lavalink node. Available sources: ${formatSourceList(availability.advertisedSources)}`
-              : 'No searchable sources are available yet.'
-          ),
-        };
-      }
-
-      for (const source of attemptedSources) {
-        try {
-          const result = await withTimeout(
-            player.search({ query: queryText, source }, requester),
-            timeoutMs,
-            `${source} search timeout`
-          );
-
-          if (result?.loadType === 'LOAD_FAILED') {
-            throw result.exception || new Error(`${source} search failed`);
-          }
-
-          if (result?.tracks?.length) {
-            if (typeof player?.set === 'function') {
-              player.set('preferredSearchSource', source);
-            }
-            return {
-              result,
-              attemptedSources,
-              advertisedSources: availability.advertisedSources,
-              hasNodeInfo: availability.hasNodeInfo,
-              lastError: null,
-            };
-          }
-        } catch (error) {
-          lastError = error;
-          if (!/has not '.*' enabled|has not .* enabled|required to have|Query \/ Link Provided for this Source/i.test(String(error?.message || error || ''))) {
-            client.logger?.log(`${logPrefix} failed for ${source}: ${error?.message || error}`, 'warn');
-          }
-        }
-      }
-
-      return {
-        result: null,
-        attemptedSources,
-        advertisedSources: availability.advertisedSources,
-        hasNodeInfo: availability.hasNodeInfo,
-        lastError,
-      };
-    };
-
-    const attemptPlay = async (player) => {
-      try {
-        if (player.state !== "CONNECTED" || message.guild.members.me?.voice?.channelId !== channel.id) {
-          try {
-            await player.connect();
-          } catch (connectErr) {
-            client.logger?.log && client.logger.log(`Player connection failed during play attempt: ${connectErr && (connectErr.message || connectErr)}`,'error');
-            return false;
-          }
-        }
-
-        const voiceReady = await waitForVoiceBridge(channel.id);
-        if (!voiceReady) return false;
-
-        // Auto-recover from accidental silent volume (0) so playback is audible.
-        try {
-          const currentVolume = Number(player.volume ?? player?.options?.volume ?? 100);
-          if (Number.isFinite(currentVolume) && currentVolume <= 0) {
-            await player.setVolume(100);
-          }
-        } catch (_e) {}
-
-        await player.play({ paused: false });
-        return true;
-      } catch (err) {
-        client.logger?.log && client.logger.log(`attemptPlay error: ${err && (err.message || err)}`,'error');
-        return false;
-      }
-    };
     const titleCase = (value) => {
       const text = String(value || '').trim();
       return text ? text.charAt(0).toUpperCase() + text.slice(1) : 'Search';
@@ -284,10 +79,10 @@ module.exports = {
       if (!attempt) return fallbackMessage;
 
       if (attempt.hasNodeInfo && attempt.attemptedSources.length === 0) {
-        return `No supported search sources are enabled on this Lavalink node. Available sources: ${formatSourceList(attempt.advertisedSources)}.`;
+        return `No supported search sources are enabled on this Lavalink node. Available sources: ${musicCore.formatSourceList(attempt.advertisedSources)}.`;
       }
 
-      if (attempt.lastError && isTimeoutLikeError(attempt.lastError)) {
+      if (attempt.lastError && musicCore.isTimeoutLikeError(attempt.lastError)) {
         const sourceLabel = titleCase(attempt.attemptedSources[0] || 'search');
         return `${sourceLabel} search timed out. Lavalink is responding too slowly right now.`;
       }
@@ -310,7 +105,10 @@ module.exports = {
             if (tracksInfo && Array.isArray(tracksInfo) && tracksInfo.length) {
               const limit = Math.min(tracksInfo.length, SPOTIFY_PLAYLIST_FALLBACK_TRACK_LIMIT);
               const searchOne = async (q) => {
-                const attempt = await searchWithAvailableSources(q, message.member.user, {
+                const attempt = await musicCore.searchWithAvailableSources({
+                  player,
+                  queryText: q,
+                  requester: message.member.user,
                   preferredSources: SEARCH_SOURCE_ORDER,
                   timeoutMs: USER_FALLBACK_SEARCH_TIMEOUT_MS,
                   logPrefix: 'Spotify playlist track search',
@@ -345,10 +143,13 @@ module.exports = {
               const data = await getPreview(query).catch(() => null);
               if (data) {
                 searchQuery = `${data.title} ${data.artist}`;
-                const spotifyPreferred = getAvailableSearchSources(client, player, ['spotify']).sources.length
+                const spotifyPreferred = musicCore.getAvailableSearchSources(player, ['spotify']).sources.length
                   ? ['spotify']
                   : SEARCH_SOURCE_ORDER;
-                const searchAttempt = await searchWithAvailableSources(searchQuery, message.member.user, {
+                const searchAttempt = await musicCore.searchWithAvailableSources({
+                  player,
+                  queryText: searchQuery,
+                  requester: message.member.user,
                   preferredSources: spotifyPreferred,
                   timeoutMs: USER_SEARCH_TIMEOUT_MS,
                   logPrefix: 'Spotify preview search',
@@ -365,7 +166,10 @@ module.exports = {
           if (!s || !s.tracks || s.tracks.length === 0) {
             try {
               const fallbackQuery = searchQuery || query;
-              const fallbackAttempt = await searchWithAvailableSources(fallbackQuery, message.member.user, {
+              const fallbackAttempt = await musicCore.searchWithAvailableSources({
+                player,
+                queryText: fallbackQuery,
+                requester: message.member.user,
                 preferredSources: SEARCH_SOURCE_ORDER,
                 timeoutMs: USER_FALLBACK_SEARCH_TIMEOUT_MS,
                 logPrefix: 'Fallback search',
@@ -390,7 +194,10 @@ module.exports = {
         }
       }
     } else {
-      const searchAttempt = await searchWithAvailableSources(query, message.member.user, {
+      const searchAttempt = await musicCore.searchWithAvailableSources({
+        player,
+        queryText: query,
+        requester: message.member.user,
         preferredSources: SEARCH_SOURCE_ORDER,
         timeoutMs: USER_SEARCH_TIMEOUT_MS,
         logPrefix: 'Search',
@@ -399,7 +206,7 @@ module.exports = {
       lastSearchAttempt = searchAttempt;
     }
 
-    const { getQueueArray } = client.core.queue;
+    const { getQueueArray, queueTracksForPlayback } = client.core.queue;
     try {
       if (s) {
         const summary = {
@@ -472,6 +279,13 @@ module.exports = {
               toAdd.push(track);
               if (id) existing.push(id);
             }
+            if (!toAdd.length) {
+              return await message.channel.send({
+                embeds: [new EmbedBuilder()
+                  .setColor(message.client?.embedColor || '#ff0051')
+                  .setDescription("Those playlist tracks are already in the queue.")]
+              }).catch(() => {});
+            }
             try {
               const qarr = getQueueArray(player) || [];
               const qsample = (qarr || []).slice(0,5).map(x => (x?.info?.uri || x?.uri || x?.title || '')).join(',');
@@ -480,7 +294,7 @@ module.exports = {
         try { player.set('suppressUntil', Date.now() + 2000); } catch (e) {}
         const playlistName = s.playlist?.name || 'Unknown';
         const playlistUrl = (typeof query === 'string' && query.match(/^https?:\/\//i)) ? query : (s.playlist?.info?.uri || s.playlist?.url || '');
-        const tick = EMOJIS.ok || "✅";
+        const tick = EMOJIS.ok || "OK";
         const userLabel = message.member.toString();
         const embed = new EmbedBuilder()
           .setColor(message.client?.embedColor || '#ff0051')
@@ -489,23 +303,25 @@ module.exports = {
 
         // Start playback after the queued message is sent so TrackStart embed
         // always follows the queue notification.
-        const hadActivePlayback = hasActivePlayback();
         try {
-          await queueTracksNative(toAdd);
+          const playbackResult = await queueTracksForPlayback(
+            player,
+            toAdd,
+            (directTrack) => musicCore.ensurePlayerPlayback({
+              player,
+              guild: message.guild,
+              channelId: channel.id,
+              directTrack,
+              timeoutMs: VOICE_BRIDGE_TIMEOUT_MS,
+              recoverVolume: true,
+            })
+          );
+          if (!playbackResult.hadActivePlayback && !playbackResult.startedPlayback) {
+            throw new Error('no-track-started');
+          }
         } catch (e) {
           client.logger?.log(`Failed to queue playlist in guild ${message.guild.id}: ${(e && (e.message || e))}`,'error');
           return await message.channel.send({ embeds: [new EmbedBuilder().setColor(message.client?.embedColor || '#ff0051').setDescription("Failed to queue playlist. Please try again.")] }).catch(() => {});
-        }
-
-        if (!hadActivePlayback) {
-          try {
-            const ok = await attemptPlay(player);
-            if (ok === false) throw new Error('no-track-started');
-          } catch (e) {
-            client.logger?.log(`Failed to play playlist track in guild ${message.guild.id}: ${(e && (e.message || e))}`,'error');
-            try { player.set('suppressUntil', Date.now()); } catch (ee) {}
-            return await message.channel.send({ embeds: [new EmbedBuilder().setColor(message.client?.embedColor || '#ff0051').setDescription("Failed to start playback. Please try again.")] }).catch(() => {});
-          }
         }
         try { player.set('suppressUntil', Date.now()); } catch (e) {}
         return playlistMsg;
@@ -516,25 +332,56 @@ module.exports = {
         const newId = newTrack?.info?.identifier || newTrack?.identifier || newTrack?.id || newTrack?.uri;
         const shouldQueueTrack = !newId || !existing.includes(newId);
         if (shouldQueueTrack && newId) existing.push(newId);
+        if (!shouldQueueTrack) {
+          return await message.channel.send({
+            embeds: [new EmbedBuilder()
+              .setColor(message.client?.embedColor || '#ff0051')
+              .setDescription("That track is already in the queue.")]
+          }).catch(() => {});
+        }
 
-        // Suppress immediate TrackStart messages briefly so queued message orders first
-        try { player.set('suppressUntil', Date.now() + 2000); } catch (e) {}
+        const queuedTracksBefore = Array.isArray(player?.queue?.tracks) ? player.queue.tracks.length : 0;
+        const hadExistingPlayback = Boolean(player?.queue?.current || player?.playing || player?.paused);
+        const queuePosition = queuedTracksBefore + 1;
+        const shouldShowQueuedState = hadExistingPlayback || queuedTracksBefore > 0;
+        const queuedTrackTitle = client.core.queue.formatQueueTrackTitle(newTrack, 75);
+        const queuedTrackLength = client.core.queue.formatTrackLength(newTrack);
+        const queuedTrackEmbed = new EmbedBuilder()
+          .setColor(message.client?.embedColor || '#ff0051')
+          .setAuthor({
+            name: shouldShowQueuedState ? `Track queued - Position #${queuePosition}` : "Now playing",
+            iconURL: message.member.displayAvatarURL({ forceStatic: false, size: 256 }),
+          })
+          .setDescription(
+            shouldShowQueuedState
+              ? `Added ${queuedTrackTitle} \`${queuedTrackLength}\` to the queue`
+              : `Started ${queuedTrackTitle} \`${queuedTrackLength}\``
+          );
 
-        const trackTitle = s.tracks[0].info?.title || s.tracks[0].title || 'Unknown';
-        const trackUri = s.tracks[0].info?.uri || s.tracks[0].uri || '';
-        const queuedMsg = await message.channel.send({
-          embeds: [new EmbedBuilder().setColor(message.client?.embedColor || '#ff0051').setAuthor({name:`Track Queued `,iconURL: client.user.displayAvatarURL()
-          }).setDescription(`**Added**[${trackTitle}](${trackUri})\n Requested by: \`${message.member.user.tag}\``)]
-        }).catch(() => {});
+        let queuedMsg = null;
+        if (shouldShowQueuedState) {
+          // Suppress immediate TrackStart messages briefly so queued message orders first
+          try { player.set('suppressUntil', Date.now() + 2000); } catch (e) {}
+          queuedMsg = await message.channel.send({ embeds: [queuedTrackEmbed] }).catch(() => {});
+        }
 
         // Start playback after queued message is sent
         if (shouldQueueTrack) {
-          const hadActivePlayback = hasActivePlayback();
           try {
-            await queueTracksNative(newTrack);
-            if (!hadActivePlayback) {
-              const ok = await attemptPlay(player);
-              if (ok === false) throw new Error('no-track-started');
+            const playbackResult = await queueTracksForPlayback(
+              player,
+              newTrack,
+              (directTrack) => musicCore.ensurePlayerPlayback({
+                player,
+                guild: message.guild,
+                channelId: channel.id,
+                directTrack,
+                timeoutMs: VOICE_BRIDGE_TIMEOUT_MS,
+                recoverVolume: true,
+              })
+            );
+            if (!playbackResult.hadActivePlayback && !playbackResult.startedPlayback) {
+              throw new Error('no-track-started');
             }
           } catch (e) {
             client.logger?.log(`Failed to play single track in guild ${message.guild.id}: ${(e && (e.message || e))}`,'error');
@@ -543,6 +390,9 @@ module.exports = {
           }
         }
         try { player.set('suppressUntil', Date.now()); } catch (e) {}
+        if (!queuedMsg) {
+          queuedMsg = await message.channel.send({ embeds: [queuedTrackEmbed] }).catch(() => {});
+        }
         return queuedMsg;
     }
   }

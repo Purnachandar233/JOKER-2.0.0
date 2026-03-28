@@ -40,8 +40,6 @@ module.exports = {
   category: "settings",
   description: "Toggles djrole mode",
   owneronly: false,
-  premium: true,
-  votelock: true,
   wl: true,
   execute: async (ctx, args, client) => {
     const no = EMOJIS.no;

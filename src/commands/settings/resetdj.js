@@ -7,7 +7,6 @@ module.exports = {
   category: "settings",
   description: "Resets the djrole setup ",
   owneronly: false,
-  votelock:true,
   wl : true,
   execute: async (message, args, client, prefix) => {
     let ok = EMOJIS.ok;

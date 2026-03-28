@@ -299,13 +299,6 @@ module.exports = async (client, message) => {
   const command = client.commands.get(commandName) || client.commands.get(client.aliases.get(commandName));
   if (!command) return;
 
-  // Fire-and-forget user usage tracking to avoid delaying command responses.
-  User.findOneAndUpdate(
-    { userId: message.author.id },
-    { $inc: { count: 1 }, $setOnInsert: { userId: message.author.id } },
-    { upsert: true, setDefaultsOnInsert: true }
-  ).catch(() => {});
-
   if (command.owneronly && !owners.includes(message.author.id)) return;
 
   if (command.wl && !owners.includes(message.author.id)) {
@@ -323,19 +316,19 @@ module.exports = async (client, message) => {
     try {
       const djData = await getGuildDjRole(message.guild.id);
       if (djData.hasConfig) {
-        if (!message.member.roles.cache.has(djData.roleId)) {
+        const hasDjRole = message.member.roles.cache.has(djData.roleId);
+        const hasManagerBypass = Boolean(
+          message.member.permissions?.has?.("ManageGuild") ||
+          message.member.permissions?.has?.("Administrator")
+        );
+
+        if (!hasDjRole && !hasManagerBypass && !owners.includes(message.author.id)) {
           const embed = new EmbedBuilder()
             .setColor(client?.embedColor || EMBED_COLOR)
             .setAuthor({ name: ` DJ Role Required!`, iconURL: message.member.displayAvatarURL({ forceStatic: false }) })
-            .setDescription("You need the configured DJ role to use this command.");
+            .setDescription("You need the configured DJ role or Manage Server permission to use this command.");
           return message.channel.send({ embeds: [embed] });
         }
-      } else if (!owners.includes(message.author.id)) {
-        const embed = new EmbedBuilder()
-          .setColor(client?.embedColor || EMBED_COLOR)
-          .setAuthor({ name: ` DJ Role Not Configured!`, iconURL: message.member.displayAvatarURL({ forceStatic: false }) })
-          .setDescription("No DJ role is configured yet. Ask an admin to set one.");
-        return message.channel.send({ embeds: [embed] });
       }
     } catch (err) {
       client.logger?.log(`DJ role check error: ${err.message}`, "error");
@@ -435,6 +428,9 @@ You can use this command by voting on [Top.gg](https://top.gg/bot/${client.user.
     }
 
     await command.execute(message, args, client, prefix);
+    User.applyProgressMilestones(message.author.id, {
+      incrementCommands: 1,
+    }).catch(() => {});
   } catch (error) {
     await handleMessageCommandError(client, message, error, {
       source: "PrefixCommand",

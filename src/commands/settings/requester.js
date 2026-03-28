@@ -7,7 +7,6 @@ module.exports = {
   category: "settings",
   description: "Toggles nowplaying messages.",
   owner: false,
-  votelock:true,
   wl : true,
   execute: async (message, args, client, prefix) => {
     let ok = EMOJIS.ok;

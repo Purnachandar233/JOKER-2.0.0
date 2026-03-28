@@ -1,9 +1,16 @@
-const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require("discord.js");
+const {
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  ContainerBuilder,
+  EmbedBuilder,
+  MessageFlags,
+  TextDisplayBuilder,
+} = require("discord.js");
 const EMBED_COLOR = "#ff0051";
 
 const EMOJIS = require("../../utils/emoji.json");
 const twentyfourseven = require("../../schema/twentyfourseven");
-const Premium = require("../../schema/Premium");
 const { resolvePremiumAccess } = require("../../utils/premiumAccess");
 
 function toPositiveNumber(value, fallback) {
@@ -14,9 +21,21 @@ function toPositiveNumber(value, fallback) {
 const IDLE_LEAVE_DELAY_MS = toPositiveNumber(process.env.QUEUE_END_IDLE_LEAVE_MS, 2 * 60 * 1000);
 const IDLE_LEAVE_MINUTES = Math.max(1, Math.round(IDLE_LEAVE_DELAY_MS / 60_000));
 const IDLE_LEAVE_LABEL = `${IDLE_LEAVE_MINUTES} minute${IDLE_LEAVE_MINUTES === 1 ? "" : "s"}`;
-const PREMIUM_NUDGE_COOLDOWN_MS = toPositiveNumber(process.env.QUEUE_END_PREMIUM_NUDGE_COOLDOWN_MS, 24 * 60 * 60 * 1000);
-const PREMIUM_NUDGE_CACHE_MAX = toPositiveNumber(process.env.QUEUE_END_PREMIUM_NUDGE_CACHE_MAX, 5000);
+const QUEUE_END_AD_COOLDOWN_MS = toPositiveNumber(
+  process.env.QUEUE_END_AD_COOLDOWN_MS || process.env.QUEUE_END_PREMIUM_NUDGE_COOLDOWN_MS,
+  24 * 60 * 60 * 1000
+);
+const QUEUE_END_AD_CACHE_MAX = toPositiveNumber(
+  process.env.QUEUE_END_AD_CACHE_MAX || process.env.QUEUE_END_PREMIUM_NUDGE_CACHE_MAX,
+  5000
+);
 const LOG_QUEUE_EVENTS = String(process.env.LOG_QUEUE_EVENTS || "false").toLowerCase() === "true";
+
+function resolveAccentColor(color) {
+  if (typeof color === "number" && Number.isFinite(color)) return color;
+  const parsed = parseInt(String(color || "").replace(/^#/, ""), 16);
+  return Number.isFinite(parsed) ? parsed : 0xff0051;
+}
 
 function logQueueEvent(client, message, level = "info") {
   if (!LOG_QUEUE_EVENTS) return;
@@ -90,38 +109,26 @@ function clearIdleLeaveTimer(client, guildId) {
   timers.delete(guildId);
 }
 
-function prunePremiumNudgeCooldown(client, now = Date.now()) {
-  const cooldownMap = client.__queueEndPremiumNudgeCooldown;
+function pruneQueueEndAdCooldown(client, now = Date.now()) {
+  const cooldownMap = client.__queueEndAdCooldown;
   if (!(cooldownMap instanceof Map)) return;
 
   for (const [guildId, lastSentAt] of cooldownMap.entries()) {
     const raw = Number(lastSentAt || 0);
-    if (!Number.isFinite(raw) || raw <= 0 || (now - raw) >= PREMIUM_NUDGE_COOLDOWN_MS) {
+    if (!Number.isFinite(raw) || raw <= 0 || (now - raw) >= QUEUE_END_AD_COOLDOWN_MS) {
       cooldownMap.delete(guildId);
     }
   }
 
-  if (cooldownMap.size <= PREMIUM_NUDGE_CACHE_MAX) return;
+  if (cooldownMap.size <= QUEUE_END_AD_CACHE_MAX) return;
 
-  const overflow = cooldownMap.size - PREMIUM_NUDGE_CACHE_MAX;
+  const overflow = cooldownMap.size - QUEUE_END_AD_CACHE_MAX;
   let removed = 0;
   for (const guildId of cooldownMap.keys()) {
     cooldownMap.delete(guildId);
     removed += 1;
     if (removed >= overflow) break;
   }
-}
-
-async function hasGuildPremium(guildId) {
-  const premiumDoc = await Premium.findOne({ Id: guildId, Type: "guild" }).catch(() => null);
-  if (!premiumDoc) return false;
-  if (premiumDoc.Permanent) return true;
-
-  const expireAt = Number(premiumDoc.Expire || 0);
-  if (expireAt > Date.now()) return true;
-
-  await premiumDoc.deleteOne().catch(() => {});
-  return false;
 }
 
 function playerHasActiveQueue(player) {
@@ -160,10 +167,10 @@ function getRequesterId(player, track) {
   return requesterId ? String(requesterId) : null;
 }
 
-function hasQueueEndPremiumNudgeCooldown(client, guildId, now = Date.now()) {
-  const cooldownMap = client.__queueEndPremiumNudgeCooldown;
+function hasQueueEndAdCooldown(client, guildId, now = Date.now()) {
+  const cooldownMap = client.__queueEndAdCooldown;
   if (!cooldownMap) return false;
-  prunePremiumNudgeCooldown(client, now);
+  pruneQueueEndAdCooldown(client, now);
 
   const lastSentAt = Number(cooldownMap.get(guildId) || 0);
   if (!Number.isFinite(lastSentAt) || lastSentAt <= 0) {
@@ -171,7 +178,7 @@ function hasQueueEndPremiumNudgeCooldown(client, guildId, now = Date.now()) {
     return false;
   }
 
-  if ((now - lastSentAt) >= PREMIUM_NUDGE_COOLDOWN_MS) {
+  if ((now - lastSentAt) >= QUEUE_END_AD_COOLDOWN_MS) {
     cooldownMap.delete(guildId);
     return false;
   }
@@ -179,29 +186,26 @@ function hasQueueEndPremiumNudgeCooldown(client, guildId, now = Date.now()) {
   return true;
 }
 
-function markQueueEndPremiumNudgeSent(client, guildId, now = Date.now()) {
-  if (!client.__queueEndPremiumNudgeCooldown) {
-    client.__queueEndPremiumNudgeCooldown = new Map();
+function markQueueEndAdSent(client, guildId, now = Date.now()) {
+  if (!client.__queueEndAdCooldown) {
+    client.__queueEndAdCooldown = new Map();
   }
 
-  prunePremiumNudgeCooldown(client, now);
-  client.__queueEndPremiumNudgeCooldown.set(guildId, now);
+  pruneQueueEndAdCooldown(client, now);
+  client.__queueEndAdCooldown.set(guildId, now);
 }
 
-async function maybeSendQueueEndPremiumNudge(client, player, track, textChannel, { guildPremiumHint = false } = {}) {
-  if (!textChannel) return false;
-  if (guildPremiumHint) return false;
-
+async function getQueueEndAdOffer(client, player, track) {
   const now = Date.now();
-  if (hasQueueEndPremiumNudgeCooldown(client, player.guildId, now)) {
-    return false;
+  if (hasQueueEndAdCooldown(client, player.guildId, now)) {
+    return null;
   }
 
   const requesterId = getRequesterId(player, track);
   let premiumAccess = {
     userPremium: false,
-    guildPremium: Boolean(guildPremiumHint),
-    hasAccess: Boolean(guildPremiumHint),
+    guildPremium: false,
+    hasAccess: false,
   };
 
   try {
@@ -209,33 +213,66 @@ async function maybeSendQueueEndPremiumNudge(client, player, track, textChannel,
   } catch (error) {
     logQueueEvent(
       client,
-      `Queue-end premium nudge check failed in guild ${player.guildId}: ${error?.message || error}`,
+      `Queue-end offer access check failed in guild ${player.guildId}: ${error?.message || error}`,
       "warn"
     );
   }
 
   if (premiumAccess?.hasAccess || premiumAccess?.userPremium || premiumAccess?.guildPremium) {
-    return false;
+    return null;
   }
 
-  const voteUrl = `https://top.gg/bot/${client.user.id}/vote`;
-  const premiumUrl = `https://top.gg/bot/${client.user.id}`;
-  const supportUrl = client?.legalLinks?.supportServerUrl || "https://discord.gg/JQzBqgmwFm";
+  return {
+    voteUrl: `https://top.gg/bot/${client.user.id}/vote`,
+    premiumUrl: `https://top.gg/bot/${client.user.id}`,
+    supportUrl: client?.legalLinks?.supportServerUrl || "https://discord.gg/JQzBqgmwFm",
+    checkedAt: now,
+  };
+}
+
+function buildQueueEndFallbackEmbed(client, offer = null) {
+  const embed = new EmbedBuilder()
+    .setColor(client?.embedColor || EMBED_COLOR)
+    .setAuthor({ name: "Queue empty!", iconURL: client.user.displayAvatarURL() })
+    .setDescription(
+      "Add more songs, enable autoplay, or turn on 24/7 mode if you want me to stay connected after the queue ends."
+    );
+
+  if (offer) {
+    embed.addFields(
+      {
+        name: "Vote",
+        value: "Vote on Top.gg to unlock temporary premium access for 12 hours.",
+        inline: true,
+      },
+      {
+        name: "Premium",
+        value: "Premium unlocks extra commands and lets you use features like autoplay or 24/7 mode.",
+        inline: true,
+      }
+    );
+  }
+
+  return embed;
+}
+
+function buildQueueEndActionRow(client, offer) {
+  if (!offer) return null;
 
   const voteButton = new ButtonBuilder()
     .setStyle(ButtonStyle.Link)
     .setLabel("Vote")
-    .setURL(voteUrl);
+    .setURL(offer.voteUrl);
 
   const premiumButton = new ButtonBuilder()
     .setStyle(ButtonStyle.Link)
     .setLabel("Premium")
-    .setURL(premiumUrl);
+    .setURL(offer.premiumUrl);
 
   const supportButton = new ButtonBuilder()
     .setStyle(ButtonStyle.Link)
     .setLabel("Support")
-    .setURL(supportUrl);
+    .setURL(offer.supportUrl);
 
   try {
     if (EMOJIS.vote) voteButton.setEmoji(EMOJIS.vote);
@@ -247,43 +284,61 @@ async function maybeSendQueueEndPremiumNudge(client, player, track, textChannel,
     if (EMOJIS.support) supportButton.setEmoji(EMOJIS.support);
   } catch (_e) {}
 
-  const row = new ActionRowBuilder().addComponents(voteButton, premiumButton, supportButton);
+  return new ActionRowBuilder().addComponents(voteButton, premiumButton, supportButton);
+}
 
-  const embed = new EmbedBuilder()
-    .setColor(client?.embedColor || EMBED_COLOR)
-    .setAuthor({ name: "Want A Better Music Experience?", iconURL: client.user.displayAvatarURL() })
-    .setDescription(
-      "The queue has ended. If you want a smoother experience, you can vote for temporary access or review premium information from the official bot links below."
-    )
-    .addFields(
-      {
-        name: "Vote",
-        value: "Vote on Top.gg to unlock temporary premium-style access for 12 hours.",
-        inline: true,
-      },
-      {
-        name: "Premium",
-        value: "Keep music running longer with premium playback perks and extra features.",
-        inline: true,
-      }
-    )
-    .setFooter({ text: "Shown occasionally after queue end, not on every queue." });
+function buildQueueEndV2Container(client, offer = null) {
+  const container = new ContainerBuilder()
+    .setAccentColor(resolveAccentColor(client?.embedColor || EMBED_COLOR))
+    .addTextDisplayComponents(
+      new TextDisplayBuilder().setContent("## Queue Empty"),
+      new TextDisplayBuilder().setContent(
+        "Add more songs, enable autoplay, or turn on 24/7 mode if you want me to stay connected after the queue ends."
+      )
+    );
+
+  if (offer) {
+    const row = buildQueueEndActionRow(client, offer);
+    container
+      .addTextDisplayComponents(
+        new TextDisplayBuilder().setContent("### Want More Perks?"),
+        new TextDisplayBuilder().setContent(
+          "Vote for temporary premium access or review premium information below. This promo is shown only sometimes after queue end."
+        )
+      );
+
+    if (row) {
+      container.addActionRowComponents(row);
+    }
+  }
+
+  return container;
+}
+
+async function sendQueueEndNotice(client, player, textChannel, offer = null) {
+  if (!textChannel) return false;
 
   try {
-    await textChannel.send({ embeds: [embed], components: [row] });
-    markQueueEndPremiumNudgeSent(client, player.guildId, now);
+    await textChannel.send({
+      flags: MessageFlags.IsComponentsV2,
+      components: [buildQueueEndV2Container(client, offer)],
+    });
+    if (offer) markQueueEndAdSent(client, player.guildId, offer.checkedAt || Date.now());
     return true;
-  } catch (_embedErr) {
+  } catch (_v2Err) {
+    const fallbackEmbed = buildQueueEndFallbackEmbed(client, offer);
+    const actionRow = buildQueueEndActionRow(client, offer);
+
     try {
-      await textChannel.send(
-        `Queue ended. Want a better experience? Vote here: ${voteUrl}\nPremium: ${premiumUrl}\nSupport: ${supportUrl}`
-      );
-      markQueueEndPremiumNudgeSent(client, player.guildId, now);
+      const payload = { embeds: [fallbackEmbed] };
+      if (actionRow) payload.components = [actionRow];
+      await textChannel.send(payload);
+      if (offer) markQueueEndAdSent(client, player.guildId, offer.checkedAt || Date.now());
       return true;
     } catch (plainErr) {
       logQueueEvent(
         client,
-        `Queue-end premium nudge failed in guild ${player.guildId}: ${plainErr?.message || plainErr}`,
+        `Queue-end notice send failed in guild ${player.guildId}: ${plainErr?.message || plainErr}`,
         "warn"
       );
       return false;
@@ -294,7 +349,7 @@ async function maybeSendQueueEndPremiumNudge(client, player, track, textChannel,
 function buildQueueLeaveEmbed(client) {
   return new EmbedBuilder()
     .setColor(client?.embedColor || EMBED_COLOR)
-    .setAuthor({ name: " Leaving Voice Channel!", iconURL: client.user.displayAvatarURL() })
+    .setAuthor({ name: "Leaving Voice Channel!", iconURL: client.user.displayAvatarURL() })
     .setDescription(`Since ${IDLE_LEAVE_LABEL} nobody is listening, I've left the voice channel. Want the bot to stay in your channel all the time? Use the /247 command!`);
 }
 
@@ -314,7 +369,7 @@ async function sendQueueLeaveNotice(client, player, fallbackChannel = null) {
     return true;
   } catch (_embedErr) {
     try {
-      await textChannel.send(`Leaving voice channel: queue ended, no 24/7, no premium, and no listeners stayed for ${IDLE_LEAVE_LABEL}.`);
+      await textChannel.send(`Leaving voice channel: queue ended, 24/7 is off, and no listeners stayed for ${IDLE_LEAVE_LABEL}.`);
       return true;
     } catch (plainErr) {
       logQueueEvent(client,
@@ -342,22 +397,11 @@ module.exports = async (client, player, track, payload) => {
 
   const suppressQueueEndUntil = Number(player.get("suppressQueueEndNoticeUntil") || 0);
   const suppressQueueEndNotice = suppressQueueEndUntil > Date.now();
-  if (!suppressQueueEndNotice && channel) {
-    const queueEndEmbed = new EmbedBuilder()
-      .setColor(client?.embedColor || EMBED_COLOR)
-      .setAuthor({ name: "Queue empty!", iconURL: client.user.displayAvatarURL() })
-      .setDescription(
-        ` Add more songs or enable [autoplay](https://top.gg/bot/${client.user.id}) or [24/7](https://top.gg/bot/${client.user.id}) mode to listen uninterrupetd music!.`
-      );
-
-    await channel.send({ embeds: [queueEndEmbed] }).catch(() => {});
-  }
 
   const isAutoplayEnabled = player.get && player.get("autoplay") === true;
   if (isAutoplayEnabled) return;
 
   let is247Enabled = false;
-  let premiumEnabled = false;
 
   try {
     const doc = await twentyfourseven.findOne({ guildID: player.guildId });
@@ -366,17 +410,14 @@ module.exports = async (client, player, track, payload) => {
     client.logger?.log?.(`Failed to read 24/7 setting for guild ${player.guildId}: ${err?.message || err}`, "warn");
   }
 
-  try {
-    premiumEnabled = await hasGuildPremium(player.guildId);
-  } catch (err) {
-    client.logger?.log?.(`Failed to read premium setting for guild ${player.guildId}: ${err?.message || err}`, "warn");
+  if (!suppressQueueEndNotice && channel) {
+    const offer = !is247Enabled
+      ? await getQueueEndAdOffer(client, player, track).catch(() => null)
+      : null;
+    await sendQueueEndNotice(client, player, channel, offer).catch(() => {});
   }
 
-  if (!suppressQueueEndNotice && channel && !isAutoplayEnabled && !is247Enabled) {
-    await maybeSendQueueEndPremiumNudge(client, player, track, channel, { guildPremiumHint: premiumEnabled }).catch(() => {});
-  }
-
-  if (is247Enabled || premiumEnabled) return;
+  if (is247Enabled) return;
 
   if (!client.__queueEndLeaveTimers) {
     client.__queueEndLeaveTimers = new Map();
@@ -393,12 +434,8 @@ module.exports = async (client, player, track, payload) => {
       const autoplayStillEnabled = player.get && player.get("autoplay") === true;
       if (autoplayStillEnabled) return;
 
-      const [keepConnected247, hasPremiumNow] = await Promise.all([
-        twentyfourseven.findOne({ guildID: player.guildId }).catch(() => null),
-        hasGuildPremium(player.guildId).catch(() => false),
-      ]);
-
-      if (keepConnected247 || hasPremiumNow) return;
+      const keepConnected247 = await twentyfourseven.findOne({ guildID: player.guildId }).catch(() => null);
+      if (keepConnected247) return;
 
       const voiceChannel = await resolveVoiceChannel(client, player);
 

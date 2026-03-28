@@ -6,6 +6,7 @@ module.exports = {
     name: "volume",
     description: "Changes the volume of the currently playing track.",
     owner: false,
+    djonly: true,
     player: true,
     inVoiceChannel: true,
     sameVoiceChannel: true,

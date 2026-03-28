@@ -7,7 +7,7 @@ module.exports = {
   aliases: ["cq","clear","removeall","annitesai","deletequeue"],
   description: 'clears the queue',
   owner: false,
-  djonly : false,
+  djonly : true,
   wl : true,
   execute: async (message, args, client, prefix) => {
 

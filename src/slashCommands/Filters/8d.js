@@ -62,16 +62,16 @@ module.exports = {
         return await interaction.editReply({embeds: [noperms]});
     }
         //
-        if(!player.eightD === true){
+        if (player.eightD !== true) {
             player.eightD = true;
       const noperms = new EmbedBuilder()
       .setColor(interaction.client?.embedColor || '#ff0051')
             .setDescription(`${ok} 8D has been \`enabled\`. - <@!${interaction.member.id}>`)
-            const noperms1 = new EmbedBuilder()
+      const noperms1 = new EmbedBuilder()
       .setColor(interaction.client?.embedColor || '#ff0051')
             .setDescription(`${ok} Applying the \`8D\` Filter(*It might take up to 5 seconds until you hear the Filter*)`)
       await interaction.editReply({embeds: [noperms1]});
-      interaction.channel.send({embeds: [noperms]}).then(responce => {
+      return interaction.channel.send({embeds: [noperms]}).then(responce => {
         setTimeout(() => {
             try {
                 responce.delete().catch(() => {

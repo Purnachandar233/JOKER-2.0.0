@@ -6,7 +6,6 @@ module.exports = {
   name: "resetdj",
   description: "Reset the DJ role configuration for this server",
   owner: false,
-  votelock: true,
   wl: true,
   options: [],
 

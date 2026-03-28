@@ -6,7 +6,6 @@ module.exports = {
   name: "setprefix",
   description: "Set a custom server prefix (max 5 chars)",
   owner: false,
-  votelock: true,
   wl: true,
   options: [
     {

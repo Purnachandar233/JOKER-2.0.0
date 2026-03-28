@@ -5,8 +5,7 @@ const formatDuration = require('../utils/formatDuration');
 const sanitize = require('../utils/sanitize');
 const GuildFilters = require('../schema/guildFilters');
 const queueToolsModule = require('../utils/queue');
-const filterSettingsModule = require('../utils/settings');
-const musicChecksModule = require('../utils/musicChecks');
+const { withTimeout } = require('../utils/promiseHandler');
 const { reportStartupError } = require('../utils/errorHandler');
 
 // Import all services
@@ -107,6 +106,10 @@ function serializeSlashCommandDefinitions(commands) {
 }
 
 const DEFAULT_CORE_LAVALINK_WAIT_MS = toPositiveNumber(process.env.LAVALINK_COMMAND_WAIT_MS, 2500);
+const DEFAULT_CORE_SEARCH_TIMEOUT_MS = toPositiveNumber(process.env.LAVALINK_SEARCH_TIMEOUT_MS, 3000);
+const DEFAULT_CORE_VOICE_BRIDGE_TIMEOUT_MS = toPositiveNumber(process.env.LAVALINK_VOICE_BRIDGE_TIMEOUT_MS, 5000);
+const DEFAULT_CORE_SEARCH_SOURCE_ORDER = ["spotify", "soundcloud", "applemusic", "deezer", "bandcamp"];
+const CORE_SOURCE_SEARCH_ERROR_PATTERN = /has not '.*' enabled|has not .* enabled|required to have|Query \/ Link Provided for this Source/i;
 
 const coreQueueTools = Object.freeze({
     getQueueArray(player) {
@@ -314,10 +317,272 @@ const coreFilterSettings = Object.freeze({
     },
 });
 
+const coreFilterTools = Object.freeze({
+    getEqualizerBands(player) {
+        const bands = Array.isArray(player?.bands) ? player.bands : new Array(15).fill(0);
+        return bands.map((gain, index) => ({
+            band: Number(index),
+            gain: Number(gain) || 0,
+        }));
+    },
+
+    canUseRawFilters(player) {
+        return Boolean(player?.node && typeof player.node.send === 'function');
+    },
+
+    sendRawFilters(player, guildId, filters = {}) {
+        if (!coreFilterTools.canUseRawFilters(player) || !guildId) return false;
+
+        player.node.send({
+            op: 'filters',
+            guildId,
+            equalizer: coreFilterTools.getEqualizerBands(player),
+            ...filters,
+        });
+
+        return true;
+    },
+
+    async resetPlayerFilters(player, guildId) {
+        if (!player) return false;
+
+        if (typeof player.reset === 'function') {
+            try {
+                await player.reset();
+                return true;
+            } catch (_error) {}
+        }
+
+        if (typeof player.clearEQ === 'function') {
+            try {
+                player.clearEQ();
+            } catch (_error) {}
+        }
+
+        return coreFilterTools.sendRawFilters(player, guildId, {});
+    },
+});
+
 function buildCoreErrorEmbed(client, text) {
     return new EmbedBuilder()
         .setColor(client?.embedColor || '#ff0051')
         .setDescription(text);
+}
+
+function normalizeCoreSourceName(source) {
+    const value = String(source || "").trim().toLowerCase();
+    if (!value) return null;
+
+    if (['spotify', 'spsearch', 'sp'].includes(value)) return 'spotify';
+    if (['soundcloud', 'scsearch', 'sc'].includes(value)) return 'soundcloud';
+    if (['applemusic', 'apple', 'apple music', 'amsearch', 'am'].includes(value)) return 'applemusic';
+    if (['deezer', 'dzsearch', 'dz', 'dzisrc'].includes(value)) return 'deezer';
+    if (['bandcamp', 'bcsearch', 'bc'].includes(value)) return 'bandcamp';
+
+    return value;
+}
+
+function uniqueCoreSources(list) {
+    return [...new Set((Array.isArray(list) ? list : [list]).map(normalizeCoreSourceName).filter(Boolean))];
+}
+
+function orderCoreSourcesForPlayer(player, preferredSources = DEFAULT_CORE_SEARCH_SOURCE_ORDER) {
+    const ordered = uniqueCoreSources(preferredSources);
+    const preferred = normalizeCoreSourceName(
+        typeof player?.get === 'function' ? player.get('preferredSearchSource') : null
+    );
+
+    if (!preferred || !ordered.includes(preferred)) {
+        return ordered;
+    }
+
+    return [preferred, ...ordered.filter((source) => source !== preferred)];
+}
+
+function getAvailableCoreSearchSources(client, player, preferredSources = DEFAULT_CORE_SEARCH_SOURCE_ORDER) {
+    const preferred = orderCoreSourcesForPlayer(player, preferredSources);
+    const nodes = [];
+
+    if (player?.node) nodes.push(player.node);
+
+    for (const node of Array.from(client?.lavalink?.nodeManager?.nodes?.values?.() || [])) {
+        if (!nodes.includes(node)) nodes.push(node);
+    }
+
+    const advertisedSources = new Set();
+    let hasNodeInfo = false;
+
+    for (const node of nodes) {
+        if (!Array.isArray(node?.info?.sourceManagers)) continue;
+        hasNodeInfo = true;
+
+        for (const source of node.info.sourceManagers) {
+            const normalized = normalizeCoreSourceName(source);
+            if (normalized) advertisedSources.add(normalized);
+        }
+    }
+
+    return {
+        sources: hasNodeInfo ? preferred.filter((source) => advertisedSources.has(source)) : preferred,
+        advertisedSources: [...advertisedSources],
+        hasNodeInfo,
+    };
+}
+
+function formatCoreSourceList(sources) {
+    return Array.isArray(sources) && sources.length ? sources.join(', ') : 'none';
+}
+
+function isCoreTimeoutLikeError(error) {
+    return /timeout|timed out|aborted/i.test(String(error?.message || error || ''));
+}
+
+function shouldSuppressCoreSourceSearchError(error) {
+    return CORE_SOURCE_SEARCH_ERROR_PATTERN.test(String(error?.message || error || ''));
+}
+
+async function waitForCoreVoiceBridge({ player, guild, channelId, timeoutMs = DEFAULT_CORE_VOICE_BRIDGE_TIMEOUT_MS, pollIntervalMs = 200 }) {
+    const startedAt = Date.now();
+
+    while ((Date.now() - startedAt) < timeoutMs) {
+        const botChannelId = guild?.members?.me?.voice?.channelId || null;
+        const hasVoiceBridge = Boolean(
+            player?.voice?.sessionId &&
+            player?.voice?.token &&
+            player?.voice?.endpoint
+        );
+
+        if (botChannelId === channelId && hasVoiceBridge) {
+            return true;
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+    }
+
+    return false;
+}
+
+async function ensureCorePlayerPlayback(client, {
+    player,
+    guild,
+    channelId,
+    directTrack = null,
+    timeoutMs = DEFAULT_CORE_VOICE_BRIDGE_TIMEOUT_MS,
+    recoverVolume = true,
+} = {}) {
+    try {
+        if (!player || !guild || !channelId) return false;
+
+        if (player?.state !== 'CONNECTED' || guild?.members?.me?.voice?.channelId !== channelId) {
+            await player.connect();
+        }
+
+        const hasVoiceBridge = Boolean(
+            player?.voice?.sessionId &&
+            player?.voice?.token &&
+            player?.voice?.endpoint &&
+            guild?.members?.me?.voice?.channelId === channelId
+        );
+
+        if (!hasVoiceBridge) {
+            const voiceReady = await waitForCoreVoiceBridge({ player, guild, channelId, timeoutMs });
+            if (!voiceReady) return false;
+        }
+
+        if (recoverVolume) {
+            try {
+                const currentVolume = Number(player.volume ?? player?.options?.volume ?? 100);
+                if (Number.isFinite(currentVolume) && currentVolume <= 0) {
+                    await player.setVolume(100);
+                }
+            } catch (_error) {}
+        }
+
+        if (directTrack) {
+            await player.play({ clientTrack: directTrack, paused: false });
+        } else {
+            await player.play({ paused: false });
+        }
+
+        return true;
+    } catch (error) {
+        client?.logger?.log?.(`ensurePlayerPlayback error: ${error?.message || error}`, 'error');
+        return false;
+    }
+}
+
+async function searchCoreWithAvailableSources(client, {
+    player,
+    queryText,
+    requester,
+    preferredSources = DEFAULT_CORE_SEARCH_SOURCE_ORDER,
+    timeoutMs = DEFAULT_CORE_SEARCH_TIMEOUT_MS,
+    logPrefix = 'Search',
+    maxSourceAttempts = 2,
+    rememberPreferredSource = true,
+} = {}) {
+    const availability = getAvailableCoreSearchSources(client, player, preferredSources);
+    const attemptLimit = Math.max(1, Number(maxSourceAttempts) || 1);
+    const attemptedSources = availability.sources.slice(0, attemptLimit);
+    let lastError = null;
+
+    if (!attemptedSources.length) {
+        return {
+            result: null,
+            attemptedSources,
+            advertisedSources: availability.advertisedSources,
+            hasNodeInfo: availability.hasNodeInfo,
+            lastError: new Error(
+                availability.hasNodeInfo
+                    ? `No supported search sources are enabled on this Lavalink node. Available sources: ${formatCoreSourceList(availability.advertisedSources)}`
+                    : 'No searchable sources are available yet.'
+            ),
+            matchedSource: null,
+        };
+    }
+
+    for (const source of attemptedSources) {
+        try {
+            const result = await withTimeout(
+                player.search({ query: queryText, source }, requester),
+                timeoutMs,
+                `${source} search timeout`
+            );
+
+            if (result?.loadType === 'LOAD_FAILED') {
+                throw result.exception || new Error(`${source} search failed`);
+            }
+
+            if (result?.tracks?.length) {
+                if (rememberPreferredSource && typeof player?.set === 'function') {
+                    player.set('preferredSearchSource', source);
+                }
+
+                return {
+                    result,
+                    attemptedSources,
+                    advertisedSources: availability.advertisedSources,
+                    hasNodeInfo: availability.hasNodeInfo,
+                    lastError: null,
+                    matchedSource: source,
+                };
+            }
+        } catch (error) {
+            lastError = error;
+            if (!shouldSuppressCoreSourceSearchError(error)) {
+                client?.logger?.log?.(`${logPrefix} failed for ${source}: ${error?.message || error}`, 'warn');
+            }
+        }
+    }
+
+    return {
+        result: null,
+        attemptedSources,
+        advertisedSources: availability.advertisedSources,
+        hasNodeInfo: availability.hasNodeInfo,
+        lastError,
+        matchedSource: null,
+    };
 }
 
 async function runCoreMusicChecks(client, interaction, options = {}) {
@@ -448,8 +713,23 @@ module.exports = async (client) => {
 
     client.core = client.core || {};
     client.core.queue = queueToolsModule;
-    client.core.filterSettings = filterSettingsModule;
-    client.runMusicChecks = async (interaction, options = {}) => musicChecksModule.runMusicChecks(client, interaction, options);
+    client.core.filterSettings = coreFilterSettings;
+    client.core.filters = coreFilterTools;
+    client.core.music = Object.freeze({
+        DEFAULT_SEARCH_SOURCE_ORDER: DEFAULT_CORE_SEARCH_SOURCE_ORDER,
+        formatSourceList: formatCoreSourceList,
+        isTimeoutLikeError: isCoreTimeoutLikeError,
+        getAvailableSearchSources(player, preferredSources = DEFAULT_CORE_SEARCH_SOURCE_ORDER) {
+            return getAvailableCoreSearchSources(client, player, preferredSources);
+        },
+        async searchWithAvailableSources(options = {}) {
+            return searchCoreWithAvailableSources(client, options);
+        },
+        async ensurePlayerPlayback(options = {}) {
+            return ensureCorePlayerPlayback(client, options);
+        },
+    });
+    client.runMusicChecks = async (interaction, options = {}) => runCoreMusicChecks(client, interaction, options);
 
     client.on("raw", (d) => {
         if (!client.lavalink) return;

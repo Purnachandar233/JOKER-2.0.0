@@ -4,7 +4,9 @@ const {
   ButtonBuilder,
   ActionRowBuilder,
   ButtonStyle,
-  StringSelectMenuBuilder,
+  ChannelSelectMenuBuilder,
+  RoleSelectMenuBuilder,
+  ChannelType,
 } = require("discord.js");
 const {
   DEFAULT_WELCOME_EMBED_MESSAGE,
@@ -20,21 +22,18 @@ function resolveAccentColor(color) {
   return Number.isFinite(parsed) ? parsed : 0xff0051;
 }
 
-function getQuickStartLines({ slash = false }) {
-  if (slash) {
-    return [
-      "Choose a channel, then set your embed and text templates.",
-      "Toggle Embed or Text delivery depending on what you want to send.",
-    ];
-  }
-
+function getQuickStartLines() {
   return [
-    "Choose a channel, then set your embed and text templates.",
-    "Toggle Embed or Text delivery depending on what you want to send.",
+    "Choose a welcome channel first.",
+    "Set the embed and text templates you want.",
+    "Use the clear buttons to remove either one instantly.",
+    "If only one template exists, only that one is sent.",
   ];
 }
 
 function summarizeTemplate(template, fallback, maxLength = 180) {
+  const raw = String(template || "").trim();
+  if (!raw) return "`Not set`";
   const resolved = resolveWelcomeTemplate(template, fallback);
   const normalized = resolved.replace(/\s+/g, " ").trim();
   return `\`${normalized.slice(0, maxLength)}${normalized.length > maxLength ? "..." : ""}\``;
@@ -49,22 +48,26 @@ function buildWelcomeSetupPanel({
   statusMessage = null,
 } = {}) {
   const enabled = Boolean(data?.enabled);
-  const embedEnabled = Boolean(data?.embedEnabled !== false);
-  const textEnabled = Boolean(data?.textEnabled);
+  const embedConfigured = Boolean(String(data?.message || "").trim());
+  const textConfigured = Boolean(String(data?.textMessage || "").trim());
   const channelLabel = data?.channelID ? `<#${data.channelID}>` : "`Not set`";
   const roleLabel = data?.roleID ? `<@&${data.roleID}>` : "`Not set`";
   const colorLabel = `\`${data?.embedColor || embedColor}\``;
-  const titleLabel = `\`${String(data?.title || DEFAULT_WELCOME_TITLE).slice(0, 120)}\``;
+  const titleLabel = embedConfigured
+    ? `\`${String(data?.title || DEFAULT_WELCOME_TITLE).slice(0, 120)}\``
+    : "`Not set`";
   const embedMessageLabel = summarizeTemplate(data?.message, DEFAULT_WELCOME_EMBED_MESSAGE);
   const textMessageLabel = summarizeTemplate(data?.textMessage, DEFAULT_WELCOME_TEXT_MESSAGE);
   const deliveryLabel = [
-    embedEnabled ? "`Embed`" : null,
-    textEnabled ? "`Text`" : null,
+    embedConfigured ? "`Embed`" : null,
+    textConfigured ? "`Text`" : null,
   ].filter(Boolean).join(" + ") || "`None`";
   const quickStart = getQuickStartLines({ prefix, slash }).join("\n");
   const variables = welcomeVariablesText();
   const guildName = guild?.name || "This Server";
   const trimmedStatusMessage = String(statusMessage || "").trim();
+  const selectedChannel = data?.channelID ? guild?.channels?.cache?.get?.(data.channelID) : null;
+  const selectedRole = data?.roleID ? guild?.roles?.cache?.get?.(data.roleID) : null;
 
   const statusLines = [
     `Status: ${enabled ? "`Enabled`" : "`Disabled`"}`,
@@ -74,42 +77,20 @@ function buildWelcomeSetupPanel({
     `Color: ${colorLabel}`,
   ].join("\n");
 
-  const channelOptions = guild.channels.cache
-    .filter(ch => ch.isTextBased())
-    .map(ch => ({
-      label: ch.name,
-      value: ch.id,
-      description: `#${ch.name}`,
-    }))
-    .slice(0, 25);
-
-  const channelSelect = new StringSelectMenuBuilder()
+  const channelSelect = new ChannelSelectMenuBuilder()
     .setCustomId("welcome_select_channel")
-    .setPlaceholder("Select welcome channel")
-    .addOptions(
-      channelOptions.length > 0
-        ? channelOptions
-        : [{ label: "No text channels", value: "none", description: "Create a channel first" }]
-    );
+    .setPlaceholder(selectedChannel ? `Channel: #${selectedChannel.name}` : "Choose welcome channel")
+    .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
+    .setMinValues(1)
+    .setMaxValues(1);
+  if (selectedChannel?.id) channelSelect.setDefaultChannels(selectedChannel.id);
 
-  const roleOptions = guild.roles.cache
-    .filter(role => !role.managed && role.id !== guild.id)
-    .map(role => ({
-      label: role.name,
-      value: role.id,
-      description: `@${role.name}`,
-    }))
-    .slice(0, 25);
-
-  const roleSelect = new StringSelectMenuBuilder()
+  const roleSelect = new RoleSelectMenuBuilder()
     .setCustomId("welcome_select_role")
-    .setPlaceholder("Select auto-role (optional)")
-    .setRequired(false)
-    .addOptions(
-      roleOptions.length > 0
-        ? roleOptions
-        : [{ label: "No roles available", value: "none", description: "Create a role first" }]
-    );
+    .setPlaceholder(selectedRole ? `Role: @${selectedRole.name}` : "Choose auto-role (optional)")
+    .setMinValues(1)
+    .setMaxValues(1);
+  if (selectedRole?.id) roleSelect.setDefaultRoles(selectedRole.id);
 
   const selectRow1 = new ActionRowBuilder().addComponents(channelSelect);
   const selectRow2 = new ActionRowBuilder().addComponents(roleSelect);
@@ -130,37 +111,33 @@ function buildWelcomeSetupPanel({
     new ButtonBuilder()
       .setCustomId("welcome_set_color")
       .setLabel("Color")
-      .setStyle(ButtonStyle.Primary),
+      .setStyle(ButtonStyle.Primary)
+  );
+
+  const actionButtons = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId("welcome_clear_message")
+      .setLabel("Clear Embed")
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(!embedConfigured),
+    new ButtonBuilder()
+      .setCustomId("welcome_clear_text_message")
+      .setLabel("Clear Text")
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(!textConfigured),
     new ButtonBuilder()
       .setCustomId("welcome_clear_role")
       .setLabel("Clear Role")
       .setStyle(ButtonStyle.Secondary)
-  );
-
-  const toggleButtons = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId("welcome_toggle_embed")
-      .setLabel(embedEnabled ? "Embed On" : "Embed Off")
-      .setStyle(embedEnabled ? ButtonStyle.Success : ButtonStyle.Secondary),
-    new ButtonBuilder()
-      .setCustomId("welcome_toggle_text")
-      .setLabel(textEnabled ? "Text On" : "Text Off")
-      .setStyle(textEnabled ? ButtonStyle.Success : ButtonStyle.Secondary),
-    new ButtonBuilder()
-      .setCustomId("welcome_toggle_enable")
-      .setLabel(enabled ? "Enabled" : "Disabled")
-      .setStyle(enabled ? ButtonStyle.Danger : ButtonStyle.Success)
-  );
-
-  const actionButtons = new ActionRowBuilder().addComponents(
+      .setDisabled(!data?.roleID),
     new ButtonBuilder()
       .setCustomId("welcome_test")
       .setLabel("Test Welcome")
       .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
-      .setCustomId("welcome_refresh")
-      .setLabel("Refresh")
-      .setStyle(ButtonStyle.Secondary)
+      .setCustomId("welcome_toggle_enable")
+      .setLabel(enabled ? "Disable System" : "Enable System")
+      .setStyle(enabled ? ButtonStyle.Danger : ButtonStyle.Success)
   );
 
   const textDisplays = [];
@@ -172,11 +149,11 @@ function buildWelcomeSetupPanel({
 
   textDisplays.push(
     new TextDisplayBuilder().setContent(`## Welcome Setup Panel\nConfigure welcomes for **${guildName}**.`),
-    new TextDisplayBuilder().setContent(`### Current Settings\n${statusLines}`),
+    new TextDisplayBuilder().setContent(`### Overview\n${statusLines}`),
     new TextDisplayBuilder().setContent(
-      `### Content\nTitle: ${titleLabel}\nEmbed Message: ${embedMessageLabel}\nText Message: ${textMessageLabel}`
+      `### Templates\nTitle: ${titleLabel}\nEmbed Message: ${embedMessageLabel}\nText Message: ${textMessageLabel}`
     ),
-    new TextDisplayBuilder().setContent(`### Quick Start\n${quickStart}`),
+    new TextDisplayBuilder().setContent(`### How It Works\n${quickStart}`),
     new TextDisplayBuilder().setContent(`### Variables\n${variables}`)
   );
 
@@ -188,7 +165,6 @@ function buildWelcomeSetupPanel({
         selectRow1,
         selectRow2,
         setupButtons,
-        toggleButtons,
         actionButtons
       ),
   ];

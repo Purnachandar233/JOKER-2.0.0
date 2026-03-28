@@ -69,7 +69,7 @@ module.exports = {
           .setTitle(`${getEmoji("server")} Welcome Setup`)
           .setDescription(
             `${ok} Use \`${prefix}welcome setup <#channel> [message]\` to configure.\n` +
-            `Use \`${prefix}welcome textmessage <message>\` and \`${prefix}welcome textmsg on|off\` for the text welcome.`
+            `Use \`${prefix}welcome textmessage <message>\` to add a text welcome.`
           );
         return message.reply({ embeds: [fallback], allowedMentions: { repliedUser: false } });
       }
@@ -97,11 +97,9 @@ module.exports = {
         {
           channelID: channel.id,
           message: template,
-          textMessage: DEFAULT_WELCOME_TEXT_MESSAGE,
+          textMessage: null,
           title: DEFAULT_WELCOME_TITLE,
-          enabled: true,
-          embedEnabled: true,
-          textEnabled: false
+          enabled: true
         },
         { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
       );
@@ -115,7 +113,7 @@ module.exports = {
       statField("Channel", `<#${channel.id}>`, "server"),
       statField("Status", "`Enabled`", "success"),
       { name: `${getEmoji("info")} Embed Message`, value: `\`${template}\``, inline: false },
-      { name: `${getEmoji("info")} Text Message`, value: `\`${DEFAULT_WELCOME_TEXT_MESSAGE}\``, inline: false }
+      { name: `${getEmoji("info")} Text Message`, value: "`Not set`", inline: false }
       ];
       if (Array.isArray(embedValue2) && embedValue2.length > 0) embed.addFields(embedValue2);
       return message.reply({ embeds: [embed], allowedMentions: { repliedUser: false } });
@@ -309,18 +307,24 @@ module.exports = {
         return message.reply({ embeds: [embed], allowedMentions: { repliedUser: false } });
       }
 
-      const embedPreview = renderWelcomeTemplate(data.message, message.member, DEFAULT_WELCOME_EMBED_MESSAGE);
-      const textPreview = renderWelcomeTemplate(data.textMessage, message.member, DEFAULT_WELCOME_TEXT_MESSAGE);
-      const embedEnabled = data.embedEnabled !== false; // default true
-      const textEnabled = Boolean(data.textEnabled);
+      const hasEmbedTemplate = Boolean(String(data.message || "").trim());
+      const hasTextTemplate = Boolean(String(data.textMessage || "").trim());
+      if (!hasEmbedTemplate && !hasTextTemplate) {
+        const embed = new EmbedBuilder().setColor(embedColor);
+        var embedValue0 = `${getEmoji("error")} No Welcome Content`;
+        if (embedValue0) embed.setTitle(embedValue0);
+        var embedValue1 = `${no} Set an embed message or a text message first.`;
+        if (embedValue1) embed.setDescription(embedValue1);
+        return message.reply({ embeds: [embed], allowedMentions: { repliedUser: false } });
+      }
 
-      // Send text message if enabled
-      if (textEnabled) {
+      if (hasTextTemplate) {
+        const textPreview = renderWelcomeTemplate(data.textMessage, message.member, "");
         await channel.send({ content: textPreview }).catch(() => {});
       }
 
-      // Send embed if enabled
-      if (embedEnabled) {
+      if (hasEmbedTemplate) {
+        const embedPreview = renderWelcomeTemplate(data.message, message.member, "");
         const testEmbed = new EmbedBuilder().setColor(embedColor);
         var embedValue0 = data.title || DEFAULT_WELCOME_TITLE;
         if (embedValue0) testEmbed.setTitle(embedValue0);
@@ -357,12 +361,10 @@ module.exports = {
       }
 
       const status = isOn(statusArg);
-      const currentData = await Schema.findOne({ guildID: guildId }).lean().catch(() => null);
       await Schema.findOneAndUpdate(
         { guildID: guildId },
         {
-          textEnabled: status,
-          ...(status && !currentData?.textMessage ? { textMessage: DEFAULT_WELCOME_TEXT_MESSAGE } : {})
+          textMessage: status ? DEFAULT_WELCOME_TEXT_MESSAGE : null
         },
         { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
       );
@@ -371,8 +373,8 @@ module.exports = {
       var embedValue0 = `${getEmoji("success")} Delivery Mode Updated`;
       if (embedValue0) embed.setTitle(embedValue0);
       var embedValue1 = status
-        ? `${ok} Text mode enabled. Both embed and text messages will be sent.`
-        : `${ok} Text mode disabled. Only embed will be sent.`;
+        ? `${ok} Default text welcome restored.`
+        : `${ok} Text welcome removed.`;
       if (embedValue1) embed.setDescription(embedValue1);
       return message.reply({ embeds: [embed], allowedMentions: { repliedUser: false } });
     }

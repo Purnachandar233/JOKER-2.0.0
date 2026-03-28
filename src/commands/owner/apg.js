@@ -52,6 +52,7 @@ module.exports = {
     await Premium.create({
       Id: guildId,
       Type: "guild",
+      ActivatedBy: message.author?.id || null,
       ActivatedAt: Date.now(),
       Expire: expireAt,
       Permanent: permanent,

@@ -7,7 +7,7 @@ module.exports = {
   aliases: [],
   description: 'Forcely destroy the player for this guild.',
   owner: false,
-  djonly : false,
+  djonly : true,
   wl : true,
   execute: async (message, args, client, prefix) => {
 
