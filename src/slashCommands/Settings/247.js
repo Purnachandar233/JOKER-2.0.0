@@ -47,10 +47,23 @@ module.exports = {
       const jplayer = interaction.client.lavalink.createPlayer({
         guildId: interaction.guild.id,
         voiceChannelId: channel.id,
-        textChannel: interaction.channel.id,
+        textChannelId: interaction.channel.id,
         selfDeafen: true,
-    });
-    await jplayer.connect();
+      });
+      jplayer.voiceChannelId = channel.id;
+      jplayer.textChannelId = interaction.channel.id;
+      if (jplayer.options) {
+        jplayer.options.voiceChannelId = channel.id;
+        jplayer.options.textChannelId = interaction.channel.id;
+      }
+      await jplayer.connect();
+    } else {
+      player.voiceChannelId = channel.id;
+      player.textChannelId = interaction.channel.id;
+      if (player.options) {
+        player.options.voiceChannelId = channel.id;
+        player.options.textChannelId = interaction.channel.id;
+      }
     }
      let   data = await twentyfourseven.findOne({
             guildID: interaction.guild.id

@@ -6,6 +6,32 @@ const Premium = require("../../schema/Premium.js");
 const formatDuration = require("../../utils/formatDuration");
 
 const EMOJIS = require("../../utils/emoji.json");
+
+function getTopMilestonesByMetric(data) {
+  const milestoneMap = User.BADGE_CATALOG || {};
+  const bestByMetric = new Map();
+
+  for (const [key, definition] of Object.entries(milestoneMap)) {
+    if (!data?.milestones?.[key]) continue;
+
+    const metric = String(definition?.metric || "").trim().toLowerCase();
+    if (!metric) continue;
+
+    const currentBest = bestByMetric.get(metric);
+    const threshold = Number(definition?.threshold || 0);
+    const bestThreshold = Number(currentBest?.definition?.threshold || 0);
+
+    if (!currentBest || threshold > bestThreshold) {
+      bestByMetric.set(metric, { key, definition });
+    }
+  }
+
+  const metricOrder = ["votes", "songs", "commands"];
+  return [...bestByMetric.entries()]
+    .sort((a, b) => metricOrder.indexOf(a[0]) - metricOrder.indexOf(b[0]))
+    .map((entry) => entry[1]);
+}
+
 function getBadgeLines(client, data) {
   const manualMap = [
     ["owner", "Owner"],
@@ -27,10 +53,7 @@ function getBadgeLines(client, data) {
     }
   }
 
-  const milestoneMap = User.BADGE_CATALOG || {};
-  for (const [key, definition] of Object.entries(milestoneMap)) {
-    if (!data?.milestones?.[key]) continue;
-
+  for (const { definition } of getTopMilestonesByMetric(data)) {
     let icon = EMOJIS.star || "*";
     if (definition.metric === "votes") icon = EMOJIS.vote || EMOJIS.star || "*";
     if (definition.metric === "songs") icon = EMOJIS.songs || EMOJIS.music || EMOJIS.star || "*";

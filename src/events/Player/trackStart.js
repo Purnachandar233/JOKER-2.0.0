@@ -4,14 +4,75 @@ const EMOJIS = require("../../utils/emoji.json");
 
 const EMBED_COLOR = "#ff0051";
 
-async function resolveTextChannel(client, channelId) {
-  if (!channelId) return null;
+function resolveComponentEmoji(value, fallback = null) {
+  const raw = String(value || "").trim();
+  if (!raw) return fallback;
 
-  const cached = client.channels.cache.get(channelId);
+  const customMatch = raw.match(/^<(?<animated>a)?:(?<name>[A-Za-z0-9_]+):(?<id>\d+)>$/);
+  if (customMatch?.groups?.id) {
+    return {
+      id: customMatch.groups.id,
+      name: customMatch.groups.name || null,
+      animated: Boolean(customMatch.groups.animated),
+    };
+  }
+
+  return raw;
+}
+
+function resolveRuntimeEmoji(client, value, fallback = null) {
+  const resolved = resolveComponentEmoji(value, fallback);
+  if (!resolved) return null;
+
+  if (typeof resolved === "object" && resolved.id) {
+    const availableEmoji =
+      client?.emojis?.cache?.get?.(resolved.id) ||
+      client?.emojis?.resolve?.(resolved.id) ||
+      null;
+
+    if (!availableEmoji) {
+      return fallback || null;
+    }
+  }
+
+  return resolved;
+}
+
+function createEmojiButton({
+  client,
+  customId,
+  label,
+  style,
+  emoji,
+  fallbackEmoji,
+}) {
+  const button = new ButtonBuilder()
+    .setCustomId(customId)
+    .setStyle(style);
+
+  if (typeof label === "string" && label.trim().length) {
+    button.setLabel(label.trim());
+  }
+
+  const resolvedEmoji = resolveRuntimeEmoji(client, emoji, fallbackEmoji);
+  if (resolvedEmoji) {
+    try {
+      button.setEmoji(resolvedEmoji);
+    } catch (_err) {}
+  }
+
+  return button;
+}
+
+async function resolveTextChannel(client, channelId, fallbackChannelId = null) {
+  const targetChannelId = channelId || fallbackChannelId || null;
+  if (!targetChannelId) return null;
+
+  const cached = client.channels.cache.get(targetChannelId);
   if (cached) return cached;
 
   if (typeof client.channels?.fetch === "function") {
-    return client.channels.fetch(channelId).catch(() => null);
+    return client.channels.fetch(targetChannelId).catch(() => null);
   }
 
   return null;
@@ -36,19 +97,27 @@ module.exports = async (client, player, track) => {
     } catch (_err) {}
 
     try {
+      const internalQueueEmptyTimer = typeof player.get === "function" ? player.get("internal_queueempty") : null;
+      if (internalQueueEmptyTimer) {
+        clearTimeout(internalQueueEmptyTimer);
+        player.set("internal_queueempty", null);
+      }
+    } catch (_err) {}
+
+    try {
       const suppressUntil = typeof player.get === "function" ? player.get("suppressUntil") : null;
       if (suppressUntil && Date.now() < suppressUntil) {
         await new Promise((resolve) => setTimeout(resolve, suppressUntil - Date.now()));
       }
-    } catch (e) {}
+    } catch (_err) {}
 
     try {
       if (typeof player.set === "function") {
         player.set("suppressQueueEndNoticeUntil", null);
       }
-    } catch (_e) {}
+    } catch (_err) {}
 
-    const channel = await resolveTextChannel(client, player.textChannelId);
+    const channel = await resolveTextChannel(client, player.textChannelId, player?.options?.textChannelId);
     if (!channel) {
       client.logger?.log(
         `Channel not found for textChannelId: ${player.textChannelId} in guild ${player.guildId}`,
@@ -64,30 +133,45 @@ module.exports = async (client, player, track) => {
 
     const oldMsg = typeof player.get === "function" ? player.get("playingsongmsg") : null;
 
-    const prevBtn = new ButtonBuilder()
-      .setCustomId("music_prevtrack")
-      .setStyle(ButtonStyle.Secondary)
-      .setLabel("Prev");
+    const prevBtn = createEmojiButton({
+      client,
+      customId: "music_prevtrack",
+      style: ButtonStyle.Secondary,
+      emoji: EMOJIS.prev,
+      fallbackEmoji: "\u23EE\uFE0F",
+    });
 
-    const pauseBtn = new ButtonBuilder()
-      .setCustomId("music_prtrack")
-      .setStyle(ButtonStyle.Secondary)
-      .setLabel("Pause");
+    const pauseBtn = createEmojiButton({
+      client,
+      customId: "music_prtrack",
+      style: ButtonStyle.Secondary,
+      emoji: EMOJIS.pause,
+      fallbackEmoji: "\u23F8\uFE0F",
+    });
 
-    const skipBtn = new ButtonBuilder()
-      .setCustomId("music_skiptrack")
-      .setStyle(ButtonStyle.Secondary)
-      .setLabel("Skip");
+    const skipBtn = createEmojiButton({
+      client,
+      customId: "music_skiptrack",
+      style: ButtonStyle.Secondary,
+      emoji: EMOJIS.skip,
+      fallbackEmoji: "\u23ED\uFE0F",
+    });
 
-    const queueBtn = new ButtonBuilder()
-      .setCustomId("music_showqueue")
-      .setStyle(ButtonStyle.Secondary)
-      .setLabel("Queue");
+    const queueBtn = createEmojiButton({
+      client,
+      customId: "music_showqueue",
+      style: ButtonStyle.Secondary,
+      emoji: EMOJIS.queue,
+      fallbackEmoji: "\u{1F4C3}",
+    });
 
-    const stopBtn = new ButtonBuilder()
-      .setCustomId("music_stop")
-      .setStyle(ButtonStyle.Danger)
-      .setLabel("Stop");
+    const stopBtn = createEmojiButton({
+      client,
+      customId: "music_stop",
+      style: ButtonStyle.Secondary,
+      emoji: EMOJIS.stop,
+      fallbackEmoji: "\u23F9\uFE0F",
+    });
 
     const primaryRow = new ActionRowBuilder().addComponents(prevBtn, pauseBtn, skipBtn, queueBtn);
     const secondaryRow = new ActionRowBuilder().addComponents(stopBtn);
@@ -107,14 +191,13 @@ module.exports = async (client, player, track) => {
     const embed = new EmbedBuilder()
       .setColor(client?.embedColor || EMBED_COLOR)
       .setAuthor({
-        name:  "Now Playing",
-        iconURL: client.user.displayAvatarURL({ forceStatic: false })
+        name: "Now Playing",
+        iconURL: client.user.displayAvatarURL({ forceStatic: false }),
       })
       .setThumbnail(thumbnail)
       .setDescription(
         `${songLine}\n\`${isStream ? "LIVE" : convertTime(duration)}\n\`Requested by ${requestedBy}`
       );
-      
 
     let msg = null;
     const oldMessageChannelId = oldMsg?.channelId || oldMsg?.channel?.id || null;

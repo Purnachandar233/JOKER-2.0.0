@@ -41,8 +41,21 @@ module.exports = {
       voiceChannelId: channel.id,
       textChannelId: message.channel.id,
       selfDeafen: true,
-  });
-  await jplayer.connect();
+    });
+    jplayer.voiceChannelId = channel.id;
+    jplayer.textChannelId = message.channel.id;
+    if (jplayer.options) {
+      jplayer.options.voiceChannelId = channel.id;
+      jplayer.options.textChannelId = message.channel.id;
+    }
+    await jplayer.connect();
+  } else {
+    player.voiceChannelId = channel.id;
+    player.textChannelId = message.channel.id;
+    if (player.options) {
+      player.options.voiceChannelId = channel.id;
+      player.options.textChannelId = message.channel.id;
+    }
   }
    let   data = await twentyfourseven.findOne({
           guildID: message.guild.id

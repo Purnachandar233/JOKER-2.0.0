@@ -31,6 +31,40 @@ const QUEUE_END_AD_CACHE_MAX = toPositiveNumber(
 );
 const LOG_QUEUE_EVENTS = String(process.env.LOG_QUEUE_EVENTS || "false").toLowerCase() === "true";
 
+function resolveComponentEmoji(value, fallback = null) {
+  const raw = String(value || "").trim();
+  if (!raw) return fallback;
+
+  const customMatch = raw.match(/^<(?<animated>a)?:(?<name>[A-Za-z0-9_]+):(?<id>\d+)>$/);
+  if (customMatch?.groups?.id) {
+    return {
+      id: customMatch.groups.id,
+      name: customMatch.groups.name || null,
+      animated: Boolean(customMatch.groups.animated),
+    };
+  }
+
+  return raw;
+}
+
+function resolveRuntimeEmoji(client, value, fallback = null) {
+  const resolved = resolveComponentEmoji(value, fallback);
+  if (!resolved) return null;
+
+  if (typeof resolved === "object" && resolved.id) {
+    const availableEmoji =
+      client?.emojis?.cache?.get?.(resolved.id) ||
+      client?.emojis?.resolve?.(resolved.id) ||
+      null;
+
+    if (!availableEmoji) {
+      return fallback || null;
+    }
+  }
+
+  return resolved;
+}
+
 function resolveAccentColor(color) {
   if (typeof color === "number" && Number.isFinite(color)) return color;
   const parsed = parseInt(String(color || "").replace(/^#/, ""), 16);
@@ -44,14 +78,15 @@ function logQueueEvent(client, message, level = "info") {
   } catch (_err) {}
 }
 
-async function resolveTextChannel(client, channelId) {
-  if (!channelId) return null;
+async function resolveTextChannel(client, channelId, fallbackChannelId = null) {
+  const targetChannelId = channelId || fallbackChannelId || null;
+  if (!targetChannelId) return null;
 
-  const cached = client.channels.cache.get(channelId);
+  const cached = client.channels.cache.get(targetChannelId);
   if (cached) return cached;
 
   if (typeof client.channels?.fetch === "function") {
-    return client.channels.fetch(channelId).catch(() => null);
+    return client.channels.fetch(targetChannelId).catch(() => null);
   }
 
   return null;
@@ -275,13 +310,16 @@ function buildQueueEndActionRow(client, offer) {
     .setURL(offer.supportUrl);
 
   try {
-    if (EMOJIS.vote) voteButton.setEmoji(EMOJIS.vote);
+    const voteEmoji = resolveRuntimeEmoji(client, EMOJIS.vote, "\u2B50");
+    if (voteEmoji) voteButton.setEmoji(voteEmoji);
   } catch (_e) {}
   try {
-    if (EMOJIS.premium || EMOJIS.vip) premiumButton.setEmoji(EMOJIS.premium || EMOJIS.vip);
+    const premiumEmoji = resolveRuntimeEmoji(client, EMOJIS.premium || EMOJIS.vip, "\u2728");
+    if (premiumEmoji) premiumButton.setEmoji(premiumEmoji);
   } catch (_e) {}
   try {
-    if (EMOJIS.support) supportButton.setEmoji(EMOJIS.support);
+    const supportEmoji = resolveRuntimeEmoji(client, EMOJIS.support, "\u{1F4AC}");
+    if (supportEmoji) supportButton.setEmoji(supportEmoji);
   } catch (_e) {}
 
   return new ActionRowBuilder().addComponents(voteButton, premiumButton, supportButton);
@@ -355,7 +393,7 @@ function buildQueueLeaveEmbed(client) {
 
 async function sendQueueLeaveNotice(client, player, fallbackChannel = null) {
   const leaveEmbed = buildQueueLeaveEmbed(client);
-  const textChannel = (await resolveTextChannel(client, player.textChannelId)) || fallbackChannel;
+  const textChannel = (await resolveTextChannel(client, player.textChannelId, player?.options?.textChannelId)) || fallbackChannel;
 
   if (!textChannel) {
     logQueueEvent(client,
@@ -389,7 +427,15 @@ module.exports = async (client, player, track, payload) => {
 
   clearIdleLeaveTimer(client, player.guildId);
 
-  const channel = await resolveTextChannel(client, player.textChannelId);
+  try {
+    const internalQueueEmptyTimer = typeof player?.get === "function" ? player.get("internal_queueempty") : null;
+    if (internalQueueEmptyTimer) {
+      clearTimeout(internalQueueEmptyTimer);
+      player.set("internal_queueempty", null);
+    }
+  } catch (_err) {}
+
+  const channel = await resolveTextChannel(client, player.textChannelId, player?.options?.textChannelId);
 
   if (player.get("playingsongmsg")) {
     player.get("playingsongmsg").delete().catch(() => {});
@@ -404,8 +450,18 @@ module.exports = async (client, player, track, payload) => {
   let is247Enabled = false;
 
   try {
-    const doc = await twentyfourseven.findOne({ guildID: player.guildId });
+    const doc = await twentyfourseven.findOne({ guildID: player.guildId }).lean().catch(() => null);
     is247Enabled = Boolean(doc);
+    if (doc) {
+      if (doc.textChannel) {
+        player.textChannelId = doc.textChannel;
+        if (player.options) player.options.textChannelId = doc.textChannel;
+      }
+      if (doc.voiceChannel) {
+        player.voiceChannelId = doc.voiceChannel;
+        if (player.options) player.options.voiceChannelId = doc.voiceChannel;
+      }
+    }
   } catch (err) {
     client.logger?.log?.(`Failed to read 24/7 setting for guild ${player.guildId}: ${err?.message || err}`, "warn");
   }

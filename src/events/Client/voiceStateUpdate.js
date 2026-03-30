@@ -1,8 +1,7 @@
 const { ChannelType, EmbedBuilder } = require("discord.js");
 const twentyFourSevenSchema = require("../../schema/twentyfourseven.js");
 const EMBED_COLOR = "#ff0051";
-const delayModule = require("delay");
-const delay = typeof delayModule === "function" ? delayModule : delayModule.default;
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function toPositiveNumber(value, fallback) {
   const parsed = Number(value);
@@ -125,6 +124,12 @@ module.exports = async (client, oldState, newState) => {
   if (!player) return;
 
   if (newState.id === client.user.id) {
+    const wasServerMuted = Boolean(oldState.serverMute ?? oldState.mute);
+    const isServerMuted = Boolean(newState.serverMute ?? newState.mute);
+    const autoPausedByServerMute = Boolean(
+      typeof player.get === "function" ? player.get("autoPausedByServerMute") : false
+    );
+
     const joinedChannel = newState.guild.channels.cache.get(newState.channel?.id ?? newState.channelId);
     if (joinedChannel?.type === ChannelType.GuildStageVoice) {
       if (!oldState.channelId) {
@@ -142,10 +147,28 @@ module.exports = async (client, oldState, newState) => {
       }
     }
 
+    if (wasServerMuted !== isServerMuted) {
+      if (isServerMuted) {
+        if (!player.paused) {
+          await player.pause().catch(() => {});
+          if (typeof player.set === "function") {
+            player.set("autoPausedByServerMute", true);
+          }
+        }
+      } else if (autoPausedByServerMute) {
+        if (typeof player.set === "function") {
+          player.set("autoPausedByServerMute", false);
+        }
+        if (player.paused) {
+          await player.resume().catch(() => {});
+        }
+      }
+    }
+
     // Discord can briefly report the bot as not connected while joining or
     // moving voice channels. Re-check once before destroying the player.
     if (!newState.channelId) {
-      await delay(BOT_VOICE_DISCONNECT_GRACE_MS);
+      await wait(BOT_VOICE_DISCONNECT_GRACE_MS);
       const refreshedBotChannelId = newState.guild.members.me?.voice?.channelId || null;
       if (refreshedBotChannelId) return;
 
@@ -186,7 +209,7 @@ module.exports = async (client, oldState, newState) => {
   const hasHumansNow = getHumanListenerCount(guild, currentBotChannelId, leftChannel) > 0;
   if (hasHumansNow) return;
 
-  await delay(INACTIVITY_DISCONNECT_MS);
+  await wait(INACTIVITY_DISCONNECT_MS);
 
   const activePlayer = client.lavalink?.players.get(guild.id);
   if (!activePlayer || activePlayer !== player) return;

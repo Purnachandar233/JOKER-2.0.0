@@ -10,6 +10,9 @@ const {
   TextDisplayBuilder,
 } = require("discord.js");
 
+const fetch = require("isomorphic-unfetch");
+const { getPreview, getTracks } = require("spotify-url-info")(fetch);
+const { withTimeout } = require("../../utils/promiseHandler.js");
 const { safeReply } = require("../../utils/interactionResponder");
 const { convertTime } = require("../../utils/convert.js");
 
@@ -33,6 +36,9 @@ function isTrackLive(track) {
 
 const USER_SEARCH_SOURCE_ATTEMPTS = 2;
 const USER_SEARCH_TIMEOUT_MS = 3000;
+const USER_FALLBACK_SEARCH_TIMEOUT_MS = 2500;
+const SPOTIFY_DIRECT_LOAD_TIMEOUT_MS = 5000;
+const SPOTIFY_PLAYLIST_FALLBACK_TRACK_LIMIT = 8;
 const SEARCH_PANEL_PAGE_SIZE = 5;
 const VOICE_BRIDGE_TIMEOUT_MS = 5000;
 
@@ -90,6 +96,34 @@ function getTrackPlaylistName(track) {
   return null;
 }
 
+function normalizeSearchResult(searchResult, sourceQuery = null) {
+  if (!searchResult || typeof searchResult !== "object") return searchResult;
+
+  if (typeof searchResult.loadType === "string") {
+    const loadType = searchResult.loadType.trim().toUpperCase();
+
+    if (loadType === "PLAYLIST" || loadType === "PLAYLIST_LOADED" || loadType === "PLAYLISTS") {
+      searchResult.loadType = "PLAYLIST_LOADED";
+    } else if (loadType === "TRACK" || loadType === "TRACK_LOADED") {
+      searchResult.loadType = "TRACK_LOADED";
+    } else if (loadType === "SEARCH" || loadType === "SEARCH_RESULT" || loadType === "SEARCHRESULT") {
+      searchResult.loadType = "SEARCH_RESULT";
+    } else if (loadType === "NO_MATCHES" || loadType === "NOMATCHES" || loadType === "NO_MATCH") {
+      searchResult.loadType = "NO_MATCHES";
+    } else if (loadType === "LOAD_FAILED") {
+      searchResult.loadType = "LOAD_FAILED";
+    } else {
+      searchResult.loadType = loadType;
+    }
+  }
+
+  if (sourceQuery && !searchResult.sourceQuery) {
+    searchResult.sourceQuery = sourceQuery;
+  }
+
+  return searchResult;
+}
+
 function dedupeTracks(tracks) {
   const seen = new Set();
   const unique = [];
@@ -144,7 +178,8 @@ function buildArtistEntries(tracks) {
   return entries;
 }
 
-function buildAlbumEntries(tracks) {
+function buildAlbumEntries(tracks, options = {}) {
+  const resolveQuery = String(options.resolveQuery || "").trim() || null;
   const groupedAlbums = new Map();
 
   for (const track of Array.isArray(tracks) ? tracks : []) {
@@ -176,6 +211,7 @@ function buildAlbumEntries(tracks) {
       tracks: albumTracks,
       matchName: group.album,
       query: `${group.album} ${group.primaryAuthor}`.trim(),
+      resolveQuery,
     };
   });
 }
@@ -197,7 +233,8 @@ function buildPlaylistEntries(searchResult) {
         url: null,
         tracks: playlistTracks,
         matchName: playlistName,
-        query: playlistName,
+        query: searchResult?.sourceQuery || playlistName,
+        resolveQuery: searchResult?.sourceQuery || null,
       });
     }
   }
@@ -232,6 +269,7 @@ function buildPlaylistEntries(searchResult) {
       tracks: playlistTracks,
       matchName: group.playlistName,
       query: `${group.playlistName} ${group.primaryAuthor}`.trim(),
+      resolveQuery: searchResult?.sourceQuery || null,
     });
   });
 
@@ -245,7 +283,7 @@ function getEntriesForTab(searchResult, tab) {
     case "artists":
       return buildArtistEntries(tracks);
     case "albums":
-      return buildAlbumEntries(tracks);
+      return buildAlbumEntries(tracks, { resolveQuery: searchResult?.sourceQuery || null });
     case "playlists":
       return buildPlaylistEntries(searchResult);
     case "songs":
@@ -471,6 +509,122 @@ module.exports = {
         }
         return "I could not fetch results for this query. Try another keyword.";
       };
+      const loadSpotifyUrlResult = async (queryText, requester) => {
+        let spotifyResult = null;
+        let lastAttempt = null;
+        let fallbackQuery = queryText;
+
+        try {
+          const directLoadPromise = player.search({ query: queryText }, requester);
+          spotifyResult = normalizeSearchResult(
+            await withTimeout(directLoadPromise, SPOTIFY_DIRECT_LOAD_TIMEOUT_MS, "Direct Spotify load timeout"),
+            queryText
+          );
+        } catch (directErr) {
+          client.logger?.log?.(`Search panel direct Spotify load failed: ${directErr?.message || directErr}`, "warn");
+        }
+
+        if (spotifyResult?.tracks?.length) {
+          return { result: spotifyResult, attempt: lastAttempt };
+        }
+
+        try {
+          const tracksInfo = await getTracks(queryText).catch(() => null);
+          if (Array.isArray(tracksInfo) && tracksInfo.length) {
+            const foundTracks = [];
+            const searchLimit = Math.min(tracksInfo.length, SPOTIFY_PLAYLIST_FALLBACK_TRACK_LIMIT);
+
+            for (const trackInfo of tracksInfo.slice(0, searchLimit)) {
+              const fallbackTrackQuery = `${trackInfo?.name || ""} ${trackInfo?.artists?.[0]?.name || ""}`.trim();
+              if (!fallbackTrackQuery) continue;
+
+              const trackAttempt = await searchWithAvailableSources(fallbackTrackQuery, requester, {
+                preferredSources: SEARCH_SOURCE_ORDER,
+                timeoutMs: USER_FALLBACK_SEARCH_TIMEOUT_MS,
+                logPrefix: "Search panel Spotify track fallback",
+                maxSourceAttempts: 2,
+              });
+              lastAttempt = trackAttempt;
+
+              if (trackAttempt.result?.tracks?.length) {
+                foundTracks.push(trackAttempt.result.tracks[0]);
+              }
+            }
+
+            if (foundTracks.length) {
+              spotifyResult = normalizeSearchResult({
+                loadType: "PLAYLIST_LOADED",
+                tracks: foundTracks,
+                playlist: {
+                  name: tracksInfo.name || tracksInfo.title || "Spotify Collection",
+                },
+              }, queryText);
+              return { result: spotifyResult, attempt: lastAttempt };
+            }
+          }
+        } catch (tracksErr) {
+          client.logger?.log?.(`Search panel Spotify tracks fallback failed: ${tracksErr?.message || tracksErr}`, "warn");
+        }
+
+        try {
+          const preview = await getPreview(queryText).catch(() => null);
+          if (preview) {
+            fallbackQuery = `${preview.title || ""} ${preview.artist || ""}`.trim() || queryText;
+          }
+        } catch (previewErr) {
+          client.logger?.log?.(`Search panel Spotify preview fallback failed: ${previewErr?.message || previewErr}`, "warn");
+        }
+
+        const spotifyPreferred = musicCore.getAvailableSearchSources(player, ["spotify"]).sources.length
+          ? ["spotify"]
+          : SEARCH_SOURCE_ORDER;
+        const fallbackAttempt = await searchWithAvailableSources(fallbackQuery, requester, {
+          preferredSources: spotifyPreferred,
+          timeoutMs: USER_FALLBACK_SEARCH_TIMEOUT_MS,
+          logPrefix: "Search panel Spotify fallback",
+          maxSourceAttempts: 2,
+        });
+
+        return {
+          result: normalizeSearchResult(fallbackAttempt.result, queryText),
+          attempt: fallbackAttempt,
+        };
+      };
+      const loadSearchPanelResult = async (queryText, requester) => {
+        const isDirectUrl = /^https?:\/\//i.test(queryText);
+        const isSpotifyUrl = /https?:\/\/(open\.spotify\.com|spotify\.link)/i.test(queryText);
+
+        if (isDirectUrl && !/youtu\.be|youtube\.com/i.test(queryText)) {
+          try {
+            const directLoadPromise = player.search({ query: queryText }, requester);
+            const directResult = normalizeSearchResult(
+              await withTimeout(directLoadPromise, SPOTIFY_DIRECT_LOAD_TIMEOUT_MS, "Direct source load timeout"),
+              queryText
+            );
+
+            if (directResult?.tracks?.length) {
+              return { result: directResult, attempt: null };
+            }
+          } catch (directErr) {
+            client.logger?.log?.(`Search panel direct URL load failed: ${directErr?.message || directErr}`, "warn");
+          }
+        }
+
+        if (isSpotifyUrl) {
+          return loadSpotifyUrlResult(queryText, requester);
+        }
+
+        const attempt = await searchWithAvailableSources(queryText, requester, {
+          preferredSources: SEARCH_SOURCE_ORDER,
+          timeoutMs: USER_SEARCH_TIMEOUT_MS,
+          logPrefix: "Search",
+        });
+
+        return {
+          result: normalizeSearchResult(attempt.result, queryText),
+          attempt,
+        };
+      };
 
       const lowerQuery = query.toLowerCase();
       if (lowerQuery.includes("youtube.com") || lowerQuery.includes("youtu.be")) {
@@ -484,12 +638,9 @@ module.exports = {
       let searchResult;
       let searchAttempt = null;
       try {
-        searchAttempt = await searchWithAvailableSources(query, message.member.user, {
-          preferredSources: SEARCH_SOURCE_ORDER,
-          timeoutMs: USER_SEARCH_TIMEOUT_MS,
-          logPrefix: "Search",
-        });
-        searchResult = searchAttempt.result;
+        const initialLoad = await loadSearchPanelResult(query, message.member.user);
+        searchAttempt = initialLoad.attempt;
+        searchResult = initialLoad.result;
         if (searchResult?.loadType === "LOAD_FAILED") throw searchResult.exception;
       } catch (err) {
         client.logger?.log?.(err?.stack || err?.message || String(err), "error");
@@ -511,6 +662,16 @@ module.exports = {
       const resolveEntryTracks = async (entry) => {
         if (!entry) return [];
         if (entry.track) return [entry.track];
+        if ((entry.type === "album" || entry.type === "playlist") && entry.resolveQuery) {
+          try {
+            const directLoad = await loadSearchPanelResult(entry.resolveQuery, message.member.user);
+            if (directLoad.result?.tracks?.length) {
+              return dedupeTracks(directLoad.result.tracks);
+            }
+          } catch (error) {
+            client.logger?.log?.(`Search panel ${entry.type} direct resolve failed: ${error?.message || error}`, "warn");
+          }
+        }
         if (Array.isArray(entry.tracks) && entry.tracks.length) return dedupeTracks(entry.tracks);
         if (!entry.query) return [];
 
@@ -520,6 +681,7 @@ module.exports = {
           logPrefix: `Search panel ${entry.type}`,
           maxSourceAttempts: 2,
         });
+        addAttempt.result = normalizeSearchResult(addAttempt.result, entry.query);
 
         if (!addAttempt.result?.tracks?.length) {
           const error = addAttempt.lastError || new Error(`No ${entry.type} results were found.`);
@@ -544,10 +706,51 @@ module.exports = {
         return [addAttempt.result.tracks[0]];
       };
 
+      const tabSearchResults = new Map([
+        ["songs", searchResult],
+        ["artists", searchResult],
+        ["albums", searchResult],
+        ["playlists", searchResult],
+      ]);
+      const attemptedTabSearches = new Set();
+      const getSearchResultForTab = (tab) => tabSearchResults.get(tab) || searchResult;
+      const ensureTabSearchResult = async (tab) => {
+        if (!["albums", "playlists"].includes(tab)) {
+          return getSearchResultForTab(tab);
+        }
+
+        const currentResult = getSearchResultForTab(tab);
+        if (getEntriesForTab(currentResult, tab).length) {
+          return currentResult;
+        }
+
+        if (attemptedTabSearches.has(tab)) {
+          return currentResult;
+        }
+
+        attemptedTabSearches.add(tab);
+        const tabQuery = `${query} ${tab === "albums" ? "album" : "playlist"}`.trim();
+
+        try {
+          const tabLoad = await loadSearchPanelResult(tabQuery, message.member.user);
+          const nextResult = normalizeSearchResult(tabLoad?.result, tabQuery);
+
+          if (nextResult?.tracks?.length && getEntriesForTab(nextResult, tab).length) {
+            tabSearchResults.set(tab, nextResult);
+            return nextResult;
+          }
+        } catch (error) {
+          client.logger?.log?.(`Search panel ${tab} lookup failed: ${error?.message || error}`, "warn");
+        }
+
+        return currentResult;
+      };
+
       let currentTab = "songs";
       let currentPage = 0;
       const getPanelState = (disabled = false) => {
-        const state = buildSearchPanel(query, currentTab, currentPage, searchResult, embedColor, getEmoji, { disabled });
+        const activeSearchResult = getSearchResultForTab(currentTab);
+        const state = buildSearchPanel(query, currentTab, currentPage, activeSearchResult, embedColor, getEmoji, { disabled });
         currentPage = state.pageIndex;
         return state;
       };
@@ -583,6 +786,7 @@ module.exports = {
         if (buttonInteraction.customId.startsWith("search_tab_")) {
           currentTab = buttonInteraction.customId.replace("search_tab_", "");
           currentPage = 0;
+          await ensureTabSearchResult(currentTab);
           panelState = getPanelState();
           await buttonInteraction.update({
             components: panelState.components,
@@ -596,7 +800,7 @@ module.exports = {
           if (buttonInteraction.customId === "search_page_prev") currentPage = Math.max(0, currentPage - 1);
           if (buttonInteraction.customId === "search_page_next") currentPage += 1;
           if (buttonInteraction.customId === "search_page_last") {
-            const totalEntries = getEntriesForTab(searchResult, currentTab).length;
+            const totalEntries = getEntriesForTab(getSearchResultForTab(currentTab), currentTab).length;
             currentPage = Math.max(0, Math.ceil(totalEntries / SEARCH_PANEL_PAGE_SIZE) - 1);
           }
 

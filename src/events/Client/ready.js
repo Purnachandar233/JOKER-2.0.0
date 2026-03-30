@@ -22,10 +22,6 @@ const LAVALINK_POSITION_UPDATE_INTERVAL_MS = toPositiveNumber(
   process.env.LAVALINK_POSITION_UPDATE_INTERVAL_MS,
   250
 );
-const LAVALINK_EMPTY_QUEUE_DESTROY_MS = toPositiveNumber(
-  process.env.LAVALINK_EMPTY_QUEUE_DESTROY_MS,
-  Math.max(QUEUE_END_IDLE_LEAVE_MS + 60_000, 5 * 60 * 1000)
-);
 
 function oneLine(value) {
   return String(value ?? "").replace(/\s+/g, " ").trim();
@@ -365,11 +361,6 @@ async function setupLavalink(client) {
       onDisconnect: {
         autoReconnect: true,
         destroyPlayer: false,
-      },
-      // Keep Lavalink's internal empty-queue auto-destroy longer than our
-      // queueEnd grace period so queueEnd.js is the single source of truth.
-      onEmptyQueue: {
-        destroyAfterMs: LAVALINK_EMPTY_QUEUE_DESTROY_MS,
       },
     },
     advancedOptions: {
