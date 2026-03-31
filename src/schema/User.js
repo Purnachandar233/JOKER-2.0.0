@@ -83,6 +83,10 @@ const UserSchema = new mongoose.Schema({
   totalVotes: { type: Number, default: 0 },
   songsListened: { type: Number, default: 0 },
   totalListenTimeMs: { type: Number, default: 0 },
+  topgg: {
+    lastVoteRecordedAt: { type: Number, default: 0 },
+    lastVoteSource: { type: String, default: "" },
+  },
   badge: {
     dev: { type: Boolean, default: false },
     owner: { type: Boolean, default: false },

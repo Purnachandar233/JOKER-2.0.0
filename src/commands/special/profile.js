@@ -2,8 +2,8 @@ const { EmbedBuilder } = require("discord.js");
 
 const User = require("../../schema/User.js");
 const day = require("dayjs");
-const Premium = require("../../schema/Premium.js");
 const formatDuration = require("../../utils/formatDuration");
+const { resolvePremiumAccess } = require("../../utils/premiumAccess");
 
 const EMOJIS = require("../../utils/emoji.json");
 
@@ -111,6 +111,8 @@ module.exports = {
       profileUser?.displayAvatarURL?.({ forceStatic: false, size: 1024 }) ||
       null;
 
+    const access = await resolvePremiumAccess(profileUserId, message.guild?.id, client).catch(() => null);
+
     let userData = await User.findOne({ userId: profileUserId }).lean();
     if (!userData) {
       userData = {
@@ -131,18 +133,20 @@ module.exports = {
       unitCount: 3
     });
 
-    const premiumDoc = await Premium.findOne({ Id: profileUserId, Type: "user" });
+    const premiumDoc = access?.userDoc || null;
 
     // ================= PREMIUM STATUS =================
     let premiumText = "No active premium access.";
 
-    if (premiumDoc?.Permanent) {
+    if (access?.userPremium && premiumDoc?.Permanent) {
       premiumText = "Permanent access";
-    } else if (premiumDoc && premiumDoc.Expire > Date.now()) {
+    } else if (access?.userPremium && premiumDoc && premiumDoc.Expire > Date.now()) {
       premiumText = `Active for ${formatDuration(
         premiumDoc.Expire - Date.now(),
         { verbose: false }
       ).replace(/\s\d+s$/, "")}`;
+    } else if (access?.topggFallbackVoted) {
+      premiumText = "Active via Top.gg vote window";
     } else if (premiumDoc) {
       const expiredAt = day(premiumDoc.Expire).format("DD/MM/YYYY");
       premiumText = `Expired on ${expiredAt}`;
@@ -152,7 +156,11 @@ module.exports = {
     // ================= VOTE STATUS (Webhook Based) =================
     let voteText = `Not voted - vote on [top.gg](https://top.gg/bot/${client.user.id}/vote) to unlock 12 hours premium.`;
 
-    if (
+    if (access?.topggVoteRecorded) {
+      voteText = "Voted - Premium active and the vote was recovered automatically.";
+    } else if (access?.topggFallbackVoted) {
+      voteText = "Voted - Premium active via automatic Top.gg recovery.";
+    } else if (
       premiumDoc &&
       !premiumDoc.Permanent &&
       premiumDoc.Expire > Date.now()

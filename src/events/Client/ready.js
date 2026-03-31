@@ -3,6 +3,10 @@ const { ActivityType } = require("discord.js");
 const { LavalinkManager } = require("lavalink-client");
 const Topgg = require("@top-gg/sdk");
 const autojoin = require("../../schema/twentyfourseven.js");
+const {
+  TOPGG_RECOVERY_INTERVAL_MS,
+  reconcileRecentTopggVotes,
+} = require("../../utils/topggVoteSync");
 
 function toPositiveNumber(value, fallback) {
   const parsed = Number(value);
@@ -535,6 +539,44 @@ module.exports = async (client) => {
 
   if (process.env.TOPGG_TOKEN) {
     client.topgg = new Topgg.Api(process.env.TOPGG_TOKEN);
+  }
+
+  if (client.topgg && typeof client.topgg.getVotes === "function" && !client.topggVoteRecoveryTimer) {
+    const runTopggRecovery = async (source = "reconcile") => {
+      if (client.topggVoteRecoveryInFlight) return;
+      client.topggVoteRecoveryInFlight = true;
+
+      try {
+        const result = await reconcileRecentTopggVotes(client, { source });
+        if (source === "startup_reconcile" || result.recorded > 0 || result.errors > 0) {
+          log(
+            client,
+            `[TOPGG] ${source}: processed=${result.processed}, recorded=${result.recorded}, alreadyRecorded=${result.alreadyRecorded}, errors=${result.errors}`,
+            result.errors > 0 ? "warn" : "info"
+          );
+        }
+      } catch (error) {
+        log(client, `[TOPGG] ${source} failed: ${error?.message || error}`, "warn");
+      } finally {
+        client.topggVoteRecoveryInFlight = false;
+      }
+    };
+
+    const startupRecoveryTimer = setTimeout(() => {
+      runTopggRecovery("startup_reconcile").catch(() => {});
+    }, 5000);
+    if (typeof startupRecoveryTimer.unref === "function") {
+      startupRecoveryTimer.unref();
+    }
+    client.topggVoteStartupRecoveryTimer = startupRecoveryTimer;
+
+    const recoveryTimer = setInterval(() => {
+      runTopggRecovery("reconcile").catch(() => {});
+    }, TOPGG_RECOVERY_INTERVAL_MS);
+    if (typeof recoveryTimer.unref === "function") {
+      recoveryTimer.unref();
+    }
+    client.topggVoteRecoveryTimer = recoveryTimer;
   }
 
   await setupLavalink(client);

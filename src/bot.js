@@ -2,8 +2,7 @@ require('dotenv').config();
 const { Client, GatewayIntentBits, Partials, Collection, ActivityType, Options } = require("discord.js");
 const express = require("express");
 const { Webhook } = require("@top-gg/sdk");
-const User = require("./schema/User");
-const { grantVotePremiumWindow } = require("./utils/premiumAccess");
+const { recordTopggVote } = require("./utils/topggVoteSync");
 const Logger = require("./services/Logger");
 
 function normalizeUrl(value, fallback) {
@@ -119,10 +118,14 @@ client.login(token);
 
 const app = express();
 app.use(express.json());
+app.get("/topgg/health", (_req, res) => {
+    res.status(200).json({ ok: true });
+});
 
 const topggWebhookAuth = String(process.env.TOPGG_WEBHOOK_AUTH || "").trim();
-const parsedTopggPort = Number(process.env.TOPGG_WEBHOOK_PORT || 12952);
+const parsedTopggPort = Number(process.env.TOPGG_WEBHOOK_PORT || process.env.PORT || 12952);
 const topggPort = Number.isInteger(parsedTopggPort) && parsedTopggPort > 0 ? parsedTopggPort : 12952;
+const topggHost = String(process.env.TOPGG_WEBHOOK_HOST || "0.0.0.0").trim() || "0.0.0.0";
 
 if (topggWebhookAuth) {
     const webhook = new Webhook(topggWebhookAuth);
@@ -137,38 +140,19 @@ if (topggWebhookAuth) {
 
             console.log(`User ${vote.user} voted`);
 
-            const voteGrant = await grantVotePremiumWindow(vote.user, { now: Date.now() });
+            const voteResult = await recordTopggVote(vote.user, {
+                now: Date.now(),
+                source: "webhook",
+                client,
+                notifyUser: true,
+            });
 
-            const milestoneUpdate = await User.applyProgressMilestones(vote.user, {
-                incrementVotes: 1,
-            }).catch(() => ({ unlockedBadges: [], grantedRewards: [] }));
-
-            if (voteGrant.status === "kept_permanent") {
+            if (voteResult.voteGrant.status === "kept_permanent") {
                 console.log(`[TOPGG] Vote recorded for ${vote.user}. Existing permanent premium kept.`);
-            } else if (voteGrant.status === "extended" || voteGrant.status === "created") {
-                console.log(`[TOPGG] Vote premium active for ${vote.user} until ${new Date(voteGrant.expire).toISOString()}`);
+            } else if (voteResult.voteGrant.status === "extended" || voteResult.voteGrant.status === "created" || voteResult.voteGrant.status === "renewed") {
+                console.log(`[TOPGG] Vote premium active for ${vote.user} until ${new Date(voteResult.voteGrant.expire).toISOString()}`);
             } else {
                 console.log(`[TOPGG] Vote recorded for ${vote.user}. Premium window unchanged.`);
-            }
-
-            const user = await client.users.fetch(vote.user).catch(() => null);
-            if (user) {
-                const rewardCatalog = User.REWARD_CATALOG || {};
-                const rewardLabels = Array.isArray(milestoneUpdate?.grantedRewards)
-                    ? milestoneUpdate.grantedRewards
-                        .map((key) => rewardCatalog[key]?.label)
-                        .filter(Boolean)
-                    : [];
-                const rewardNote = rewardLabels.length
-                    ? `\nMilestone reward unlocked: ${rewardLabels.join(", ")}.`
-                    : "";
-                const badgeNote = milestoneUpdate?.unlockedBadges?.length
-                    ? `\nNew badge${milestoneUpdate.unlockedBadges.length > 1 ? "s" : ""} unlocked in your profile.`
-                    : "";
-                const thankYouText = voteGrant.status === "kept_permanent"
-                    ? `Thank you for voting! Your permanent Premium is already active.${badgeNote}`
-                    : `Thank you for voting! You received 12 hours of Premium access!${rewardNote}${badgeNote}`;
-                user.send(thankYouText).catch(() => {});
             }
 
         } catch (err) {
@@ -176,8 +160,11 @@ if (topggWebhookAuth) {
         }
     }));
 
-    app.listen(topggPort, () => {
-        console.log(`Top.gg webhook running on port ${topggPort}`);
+    const topggServer = app.listen(topggPort, topggHost, () => {
+        console.log(`Top.gg webhook running on ${topggHost}:${topggPort} (POST /topgg, GET /topgg/health)`);
+    });
+    topggServer.on("error", (error) => {
+        console.error("[TOPGG] Webhook server failed to start:", error);
     });
 } else {
     console.warn("[WARN] TOPGG_WEBHOOK_AUTH is not set. Top.gg vote webhook is disabled.");

@@ -226,7 +226,7 @@ async function resolvePremiumAccess(userId, guildId, client = null) {
   const normalizedUserId = userId ? String(userId) : null;
   const normalizedGuildId = guildId ? String(guildId) : null;
 
-  const [userDoc, guildDoc] = await Promise.all([
+  let [userDoc, guildDoc] = await Promise.all([
     normalizedUserId
       ? Premium.findOne({ Id: normalizedUserId, Type: "user" }).catch(() => null)
       : Promise.resolve(null),
@@ -242,13 +242,24 @@ async function resolvePremiumAccess(userId, guildId, client = null) {
   if (!guildPremium) await cleanupExpiredPremium(guildDoc, now);
 
   let topggFallbackVoted = false;
+  let topggVoteRecorded = false;
+  let topggVoteRecovered = false;
   if (!userPremium && normalizedUserId) {
     topggFallbackVoted = await checkTopggVoteFallback(client, normalizedUserId, now);
     if (topggFallbackVoted) {
-      userPremium = true;
+      const { recordTopggVote } = require("./topggVoteSync");
+      const voteResult = await recordTopggVote(normalizedUserId, {
+        now,
+        source: "fallback",
+        client,
+        notifyUser: false,
+      }).catch(() => null);
 
-      // Backfill DB window when webhook was missed, so later checks stay local.
-      await grantVotePremiumWindow(normalizedUserId, { now }).catch(() => {});
+      userPremium = true;
+      topggVoteRecorded = Boolean(voteResult?.recorded);
+      topggVoteRecovered = Boolean(voteResult?.recovered || voteResult?.recorded);
+
+      userDoc = await Premium.findOne({ Id: normalizedUserId, Type: "user" }).catch(() => userDoc);
     }
   }
 
@@ -258,6 +269,8 @@ async function resolvePremiumAccess(userId, guildId, client = null) {
     userPremium,
     guildPremium,
     topggFallbackVoted,
+    topggVoteRecorded,
+    topggVoteRecovered,
     hasAccess: userPremium || guildPremium
   };
 }

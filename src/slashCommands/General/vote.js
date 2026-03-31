@@ -19,18 +19,20 @@ module.exports = {
     try { if (voteEmoji) vote.setEmoji(voteEmoji); } catch (_e) {}
     const linkRow = new ActionRowBuilder().addComponents(vote);
 
-    const [userData, premiumState] = await Promise.all([
-      User.findOne({ userId: interaction.user.id }).lean().catch(() => null),
-      resolvePremiumAccess(interaction.user.id, interaction.guildId, client).catch(() => null),
-    ]);
+    const premiumState = await resolvePremiumAccess(interaction.user.id, interaction.guildId, client).catch(() => null);
+    const userData = await User.findOne({ userId: interaction.user.id }).lean().catch(() => null);
 
     const totalVotes = Number(userData?.totalVotes || 0);
     const hasActiveVoteAccess = Boolean(premiumState?.userPremium || premiumState?.topggFallbackVoted);
+    const recoveryNote = premiumState?.topggVoteRecorded
+      ? "A missed Top.gg vote was recovered automatically and counted for you."
+      : null;
     const description = hasActiveVoteAccess
       ? [
           `Hey there! Looks like your Top.gg vote perks are already active for ${botName} :D`,
           `You can vote again any time by heading over to our [Top.gg](${voteUrl}) page - we'd really appreciate it!`,
-        ].join("\n")
+          recoveryNote,
+        ].filter(Boolean).join("\n")
       : [
           "Hey there! Looks like you haven't voted for the bot on Top.gg just yet :/",
           `You can vote and unlock some awesome perks by heading over to our [Top.gg](${voteUrl}) page - we'd really appreciate it!`,

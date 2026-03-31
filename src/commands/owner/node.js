@@ -3,19 +3,62 @@ const { EmbedBuilder } = require("discord.js");
 const formatDuration = require("../../utils/formatDuration");
 
 const EMOJIS = require("../../utils/emoji.json");
-function formatNodeInfo(node) {
-  const usedMb = Math.round((node?.stats?.memory?.used || 0) / 1024 / 1024);
-  const load = Number(node?.stats?.cpu?.lavalinkLoad || 0) * 100;
+function formatPercent(value, digits = 2) {
+  const raw = Number(value);
+  if (!Number.isFinite(raw) || raw < 0) return "n/a";
+  return `${raw.toFixed(digits)}%`;
+}
+
+function formatMemory(bytes) {
+  const raw = Number(bytes);
+  if (!Number.isFinite(raw) || raw < 0) return "n/a";
+  return `${Math.round(raw / 1024 / 1024)}MB`;
+}
+
+function formatPing(node) {
+  const candidates = [
+    node?.stats?.ping,
+    node?.heartBeatPing,
+    node?.ping,
+  ];
+
+  for (const value of candidates) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed) && parsed >= 0) {
+      return `${Math.round(parsed)}ms`;
+    }
+  }
+
+  return "n/a";
+}
+
+function formatNodeInfo(node, index) {
+  const line = (label, value) => `${String(label).padEnd(10)} :: ${value}`;
+  const id = node?.id || node?.options?.id || `Node ${index + 1}`;
+  const host = node?.options?.host || "unknown";
+  const port = node?.options?.port || "n/a";
+  const connected = node?.connected ? "yes" : "no";
+  const sessionId = node?.sessionId || "n/a";
+  const usedMb = formatMemory(node?.stats?.memory?.used);
+  const allocatedMb = formatMemory(node?.stats?.memory?.allocated);
+  const lavalinkLoad = formatPercent(Number(node?.stats?.cpu?.lavalinkLoad || 0) * 100);
+  const systemLoad = formatPercent(Number(node?.stats?.cpu?.systemLoad || 0) * 100);
   const uptime = formatDuration(node?.stats?.uptime || 0, { verbose: false, secondsDecimalDigits: 0 });
-  const playing = node?.stats?.playingPlayers || 0;
-  const players = node?.stats?.players || 0;
-  const ping = node?.stats?.ping ?? "n/a";
+  const playing = Number(node?.stats?.playingPlayers || 0);
+  const players = Number(node?.stats?.players || 0);
+  const ping = formatPing(node);
 
   return [
-    `Memory: ${usedMb}MB (${load.toFixed(2)}%)`,
-    `Players: ${playing}/${players}`,
-    `Ping: ${ping}ms`,
-    `Uptime: ${uptime}`
+    `[${id}]`,
+    line("Status", connected),
+    line("Host", `${host}:${port}`),
+    line("Players", `${playing}/${players}`),
+    line("Ping", ping),
+    line("Uptime", uptime),
+    line("Memory", `${usedMb} / ${allocatedMb}`),
+    line("LL Load", lavalinkLoad),
+    line("Sys Load", systemLoad),
+    line("Session", sessionId),
   ].join("\n");
 }
 
@@ -38,15 +81,12 @@ module.exports = {
       return message.reply({ embeds: [embed], allowedMentions: { repliedUser: false } });
     }
 
-    const blocks = nodes.map((node, index) => {
-      const id = node?.id || `Node ${index + 1}`;
-      return `**${id}**\n${formatNodeInfo(node)}`;
-    });
+    const blocks = nodes.map((node, index) => formatNodeInfo(node, index));
 
     const embed = new EmbedBuilder()
       .setColor(embedColor)
       .setTitle(`${getEmoji("server")} Node Status`)
-      .setDescription(blocks.join("\n\n"));
+      .setDescription(`\`\`\`asciidoc\n${blocks.join("\n\n")}\n\`\`\``);
 
     return message.reply({ embeds: [embed], allowedMentions: { repliedUser: false } });
   }
