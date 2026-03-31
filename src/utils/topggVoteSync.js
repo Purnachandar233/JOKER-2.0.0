@@ -20,6 +20,7 @@ function normalizeUserId(userId) {
 async function grantTopggVotePremiumWindow(userId, options = {}) {
   const now = Number.isFinite(Number(options.now)) ? Number(options.now) : Date.now();
   const allowExtension = options.allowExtension !== false;
+  const explicitExpireAt = Number(options.expireAt);
   const normalizedUserId = normalizeUserId(userId);
 
   if (!normalizedUserId) {
@@ -45,7 +46,19 @@ async function grantTopggVotePremiumWindow(userId, options = {}) {
     };
   }
 
-  const nextExpire = Math.max(existingExpire, now + TOPGG_VOTE_WINDOW_MS);
+  const targetExpire = Number.isFinite(explicitExpireAt) && explicitExpireAt > 0
+    ? explicitExpireAt
+    : now + TOPGG_VOTE_WINDOW_MS;
+
+  if (targetExpire <= now && existingExpire <= now) {
+    return {
+      status: "expired",
+      expire: Math.max(0, targetExpire),
+      permanent: false,
+    };
+  }
+
+  const nextExpire = Math.max(existingExpire, targetExpire);
   if (existing && nextExpire <= existingExpire) {
     return {
       status: "unchanged",
@@ -127,16 +140,19 @@ function buildVoteThankYouText(result) {
   const badgeNote = badgeCount
     ? `\nNew badge${badgeCount > 1 ? "s" : ""} unlocked in your profile.`
     : "";
+  const weightNote = Number(result?.voteWeight || 1) > 1
+    ? `\nThis vote counted as ${Number(result.voteWeight)} votes.`
+    : "";
 
   if (result?.voteGrant?.status === "kept_permanent") {
-    return `Thank you for voting! Your permanent Premium is already active.${badgeNote}`;
+    return `Thank you for voting! Your permanent Premium is already active.${weightNote}${badgeNote}`;
   }
 
-  if (result?.source === "webhook") {
-    return `Thank you for voting! You received 12 hours of Premium access!${rewardNote}${badgeNote}`;
+  if (String(result?.source || "").startsWith("webhook")) {
+    return `Thank you for voting! You received 12 hours of Premium access!${weightNote}${rewardNote}${badgeNote}`;
   }
 
-  return `Thank you for voting! Your Top.gg vote was recovered automatically and Premium access is now active.${rewardNote}${badgeNote}`;
+  return `Thank you for voting! Your Top.gg vote was recovered automatically and Premium access is now active.${weightNote}${rewardNote}${badgeNote}`;
 }
 
 async function notifyUserAboutVote(client, userId, result) {
@@ -152,6 +168,8 @@ async function notifyUserAboutVote(client, userId, result) {
 async function recordTopggVote(userId, options = {}) {
   const now = Number.isFinite(Number(options.now)) ? Number(options.now) : Date.now();
   const source = String(options.source || "unknown");
+  const fromWebhook = source.startsWith("webhook");
+  const voteWeight = Math.max(1, Math.floor(Number(options.voteWeight) || 1));
   const normalizedUserId = normalizeUserId(userId);
 
   if (!normalizedUserId) {
@@ -170,10 +188,11 @@ async function recordTopggVote(userId, options = {}) {
   const voteGrant = await grantTopggVotePremiumWindow(normalizedUserId, {
     now,
     allowExtension: recorded,
+    expireAt: options.expireAt,
   });
   const milestoneUpdate = recorded
     ? await User.applyProgressMilestones(normalizedUserId, {
-        incrementVotes: 1,
+        incrementVotes: voteWeight,
       }).catch(() => ({ unlockedBadges: [], grantedRewards: [] }))
     : { unlockedBadges: [], grantedRewards: [] };
 
@@ -181,10 +200,11 @@ async function recordTopggVote(userId, options = {}) {
   const result = {
     status: recorded ? "recorded" : "already_recorded",
     recorded,
-    recovered: source !== "webhook" && (recorded || voteGrant.status === "renewed" || voteGrant.status === "created"),
+    recovered: !fromWebhook && (recorded || voteGrant.status === "renewed" || voteGrant.status === "created"),
     voteGrant,
     milestoneUpdate,
     totalVotes: Number(userData?.totalVotes || 0),
+    voteWeight,
     source,
   };
 

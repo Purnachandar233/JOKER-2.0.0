@@ -1,7 +1,9 @@
 const Premium = require("../schema/Premium");
 const TOPGG_VOTE_WINDOW_MS = 12 * 60 * 60 * 1000;
-const parsedCacheMs = Number(process.env.TOPGG_FALLBACK_CACHE_MS || 60000);
-const TOPGG_FALLBACK_CACHE_MS = Number.isFinite(parsedCacheMs) && parsedCacheMs > 0 ? parsedCacheMs : 60000;
+const parsedPositiveCacheMs = Number(process.env.TOPGG_FALLBACK_POSITIVE_CACHE_MS || process.env.TOPGG_FALLBACK_CACHE_MS || 60000);
+const TOPGG_FALLBACK_POSITIVE_CACHE_MS = Number.isFinite(parsedPositiveCacheMs) && parsedPositiveCacheMs > 0 ? parsedPositiveCacheMs : 60000;
+const parsedNegativeCacheMs = Number(process.env.TOPGG_FALLBACK_NEGATIVE_CACHE_MS || 10000);
+const TOPGG_FALLBACK_NEGATIVE_CACHE_MS = Number.isFinite(parsedNegativeCacheMs) && parsedNegativeCacheMs > 0 ? parsedNegativeCacheMs : 10000;
 const parsedCacheMax = Number(process.env.TOPGG_FALLBACK_CACHE_MAX || 5000);
 const TOPGG_FALLBACK_CACHE_MAX = Number.isFinite(parsedCacheMax) && parsedCacheMax > 0 ? parsedCacheMax : 5000;
 const topggVoteCache = new Map();
@@ -47,7 +49,8 @@ function getCachedVoteState(userId, now = Date.now()) {
   const key = String(userId);
   const cached = topggVoteCache.get(key);
   if (!cached) return null;
-  if (now - cached.checkedAt > TOPGG_FALLBACK_CACHE_MS) {
+  const ttl = cached.voted ? TOPGG_FALLBACK_POSITIVE_CACHE_MS : TOPGG_FALLBACK_NEGATIVE_CACHE_MS;
+  if (now - cached.checkedAt > ttl) {
     topggVoteCache.delete(key);
     return null;
   }
@@ -58,7 +61,8 @@ function pruneVoteCache(now = Date.now()) {
   if (topggVoteCache.size < TOPGG_FALLBACK_CACHE_MAX) return;
 
   for (const [key, value] of topggVoteCache.entries()) {
-    if (!value || (now - Number(value.checkedAt || 0)) > TOPGG_FALLBACK_CACHE_MS) {
+    const ttl = value?.voted ? TOPGG_FALLBACK_POSITIVE_CACHE_MS : TOPGG_FALLBACK_NEGATIVE_CACHE_MS;
+    if (!value || (now - Number(value.checkedAt || 0)) > ttl) {
       topggVoteCache.delete(key);
     }
     if (topggVoteCache.size < TOPGG_FALLBACK_CACHE_MAX) break;
