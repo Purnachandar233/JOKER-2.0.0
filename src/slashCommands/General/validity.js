@@ -1,5 +1,5 @@
 const legacy = require("../../commands/special/validity.js");
-const { safeReply, safeDeferReply } = require("../../utils/interactionResponder");
+const { safeReply, safeDeferReply } = require("../../utils/interactionResponder.js");
 
 module.exports = {
   name: "validity",

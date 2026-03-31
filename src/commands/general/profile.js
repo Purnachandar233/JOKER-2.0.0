@@ -2,8 +2,8 @@ const { EmbedBuilder } = require("discord.js");
 
 const User = require("../../schema/User.js");
 const day = require("dayjs");
-const formatDuration = require("../../utils/formatDuration");
-const { resolvePremiumAccess } = require("../../utils/premiumAccess");
+const formatDuration = require("../../utils/formatDuration.js");
+const { resolvePremiumAccess } = require("../../utils/premiumAccess.js");
 
 const EMOJIS = require("../../utils/emoji.json");
 
@@ -58,7 +58,7 @@ function getBadgeLines(client, data) {
     let icon = EMOJIS.star || "*";
     if (definition.metric === "votes") icon = EMOJIS.vote || EMOJIS.star || "*";
     if (definition.metric === "songs") icon = EMOJIS.songs || EMOJIS.music || EMOJIS.star || "*";
-    if (definition.metric === "commands") icon = EMOJIS.music || EMOJIS.star || "*";
+    if (definition.metric === "commands") icon = EMOJIS.users || EMOJIS.star || "*";
 
     lines.push(`${icon} ${definition.label}`);
   }
@@ -179,7 +179,7 @@ module.exports = {
         ...(profileUser?.displayAvatarURL ? { iconURL: profileUser.displayAvatarURL({ forceStatic: false }) } : {}),
       })
       .addFields(
-        statField("Commands Used", `\`${userData.count || 0}\``, "music"),
+        statField("Commands Used", `\`${userData.count || 0}\``, "users"),
         statField("Songs Listened", `\`${userData.songsListened || 0}\``, "songs"),
         statField("Listen Time", `\`${totalListenTime}\``, "time"),
         {

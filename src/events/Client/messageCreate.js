@@ -246,8 +246,7 @@ module.exports = async (client, message) => {
         `Hey I am **${botName}** and my prefix is: \`${prefix}\``,
         `You can play music by joining a voice channel and running \`${prefix}play <song name>\`.`,
         `Run \`${prefix}help\` to view all of my commands.`
-      ].join("\n"))
-      .setFooter({ text: `${getEmoji(client, "support")} Need setup help? Open Support | Slash commands also work` });
+      ].join("\n"));
 
     const support = new ButtonBuilder()
       .setStyle(ButtonStyle.Link)
@@ -264,16 +263,6 @@ module.exports = async (client, message) => {
         .setLabel("Vote me ")
         .setURL(`https://top.gg/bot/${client.user.id}/vote`);
 
-    const privacy = new ButtonBuilder()
-      .setStyle(ButtonStyle.Link)
-      .setLabel("Privacy")
-      .setURL(legal.privacyPolicyUrl);
-
-    const terms = new ButtonBuilder()
-      .setStyle(ButtonStyle.Link)
-      .setLabel("Terms")
-      .setURL(legal.termsOfServiceUrl);
-
     const supportEmoji = getEmoji(client, "support");
     const inviteEmoji = getEmoji(client, "invite");
     const voteEmoji = getEmoji(client, "vote");
@@ -281,11 +270,10 @@ module.exports = async (client, message) => {
     try { if (inviteEmoji) invite.setEmoji(inviteEmoji); } catch (_e) {}
     try { if (voteEmoji) vote.setEmoji(voteEmoji); } catch (_e) {}
     const linkRow = new ActionRowBuilder().addComponents(support, invite, vote);
-    const legalRow = new ActionRowBuilder().addComponents(privacy, terms);
 
     return message.channel.send({
       embeds: [embed],
-      components: [linkRow, legalRow]
+      components: [linkRow]
     });
   }
 

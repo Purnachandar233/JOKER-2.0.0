@@ -360,6 +360,7 @@ function buildSearchPanel(query, tab, pageIndex, searchResult, embedColor, getEm
       const addButton = new ButtonBuilder()
         .setCustomId(`search_add_${index}`)
         .setLabel("Add")
+        .setEmoji(getEmoji("addsong"))
         .setStyle(ButtonStyle.Secondary)
         .setDisabled(disabled);
 
@@ -416,7 +417,7 @@ module.exports = {
     if (!voiceChannel) {
       const embed = new EmbedBuilder()
         .setColor(embedColor)
-        .setTitle(`${getEmoji("error")} Voice Channel Required`)
+        .setAuthor({ name: ` Voice Channel Required`, iconURL: message.member.displayAvatarURL({ dynamic: true }) })
         .setDescription(`${no} You must be connected to a voice channel to use this command.`);
       return message.channel.send({ embeds: [embed] });
     }
@@ -424,7 +425,7 @@ module.exports = {
     if (message.member?.voice?.selfDeaf) {
       const embed = new EmbedBuilder()
         .setColor(embedColor)
-        .setTitle(`${getEmoji("error")} Cannot Run While Deafened`)
+        .setAuthor({ name: ` Cannot Run While Deafened`, iconURL: message.member.displayAvatarURL({ dynamic: true }) })
         .setDescription(`${no} <@${message.member.id}> You cannot run this command while deafened.`);
       return message.channel.send({ embeds: [embed] });
     }
@@ -432,7 +433,7 @@ module.exports = {
     if (!client.lavalink) {
       const embed = new EmbedBuilder()
         .setColor(embedColor)
-        .setTitle(`${getEmoji("error")} Audio Backend Offline`)
+        .setAuthor({ name: ` Audio Backend Offline`, iconURL: message.member.displayAvatarURL({ dynamic: true }) })
         .setDescription(`${no} Lavalink is not connected yet. Please try again in a moment.`);
       return message.channel.send({ embeds: [embed] });
     }
@@ -444,7 +445,7 @@ module.exports = {
     if (player && voiceChannel.id !== player.voiceChannelId) {
       const embed = new EmbedBuilder()
         .setColor(embedColor)
-        .setTitle(`${getEmoji("error")} Wrong Voice Channel`)
+        .setAuthor({ name: ` Wrong Voice Channel`, iconURL: message.member.displayAvatarURL({ dynamic: true }) })
         .setDescription(`${no} You must be connected to the same voice channel as me.`);
       return message.channel.send({ embeds: [embed] });
     }
@@ -630,7 +631,7 @@ module.exports = {
       if (lowerQuery.includes("youtube.com") || lowerQuery.includes("youtu.be")) {
         const embed = new EmbedBuilder()
           .setColor(embedColor)
-          .setTitle(`${getEmoji("error")} Unsupported URL`)
+          .setAuthor({ name: `${getEmoji("error")} Unsupported URL`, iconURL: message.member.displayAvatarURL({ dynamic: true }) })
           .setDescription("YouTube links are not supported here. Use Spotify, SoundCloud, Bandcamp, or plain search text.");
         return message.channel.send({ embeds: [embed] });
       }
@@ -646,7 +647,7 @@ module.exports = {
         client.logger?.log?.(err?.stack || err?.message || String(err), "error");
         const embed = new EmbedBuilder()
           .setColor(embedColor)
-          .setTitle(`${getEmoji("error")} Search Failed`)
+          .setAuthor({ name: `${getEmoji("error")} Search Failed`, iconURL: message.member.displayAvatarURL({ dynamic: true }) })
           .setDescription(describeSearchFailure(searchAttempt));
         return message.channel.send({ embeds: [embed] });
       }
@@ -654,7 +655,7 @@ module.exports = {
       if (!searchResult?.tracks?.length) {
         const embed = new EmbedBuilder()
           .setColor(embedColor)
-          .setTitle(`${getEmoji("search")} No Results`)
+          .setAuthor({ name: `No Results`, iconURL: message.member.displayAvatarURL({ dynamic: true }) })
           .setDescription(`${ok} No tracks were found for that query.`);
         return message.channel.send({ embeds: [embed] });
       }

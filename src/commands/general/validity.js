@@ -1,7 +1,7 @@
 const { EmbedBuilder } = require("discord.js");
-const formatDuration = require("../../utils/formatDuration");
+const formatDuration = require("../../utils/formatDuration.js");
 const Premium = require("../../schema/Premium.js");
-const { safeReply } = require("../../utils/interactionResponder");
+const { safeReply } = require("../../utils/interactionResponder.js");
 const EMOJIS = require("../../utils/emoji.json");
 
 function isInteraction(ctx) {
