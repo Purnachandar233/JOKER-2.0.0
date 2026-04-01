@@ -1,4 +1,4 @@
-const { CommandInteraction, Client, EmbedBuilder } = require('discord.js');
+const { CommandInteraction, Client, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const { safeReply, safeDeferReply } = require('../../utils/interactionResponder');
 
 const EMOJIS = require("../../utils/emoji.json");
@@ -15,7 +15,7 @@ module.exports = {
     const ok = EMOJIS.ok;
     const no = EMOJIS.no;
 
-    if (!interaction.member.permissions.has('MANAGE_CHANNELS')) {
+    if (!interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
       const noperms = new EmbedBuilder()
         .setColor(interaction.client?.embedColor || '#ff0051')
         .setDescription(`${no} You need this required Permissions: \`MANAGE_CHANNELS\` to run this command.`);

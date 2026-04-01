@@ -1,4 +1,4 @@
-const { EmbedBuilder } = require("discord.js");
+const { EmbedBuilder, PermissionFlagsBits } = require("discord.js");
 const EMOJIS = require("../../utils/emoji.json");
 const { safeReply } = require("../../utils/interactionResponder");
 
@@ -16,10 +16,8 @@ async function sendResponse(ctx, payload) {
 
 function hasManageRoles(ctx) {
   return Boolean(
-    ctx?.member?.permissions?.has?.("ManageRoles") ||
-    ctx?.member?.permissions?.has?.("MANAGE_ROLES") ||
-    ctx?.member?.permissions?.has?.("Administrator") ||
-    ctx?.member?.permissions?.has?.("ADMINISTRATOR")
+    ctx?.member?.permissions?.has?.(PermissionFlagsBits.ManageRoles) ||
+    ctx?.member?.permissions?.has?.(PermissionFlagsBits.Administrator)
   );
 }
 

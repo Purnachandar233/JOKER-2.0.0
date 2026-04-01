@@ -390,7 +390,7 @@ module.exports = {
           }
         }
         try { player.set('suppressUntil', Date.now()); } catch (e) {}
-        if (!queuedMsg) {
+        if (shouldShowQueuedState && !queuedMsg) {
           queuedMsg = await message.channel.send({ embeds: [queuedTrackEmbed] }).catch(() => {});
         }
         return queuedMsg;

@@ -78,6 +78,42 @@ function logQueueEvent(client, message, level = "info") {
   } catch (_err) {}
 }
 
+function getChannelMention(channelId, fallback = "the voice channel") {
+  const id = String(channelId || "").trim();
+  return id ? `<#${id}>` : fallback;
+}
+
+async function getSlashCommandMention(client, commandName, fallback = null) {
+  const name = String(commandName || "").trim();
+  const fallbackText = fallback || (name ? `/${name}` : "/");
+  if (!name) return fallbackText;
+
+  const cache = client
+    ? (client.__slashCommandMentionCache ||= new Map())
+    : null;
+  const cached = cache?.get(name);
+  if (cached) return cached;
+
+  const appCommands = client?.application?.commands;
+  if (!appCommands) return fallbackText;
+
+  let command = appCommands.cache?.find?.((entry) => entry.name === name) || null;
+
+  if (!command && typeof appCommands.fetch === "function") {
+    const fetched = await appCommands.fetch().catch(() => null);
+    command =
+      fetched?.find?.((entry) => entry.name === name) ||
+      appCommands.cache?.find?.((entry) => entry.name === name) ||
+      null;
+  }
+
+  if (!command?.id) return fallbackText;
+
+  const mention = `</${command.name}:${command.id}>`;
+  cache?.set(name, mention);
+  return mention;
+}
+
 async function resolveTextChannel(client, channelId, fallbackChannelId = null) {
   const targetChannelId = channelId || fallbackChannelId || null;
   if (!targetChannelId) return null;
@@ -384,16 +420,25 @@ async function sendQueueEndNotice(client, player, textChannel, offer = null) {
   }
 }
 
-function buildQueueLeaveEmbed(client) {
+function buildQueueLeaveEmbed(client, options = {}) {
+  const voiceMention = options.voiceMention || "the voice channel";
+  const commandMention = options.commandMention || "/247";
+
   return new EmbedBuilder()
     .setColor(client?.embedColor || EMBED_COLOR)
     .setAuthor({ name: "Leaving Voice Channel!", iconURL: client.user.displayAvatarURL() })
-    .setDescription(`Since ${IDLE_LEAVE_LABEL} nobody is listening, I've left the voice channel. Want the bot to stay in your channel all the time? Use the /247 command!`);
+    .setDescription(
+      `Since nobody listened in ${voiceMention} for ${IDLE_LEAVE_LABEL}, I've left ${voiceMention}. Want me to stay there all the time? Use the ${commandMention} command!`
+    );
 }
 
-async function sendQueueLeaveNotice(client, player, fallbackChannel = null) {
-  const leaveEmbed = buildQueueLeaveEmbed(client);
+async function sendQueueLeaveNotice(client, player, fallbackChannel = null, voiceChannel = null) {
   const textChannel = (await resolveTextChannel(client, player.textChannelId, player?.options?.textChannelId)) || fallbackChannel;
+  const voiceChannelId = voiceChannel?.id || player?.voiceChannelId || player?.options?.voiceChannelId || null;
+  const voiceMention = getChannelMention(voiceChannelId);
+  const commandMention = await getSlashCommandMention(client, "247");
+  const leaveEmbed = buildQueueLeaveEmbed(client, { voiceMention, commandMention });
+  const fallbackText = `Leaving ${voiceMention}: queue ended and no listeners stayed for ${IDLE_LEAVE_LABEL}. Use the ${commandMention} command to keep me connected there.`;
 
   if (!textChannel) {
     logQueueEvent(client,
@@ -407,7 +452,7 @@ async function sendQueueLeaveNotice(client, player, fallbackChannel = null) {
     return true;
   } catch (_embedErr) {
     try {
-      await textChannel.send(`Leaving voice channel: queue ended, 24/7 is off, and no listeners stayed for ${IDLE_LEAVE_LABEL}.`);
+      await textChannel.send(fallbackText);
       return true;
     } catch (plainErr) {
       logQueueEvent(client,
@@ -510,7 +555,7 @@ module.exports = async (client, player, track, payload) => {
         return;
       }
 
-      await sendQueueLeaveNotice(client, player, channel);
+      await sendQueueLeaveNotice(client, player, channel, voiceChannel);
 
       const keysToClear = ["autoplay", "requester", "identifier", "playingsongmsg", "suppressUntil", "suppressQueueEndNoticeUntil"];
       for (const key of keysToClear) {

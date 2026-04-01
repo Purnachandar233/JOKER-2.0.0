@@ -17,6 +17,50 @@ function normalizeUserId(userId) {
   return value || null;
 }
 
+function resolveTopggStatusCode(error) {
+  const statusCode = Number(error?.response?.statusCode || error?.statusCode || 0);
+  return Number.isFinite(statusCode) && statusCode > 0 ? statusCode : null;
+}
+
+function classifyTopggFetchFailure(error) {
+  const statusCode = resolveTopggStatusCode(error);
+  const errorMessage = String(error?.message || error || "Unknown Top.gg error").trim() || "Unknown Top.gg error";
+
+  if (/missing token/i.test(errorMessage)) {
+    return {
+      status: "missing_token",
+      retryable: false,
+      errorCode: statusCode,
+      errorMessage,
+    };
+  }
+
+  if (statusCode === 401 || statusCode === 403) {
+    return {
+      status: "auth_error",
+      retryable: false,
+      errorCode: statusCode,
+      errorMessage,
+    };
+  }
+
+  if (statusCode === 404) {
+    return {
+      status: "endpoint_unavailable",
+      retryable: false,
+      errorCode: statusCode,
+      errorMessage,
+    };
+  }
+
+  return {
+    status: "failed",
+    retryable: true,
+    errorCode: statusCode,
+    errorMessage,
+  };
+}
+
 async function grantTopggVotePremiumWindow(userId, options = {}) {
   const now = Number.isFinite(Number(options.now)) ? Number(options.now) : Date.now();
   const allowExtension = options.allowExtension !== false;
@@ -223,20 +267,39 @@ async function reconcileRecentTopggVotes(client, options = {}) {
       recorded: 0,
       alreadyRecorded: 0,
       errors: 0,
+      retryable: false,
+      errorCode: null,
+      errorMessage: "Top.gg vote history API is not configured.",
     };
   }
 
   const source = String(options.source || "reconcile");
   const now = Number.isFinite(Number(options.now)) ? Number(options.now) : Date.now();
-  const votes = await client.topgg.getVotes().catch(() => null);
+  let votes = null;
 
-  if (!Array.isArray(votes)) {
+  try {
+    votes = await client.topgg.getVotes();
+  } catch (error) {
+    const failure = classifyTopggFetchFailure(error);
     return {
-      status: "failed",
+      ...failure,
       processed: 0,
       recorded: 0,
       alreadyRecorded: 0,
       errors: 1,
+    };
+  }
+
+  if (!Array.isArray(votes)) {
+    return {
+      status: "unexpected_response",
+      processed: 0,
+      recorded: 0,
+      alreadyRecorded: 0,
+      errors: 1,
+      retryable: false,
+      errorCode: null,
+      errorMessage: `Unexpected Top.gg votes response type: ${typeof votes}`,
     };
   }
 
@@ -272,6 +335,9 @@ async function reconcileRecentTopggVotes(client, options = {}) {
     recorded,
     alreadyRecorded,
     errors,
+    retryable: true,
+    errorCode: null,
+    errorMessage: "",
   };
 }
 

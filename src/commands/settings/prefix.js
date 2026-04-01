@@ -1,4 +1,4 @@
-const { EmbedBuilder } = require("discord.js");
+const { EmbedBuilder, PermissionFlagsBits } = require("discord.js");
 const db = require("../../schema/prefix.js");
 const { safeReply } = require("../../utils/interactionResponder");
 
@@ -16,10 +16,8 @@ async function sendResponse(ctx, payload) {
 
 function hasManageGuildPermission(ctx) {
   return Boolean(
-    ctx?.member?.permissions?.has?.("ManageGuild") ||
-    ctx?.member?.permissions?.has?.("MANAGE_GUILD") ||
-    ctx?.member?.permissions?.has?.("Administrator") ||
-    ctx?.member?.permissions?.has?.("ADMINISTRATOR")
+    ctx?.member?.permissions?.has?.(PermissionFlagsBits.ManageGuild) ||
+    ctx?.member?.permissions?.has?.(PermissionFlagsBits.Administrator)
   );
 }
 

@@ -1,4 +1,4 @@
-const { CommandInteraction, Client, EmbedBuilder } = require("discord.js");
+const { CommandInteraction, Client, EmbedBuilder, PermissionFlagsBits } = require("discord.js");
 const PrefixSchema = require('../../../src/schema/prefix.js');
 const { safeReply, safeDeferReply } = require('../../utils/interactionResponder');
 
@@ -25,7 +25,10 @@ module.exports = {
     if (!deferred) return safeReply(interaction, { content: 'Failed to defer reply.' });
 
     // Require Manage Server or Administrator
-    if (!interaction.member.permissions.has('MANAGE_GUILD') && !interaction.member.permissions.has('ADMINISTRATOR')) {
+    if (
+      !interaction.member.permissions.has(PermissionFlagsBits.ManageGuild) &&
+      !interaction.member.permissions.has(PermissionFlagsBits.Administrator)
+    ) {
       const noperms = new EmbedBuilder()
         .setColor(client?.embedColor || '#ff0051')
         .setDescription('*You need the `Manage Server` or `Administrator` permission to change the prefix.*');

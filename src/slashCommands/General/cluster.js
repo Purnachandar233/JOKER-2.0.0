@@ -1,5 +1,5 @@
 const { Client, CommandInteraction, EmbedBuilder } = require('discord.js');
-const legacy = require('../../commands/general/cluster.js');
+const legacy = require('../../commands/owner/cluster.js');
 
 
 module.exports = {

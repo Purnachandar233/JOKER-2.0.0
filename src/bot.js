@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ quiet: true });
 const crypto = require("node:crypto");
 const { Client, GatewayIntentBits, Partials, Collection, ActivityType, Options } = require("discord.js");
 const express = require("express");
@@ -154,13 +154,7 @@ const client = new Client({
         GatewayIntentBits.GuildMembers
     ],
     allowedMentions: { parse: ['users', 'roles'], repliedUser: false },
-        presence: {
-            status:'online',
-            activities: [{
-                name: `Music | =help`,
-                type: ActivityType.Listening,
-            }]
-        },
+        
     partials: [Partials.Message, Partials.Channel, Partials.Reaction, Partials.GuildMember],
     makeCache: Options.cacheWithLimits({
         ...Options.DefaultMakeCacheSettings,
@@ -228,8 +222,8 @@ const configuredTopggWebhookAuth = String(process.env.TOPGG_WEBHOOK_AUTH || "").
 const explicitTopggWebhookV2Secret = String(process.env.TOPGG_WEBHOOK_V2_SECRET || process.env.TOPGG_WEBHOOK_SECRET || "").trim();
 const topggWebhookV2Secret = explicitTopggWebhookV2Secret || (configuredTopggWebhookAuth.startsWith("whs_") ? configuredTopggWebhookAuth : "");
 const topggWebhookAuth = topggWebhookV2Secret === configuredTopggWebhookAuth ? "" : configuredTopggWebhookAuth;
-const parsedTopggPort = Number(process.env.TOPGG_WEBHOOK_PORT || process.env.PORT || 12952);
-const topggPort = Number.isInteger(parsedTopggPort) && parsedTopggPort > 0 ? parsedTopggPort : 12952;
+const parsedTopggPort = Number(process.env.TOPGG_WEBHOOK_PORT || process.env.PORT || 9596);
+const topggPort = Number.isInteger(parsedTopggPort) && parsedTopggPort > 0 ? parsedTopggPort : 9596;
 const topggHost = String(process.env.TOPGG_WEBHOOK_HOST || "0.0.0.0").trim() || "0.0.0.0";
 
 if (topggWebhookAuth || topggWebhookV2Secret) {

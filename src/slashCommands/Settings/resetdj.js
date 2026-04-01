@@ -1,4 +1,4 @@
-const { CommandInteraction, Client, EmbedBuilder } = require("discord.js");
+const { CommandInteraction, Client, EmbedBuilder, PermissionFlagsBits } = require("discord.js");
 const dSchema = require('../../../src/schema/djroleSchema.js');
 const { safeReply, safeDeferReply } = require('../../utils/interactionResponder');
 
@@ -17,7 +17,10 @@ module.exports = {
     const deferred = await safeDeferReply(interaction, { ephemeral: false });
     if (!deferred) return safeReply(interaction, { content: 'Failed to defer reply.' });
 
-    if (!interaction.member.permissions.has('MANAGE_ROLES') && !interaction.member.permissions.has('ADMINISTRATOR')) {
+    if (
+      !interaction.member.permissions.has(PermissionFlagsBits.ManageRoles) &&
+      !interaction.member.permissions.has(PermissionFlagsBits.Administrator)
+    ) {
       const noperms = new EmbedBuilder()
         .setColor(client?.embedColor || '#ff0051')
         .setDescription('*You need the `Manage Roles` or `Administrator` permission to reset the DJ role.*');

@@ -1,4 +1,4 @@
-const { CommandInteraction, Client, EmbedBuilder } = require("discord.js");
+const { CommandInteraction, Client, EmbedBuilder, PermissionFlagsBits } = require("discord.js");
 
 const EMOJIS = require("../../utils/emoji.json");
 module.exports = {
@@ -31,7 +31,7 @@ module.exports = {
     let ok = EMOJIS.ok;
     let no = EMOJIS.no;
 
-        if (!interaction.member.permissions.has('MANAGE_ROLES')) {
+        if (!interaction.member.permissions.has(PermissionFlagsBits.ManageRoles)) {
             const noperms = new EmbedBuilder()
            .setColor(interaction.client?.embedColor || '#ff0051')
            .setDescription(`You need this required Permissions: \`MANAGE_ROLES\` to run this command.`)

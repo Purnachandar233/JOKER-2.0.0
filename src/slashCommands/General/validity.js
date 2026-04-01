@@ -1,4 +1,4 @@
-const legacy = require("../../commands/special/validity.js");
+const legacy = require("../../commands/general/validity.js");
 const { safeReply, safeDeferReply } = require("../../utils/interactionResponder.js");
 
 module.exports = {

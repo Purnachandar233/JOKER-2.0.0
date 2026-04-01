@@ -199,23 +199,19 @@ module.exports = async (client, player, track) => {
         `${songLine}\n\`${isStream ? "LIVE" : convertTime(duration)}\n\`Requested by ${requestedBy}`
       );
 
-    let msg = null;
-    const oldMessageChannelId = oldMsg?.channelId || oldMsg?.channel?.id || null;
-
-    if (oldMsg && typeof oldMsg.edit === "function" && (!oldMessageChannelId || oldMessageChannelId === channel.id)) {
-      msg = await oldMsg.edit({ embeds: [embed], components: [primaryRow, secondaryRow] }).catch(() => null);
-    }
-
-    if (!msg) {
-      msg = await channel.send({ embeds: [embed], components: [primaryRow, secondaryRow] }).catch(async (error) => {
-        client.logger?.log(`Failed to send track start embed in guild ${player.guildId}: ${error.message}`, "error");
-        return channel.send(`${EMOJIS.music || "[M]"} Now Playing: ${title}`).catch(() => null);
-      });
-    }
+    const previousMessageId = oldMsg?.id || null;
+    const msg = await channel.send({ embeds: [embed], components: [primaryRow, secondaryRow] }).catch(async (error) => {
+      client.logger?.log(`Failed to send track start embed in guild ${player.guildId}: ${error.message}`, "error");
+      return channel.send(`${EMOJIS.music || "[M]"} Now Playing: ${title}`).catch(() => null);
+    });
 
     if (!msg) {
       client.logger?.log(`Track start message failed to send in guild ${player.guildId}`, "error");
       return;
+    }
+
+    if (oldMsg && previousMessageId !== msg.id && typeof oldMsg.delete === "function") {
+      await oldMsg.delete().catch(() => {});
     }
 
     if (typeof player.set === "function") {

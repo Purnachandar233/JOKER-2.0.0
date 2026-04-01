@@ -276,19 +276,22 @@ module.exports = {
           client.logger?.log(`Failed to play track in guild ${interaction.guildId}: ${e.message}`, 'error');
           return await interaction.editReply({ embeds: [new EmbedBuilder().setColor((typeof interaction !== 'undefined' && interaction?.client?.embedColor) || (typeof client !== 'undefined' && client?.embedColor) || (typeof client !== 'undefined' && client.config?.embedColor) || '#ff0051').setDescription("Failed to start playback. Please try again.")] }).catch(err => client.logger?.log(`editReply failed (failed to play track): ${err?.message || err}`, 'warn'));
         }
+        if (!shouldShowQueuedState) {
+          return await interaction.deleteReply().catch(async (err) => {
+            client.logger?.log(`deleteReply failed (track started): ${err?.message || err}`, 'warn');
+            return interaction.editReply({ content: "Playback started." }).catch(() => {});
+          });
+        }
+
         const queuedTrackTitle = client.core.queue.formatQueueTrackTitle(s.tracks[0], 75);
         const queuedTrackLength = client.core.queue.formatTrackLength(s.tracks[0]);
         const embed = new EmbedBuilder()
           .setColor((typeof interaction !== 'undefined' && interaction?.client?.embedColor) || (typeof client !== 'undefined' && client?.embedColor) || (typeof client !== 'undefined' && client.config?.embedColor) || '#ff0051')
           .setAuthor({
-            name: shouldShowQueuedState ? `Track queued - Position #${queuePosition}` : "Now playing",
+            name: `Track queued - Position #${queuePosition}`,
             iconURL: interaction.member?.displayAvatarURL?.({ forceStatic: false, size: 256 }) || interaction.user.displayAvatarURL({ forceStatic: false, size: 256 }),
           })
-          .setDescription(
-            shouldShowQueuedState
-              ? `Added ${queuedTrackTitle} \`${queuedTrackLength}\` to the queue`
-              : `Started ${queuedTrackTitle} \`${queuedTrackLength}\``
-          );
+          .setDescription(`Added ${queuedTrackTitle} \`${queuedTrackLength}\` to the queue`);
         return await interaction.editReply({ embeds: [embed] }).catch(err => client.logger?.log(`editReply failed (track queued): ${err?.message || err}`, 'warn'));
     }
   },

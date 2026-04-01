@@ -85,7 +85,7 @@ module.exports = {
 
     const embed = new EmbedBuilder()
       .setColor(embedColor)
-      .setTitle(`${getEmoji("server")} Node Status`)
+      .setAuthor({ name: ` Node Status`, iconURL: client?.user?.displayAvatarURL() })
       .setDescription(`\`\`\`asciidoc\n${blocks.join("\n\n")}\n\`\`\``);
 
     return message.reply({ embeds: [embed], allowedMentions: { repliedUser: false } });

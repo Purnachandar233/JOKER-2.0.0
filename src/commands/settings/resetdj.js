@@ -1,4 +1,4 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder } = require("discord.js");
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, PermissionFlagsBits } = require("discord.js");
 const twentyfourseven = require("../../schema/twentyfourseven")
 
 const EMOJIS = require("../../utils/emoji.json");
@@ -13,7 +13,7 @@ module.exports = {
     let no = EMOJIS.no;
 
 
-    if (!message.member.permissions.has('MANAGE_ROLES')) {
+    if (!message.member.permissions.has(PermissionFlagsBits.ManageRoles)) {
         const noperms = new EmbedBuilder()
        .setColor(message.client?.embedColor || '#ff0051')
        .setDescription(`${no} You need this required Permissions: \`MANAGE_ROLES\` to run this command.`)

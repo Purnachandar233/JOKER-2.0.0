@@ -1,4 +1,4 @@
-const { EmbedBuilder } = require("discord.js");
+const { EmbedBuilder, PermissionFlagsBits } = require("discord.js");
 
 const EMOJIS = require("../../utils/emoji.json");
 const VALID_REGIONS = [
@@ -19,7 +19,7 @@ module.exports = {
     const ok = EMOJIS.ok;
     const no = EMOJIS.no;
 
-    if (!message.member.permissions.has("MANAGE_CHANNELS")) {
+    if (!message.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
       const embed = new EmbedBuilder()
         .setColor(embedColor)
         .setTitle(`${getEmoji("error")} Missing Permission`)

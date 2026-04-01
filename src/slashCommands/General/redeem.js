@@ -1,4 +1,4 @@
-const legacy = require("../../commands/special/redeem.js");
+const legacy = require("../../commands/general/redeem.js");
 const { safeReply, safeDeferReply } = require("../../utils/interactionResponder.js");
 
 module.exports = {

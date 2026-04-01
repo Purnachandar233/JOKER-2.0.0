@@ -43,6 +43,28 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function formatTopggRecoverySummary(result) {
+  const summary = `processed=${result.processed}, recorded=${result.recorded}, alreadyRecorded=${result.alreadyRecorded}, errors=${result.errors}`;
+  if (result.status === "ok") return summary;
+
+  const details = [`status=${result.status}`];
+  if (result.errorCode) details.push(`code=${result.errorCode}`);
+  if (result.errorMessage) details.push(`reason=${oneLine(result.errorMessage)}`);
+  return `${summary} | ${details.join(" | ")}`;
+}
+
+function stopTopggRecovery(client) {
+  if (client.topggVoteStartupRecoveryTimer) {
+    clearTimeout(client.topggVoteStartupRecoveryTimer);
+    client.topggVoteStartupRecoveryTimer = null;
+  }
+
+  if (client.topggVoteRecoveryTimer) {
+    clearInterval(client.topggVoteRecoveryTimer);
+    client.topggVoteRecoveryTimer = null;
+  }
+}
+
 function toBoolean(value, fallback = false) {
   if (typeof value === "boolean") return value;
   if (typeof value === "string") {
@@ -543,17 +565,38 @@ module.exports = async (client) => {
 
   if (client.topgg && typeof client.topgg.getVotes === "function" && !client.topggVoteRecoveryTimer) {
     const runTopggRecovery = async (source = "reconcile") => {
-      if (client.topggVoteRecoveryInFlight) return;
+      if (client.topggVoteRecoveryInFlight || client.topggVoteRecoveryDisabledReason) return;
       client.topggVoteRecoveryInFlight = true;
 
       try {
         const result = await reconcileRecentTopggVotes(client, { source });
-        if (source === "startup_reconcile" || result.recorded > 0 || result.errors > 0) {
+        const failureKey = result.status === "ok"
+          ? ""
+          : `${result.status}:${result.errorCode || ""}:${result.errorMessage || ""}`;
+        const repeatedFailure = Boolean(failureKey) && client.topggVoteRecoveryLastFailureKey === failureKey;
+
+        if (result.status === "ok") {
+          client.topggVoteRecoveryLastFailureKey = "";
+        } else {
+          client.topggVoteRecoveryLastFailureKey = failureKey;
+        }
+
+        const shouldLogResult = result.status === "ok"
+          ? (source === "startup_reconcile" || result.recorded > 0 || result.errors > 0)
+          : (source === "startup_reconcile" || !repeatedFailure);
+
+        if (shouldLogResult) {
           log(
             client,
-            `[TOPGG] ${source}: processed=${result.processed}, recorded=${result.recorded}, alreadyRecorded=${result.alreadyRecorded}, errors=${result.errors}`,
-            result.errors > 0 ? "warn" : "info"
+            `[TOPGG] ${source}: ${formatTopggRecoverySummary(result)}`,
+            result.status === "ok" && result.errors === 0 ? "info" : "warn"
           );
+        }
+
+        if (result.status !== "ok" && result.retryable === false && !client.topggVoteRecoveryDisabledReason) {
+          client.topggVoteRecoveryDisabledReason = oneLine(result.errorMessage || result.status || "disabled");
+          stopTopggRecovery(client);
+          log(client, `[TOPGG] Vote recovery disabled: ${client.topggVoteRecoveryDisabledReason}`, "warn");
         }
       } catch (error) {
         log(client, `[TOPGG] ${source} failed: ${error?.message || error}`, "warn");

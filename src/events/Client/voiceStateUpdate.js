@@ -18,6 +18,42 @@ const INACTIVITY_DISCONNECT_MS = toPositiveNumber(process.env.VOICE_EMPTY_DISCON
 const INACTIVITY_DISCONNECT_MINUTES = Math.max(1, Math.round(INACTIVITY_DISCONNECT_MS / 60_000));
 const INACTIVITY_DISCONNECT_LABEL = `${INACTIVITY_DISCONNECT_MINUTES} minute${INACTIVITY_DISCONNECT_MINUTES === 1 ? "" : "s"}`;
 
+function getChannelMention(channelId, fallback = "the voice channel") {
+  const id = String(channelId || "").trim();
+  return id ? `<#${id}>` : fallback;
+}
+
+async function getSlashCommandMention(client, commandName, fallback = null) {
+  const name = String(commandName || "").trim();
+  const fallbackText = fallback || (name ? `/${name}` : "/");
+  if (!name) return fallbackText;
+
+  const cache = client
+    ? (client.__slashCommandMentionCache ||= new Map())
+    : null;
+  const cached = cache?.get(name);
+  if (cached) return cached;
+
+  const appCommands = client?.application?.commands;
+  if (!appCommands) return fallbackText;
+
+  let command = appCommands.cache?.find?.((entry) => entry.name === name) || null;
+
+  if (!command && typeof appCommands.fetch === "function") {
+    const fetched = await appCommands.fetch().catch(() => null);
+    command =
+      fetched?.find?.((entry) => entry.name === name) ||
+      appCommands.cache?.find?.((entry) => entry.name === name) ||
+      null;
+  }
+
+  if (!command?.id) return fallbackText;
+
+  const mention = `</${command.name}:${command.id}>`;
+  cache?.set(name, mention);
+  return mention;
+}
+
 function playerHasActiveQueue(player) {
   const hasCurrentTrack = Boolean(player?.queue?.current);
   const hasUpcomingTracks = Array.isArray(player?.queue?.tracks) && player.queue.tracks.length > 0;
@@ -88,18 +124,28 @@ function getHumanListenerCount(guild, voiceChannelId, voiceChannel = null) {
   return 0;
 }
 
-function buildQueueEndLeaveEmbed(client) {
+function buildQueueEndLeaveEmbed(client, options = {}) {
+  const voiceMention = options.voiceMention || "the voice channel";
+  const commandMention = options.commandMention || "/247";
+
   return new EmbedBuilder()
     .setColor(client?.embedColor || EMBED_COLOR)
     .setAuthor({ name: "Leaving Voice Channel!", iconURL: client.user.displayAvatarURL() })
-    .setDescription(`Since ${QUEUE_END_IDLE_LABEL} nobody is listening, I've left the voice channel. Want the bot to stay in your channel all the time? Use the /247 command!`);
+    .setDescription(
+      `Since nobody listened in ${voiceMention} for ${QUEUE_END_IDLE_LABEL}, I've left ${voiceMention}. Want me to stay there all the time? Use the ${commandMention} command!`
+    );
 }
 
-function buildInactivityEmbed(client) {
+function buildInactivityEmbed(client, options = {}) {
+  const voiceMention = options.voiceMention || "the voice channel";
+  const commandMention = options.commandMention || "/247";
+
   return new EmbedBuilder()
     .setColor(client?.embedColor || EMBED_COLOR)
     .setAuthor({ name: "Disconnected Due To Inactivity!", iconURL: client.user.displayAvatarURL() })
-    .setDescription(`I left the voice channel because no listeners remained for ${INACTIVITY_DISCONNECT_LABEL}.\nEnable 24/7 mode to keep me connected.`);
+    .setDescription(
+      `I left ${voiceMention} because no listeners remained there for ${INACTIVITY_DISCONNECT_LABEL}.\nUse the ${commandMention} command to keep me connected there.`
+    );
 }
 
 async function sendLeaveNotice(client, player, embed, fallbackText) {
@@ -175,11 +221,13 @@ module.exports = async (client, oldState, newState) => {
       const queueEndTimerActive = Boolean(client.__queueEndLeaveTimers?.has?.(newState.guild.id));
       if (queueEndTimerActive && !playerHasActiveQueue(player)) {
         clearQueueEndLeaveTimer(client, newState.guild.id);
+        const voiceMention = getChannelMention(oldState.channelId || player?.voiceChannelId || player?.options?.voiceChannelId);
+        const commandMention = await getSlashCommandMention(client, "247");
         await sendLeaveNotice(
           client,
           player,
-          buildQueueEndLeaveEmbed(client),
-          `Leaving voice channel: queue ended, 24/7 is off, and no listeners stayed for ${QUEUE_END_IDLE_LABEL}.`
+          buildQueueEndLeaveEmbed(client, { voiceMention, commandMention }),
+          `Leaving ${voiceMention}: queue ended and no listeners stayed for ${QUEUE_END_IDLE_LABEL}. Use the ${commandMention} command to keep me connected there.`
         );
       }
 
@@ -229,11 +277,13 @@ module.exports = async (client, oldState, newState) => {
   const stillEmpty = getHumanListenerCount(guild, refreshedBotChannelId, refreshedChannel) === 0;
   if (!stillEmpty) return;
 
+  const voiceMention = getChannelMention(refreshedBotChannelId);
+  const commandMention = await getSlashCommandMention(client, "247");
   await sendLeaveNotice(
     client,
     player,
-    buildInactivityEmbed(client),
-    `Leaving voice channel because no listeners remained for ${INACTIVITY_DISCONNECT_LABEL}. Enable 24/7 mode to keep me connected.`
+    buildInactivityEmbed(client, { voiceMention, commandMention }),
+    `Leaving ${voiceMention} because no listeners remained for ${INACTIVITY_DISCONNECT_LABEL}. Use the ${commandMention} command to keep me connected there.`
   );
   await player.destroy().catch(() => {});
 };
